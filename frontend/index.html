@@ -1,0 +1,287 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Template Open Edition</title>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 40px;
+      background: #101010;
+      color: #ffffff;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    #app {
+      max-width: 1100px;
+      margin: auto;
+    }
+
+    h1 { margin-top: 0; }
+
+    .panel {
+      margin-bottom: 16px;
+      padding: 12px;
+      background: #1b1b1b;
+      border-radius: 8px;
+    }
+
+    button {
+      padding: 10px 16px;
+      margin-right: 8px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    .status-success { color: #6dd96d; }
+    .status-error { color: #ff6b6b; }
+
+    /* --------------------------------------------------------
+       LAYOUT
+    -------------------------------------------------------- */
+
+    .registry-layout {
+      display: flex;
+      gap: 24px;
+      margin-top: 24px;
+    }
+
+    /* --------------------------------------------------------
+       SIDEBAR
+    -------------------------------------------------------- */
+
+    .sidebar {
+      width: 200px;
+      flex-shrink: 0;
+    }
+
+    .sidebar-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #666;
+      margin-bottom: 8px;
+      padding-left: 4px;
+    }
+
+    .sidebar-item {
+      padding: 10px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      color: #aaa;
+      font-size: 14px;
+      margin-bottom: 4px;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .sidebar-item:hover {
+      background: #1f1f1f;
+      color: #fff;
+    }
+
+    .sidebar-item.active {
+      background: #1f1f1f;
+      border-color: #444;
+      color: #fff;
+    }
+
+    .sidebar-divider {
+      border-top: 1px solid #2a2a2a;
+      margin: 16px 0;
+    }
+
+    .sidebar-filter-group {
+      margin-bottom: 12px;
+    }
+
+    .sidebar-filter-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #666;
+      margin-bottom: 4px;
+      padding-left: 4px;
+    }
+
+    .sidebar-filter-item {
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      color: #aaa;
+      font-size: 13px;
+      margin-bottom: 2px;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .sidebar-filter-item:hover {
+      background: #1f1f1f;
+      color: #fff;
+    }
+
+    .sidebar-filter-item.active {
+      background: #512da8;
+      border-color: #512da8;
+      color: #fff;
+    }
+
+    .sidebar-clear {
+      font-size: 11px;
+      color: #555;
+      cursor: pointer;
+      padding: 6px 12px;
+      margin-top: 8px;
+    }
+
+    .sidebar-clear:hover {
+      color: #aaa;
+    }
+
+    /* --------------------------------------------------------
+       DROP PANEL
+    -------------------------------------------------------- */
+
+    .drop-panel {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .drops {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+    }
+
+    .drop {
+      background: #1f1f1f;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .drop img {
+      width: 100%;
+      border-radius: 6px;
+      margin-bottom: 10px;
+    }
+
+    .drop-name {
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .drop-desc {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 8px;
+    }
+
+    .drop-attrs-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #666;
+      margin-bottom: 4px;
+    }
+
+    .drop-attrs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 10px;
+    }
+
+    .drop-attr {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #2a2a2a;
+      color: #888;
+      border: 1px solid #333;
+    }
+
+    .drop-price {
+      color: #aaa;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+
+    .drop-minted {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 6px;
+    }
+
+    .drop-status {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 10px;
+    }
+
+    .drop-mint-btn {
+      width: 100%;
+      padding: 10px;
+      background: #512da8;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 0;
+    }
+
+    .drop-mint-btn:hover:not(:disabled) {
+      background: #6a3fcb;
+    }
+
+    .drop-mint-btn:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    .empty {
+      color: #555;
+      font-size: 14px;
+      padding: 24px 0;
+    }
+  </style>
+</head>
+
+<body>
+
+<div id="app">
+
+  <h1>Template Open Edition</h1>
+
+  <div id="wallet" class="panel">
+    Wallet: Not connected
+  </div>
+
+  <div id="status" class="panel">
+    Ready
+  </div>
+
+  <div class="panel">
+    <button data-action="connect-wallet">Connect Wallet</button>
+    <button data-action="disconnect-wallet">Disconnect</button>
+  </div>
+
+  <div id="registry" class="registry-layout">
+    <p>Loading registry...</p>
+  </div>
+
+</div>
+
+<script type="module" src="/src/main.ts"></script>
+
+</body>
+</html>

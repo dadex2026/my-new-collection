@@ -1,0 +1,33 @@
+{
+  "registry": {
+    "requiredFields": [
+      "collectionSlug",
+      "collectionName",
+      "minted",
+      "maxSupply",
+      "supplyType",
+      "status"
+    ],
+
+    "rules": {
+      "maxSupply": {
+        "type": ["number", "null"],
+        "forbiddenValues": ["∞", "infinity", "INF"],
+        "nullMeans": "open"
+      },
+
+      "minted": {
+        "type": "number",
+        "min": 0
+      },
+
+      "supplyType": {
+        "allowed": ["open", "limited"]
+      },
+
+      "status": {
+        "allowed": ["initialized", "active", "paused", "complete"]
+      }
+    }
+  }
+}
