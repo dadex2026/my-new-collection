@@ -1,0 +1,43 @@
+{
+  "generatedAt": "2026-07-21T21:19:29.327Z",
+  "collections": {
+    "sample-collection": {
+      "slug": "sample-collection",
+      "name": "Sample Collection",
+      "description": "Example row for guidance - copy this pattern and replace every value with your own",
+      "image": "https://placehold.co/600x400?text=Sample+Collection",
+      "externalUrl": "https://example.com",
+      "collectionAddress": ""
+    }
+  },
+  "drops": {
+    "SAMPLE-001": {
+      "collectionKey": "sample-collection",
+      "dropItemId": "SAMPLE-001",
+      "itemName": "Sample Item #1",
+      "itemDescription": "Example drop - copy this pattern and replace every value",
+      "itemImage": "https://placehold.co/400x400?text=Sample+Item",
+      "itemExternalUrl": "https://example.com/sample-001",
+      "sellerFeeBasisPoints": 500,
+      "attributes": [
+        {
+          "trait_type": "Trait",
+          "value": "Example"
+        },
+        {
+          "trait_type": "Category",
+          "value": "Sample"
+        }
+      ],
+      "maxSupply": null,
+      "price": 0.01,
+      "status": "ready",
+      "uri": "",
+      "collectionAddress": "",
+      "candyMachineAddress": "",
+      "treasury": "",
+      "network": "",
+      "minted": null
+    }
+  }
+}
