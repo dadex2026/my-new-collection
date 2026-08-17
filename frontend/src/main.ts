@@ -1,8 +1,9 @@
-import { loadRegistry, loadCampaigns } from "./registry/adapter";
+import { loadRegistry, loadCampaigns, loadTextCards } from "./registry/adapter";
 import { initUIEngine } from "./ui.engine";
 import { connectWallet, disconnectWallet, autoReconnect } from "./wallet";
 import { mint } from "./mint";
 import { claimCampaign } from "./campaign";
+
 // ------------------------------------------------------------
 // BUTTON BINDING
 // ------------------------------------------------------------
@@ -13,6 +14,7 @@ function bindButtons() {
     const action = (target as HTMLElement).dataset.action;
     const dropId = (target as HTMLElement).dataset.dropId;
     const campaignId = (target as HTMLElement).dataset.campaignId;
+
     switch (action) {
       case "connect-wallet":
         await connectWallet();
@@ -29,6 +31,7 @@ function bindButtons() {
     }
   });
 }
+
 // ------------------------------------------------------------
 // BOOTSTRAP
 // ------------------------------------------------------------
@@ -39,6 +42,8 @@ async function bootstrap() {
   await autoReconnect();
   await loadRegistry();
   await loadCampaigns();
+  await loadTextCards();
   console.log("? READY");
 }
+
 window.addEventListener("load", bootstrap);

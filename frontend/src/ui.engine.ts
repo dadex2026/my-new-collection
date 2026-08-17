@@ -1,7 +1,7 @@
 import { state, subscribe } from "./state";
 import { clearNodes } from "./domDiff";
 import { batch } from "./batch";
-import { RegistryDrop, Campaign } from "./types";
+import { RegistryDrop, Campaign, TextCard } from "./types";
 
 let activeCollectionSlug = "all";
 let activeFilters: Record<string, string> = {};
@@ -164,6 +164,14 @@ function renderSidebar(sidebarEl: HTMLElement) {
       </div>
     ` : ""}
 
+    ${state.textCards.length > 0 ? `
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-title">Content</div>
+      <div class="sidebar-item sidebar-item-textcards" data-action="scroll-to-textcards">
+        News
+      </div>
+    ` : ""}
+
     ${activeGroups.length > 0 ? `
       <div class="sidebar-divider"></div>
       <div class="sidebar-title">Filters</div>
@@ -208,6 +216,13 @@ function renderSidebar(sidebarEl: HTMLElement) {
   if (rewardsItem) {
     rewardsItem.addEventListener("click", () => {
       document.getElementById("campaigns")?.scrollIntoView({ behavior: "smooth" });
+    });
+  }
+
+  const textCardsItem = sidebarEl.querySelector(".sidebar-item-textcards");
+  if (textCardsItem) {
+    textCardsItem.addEventListener("click", () => {
+      document.getElementById("textcards")?.scrollIntoView({ behavior: "smooth" });
     });
   }
 
@@ -274,14 +289,9 @@ function renderMintCounter() {
 }
 
 // ----------------------------
-// CAMPAIGNS (new)
+// CAMPAIGNS
 // ----------------------------
-// Renders into a #campaigns container — NOT YET PRESENT in index.html.
-// Add `<div id="campaigns"></div>` somewhere in the page markup (e.g.
-// below the #registry container) for this to have anywhere to render
-// into. Until that div exists, this function runs harmlessly and does
-// nothing (the `if (!root) return;` guard below), same failure mode as
-// every other render* function here when its target element is missing.
+// Renders into the #campaigns container in index.html.
 function buildCampaignCard(c: Campaign): string {
   const walletConnected = state.wallet.connected;
   const soldOut = c.claimed != null && c.claimed >= c.allocation;
@@ -331,6 +341,136 @@ function renderCampaigns() {
   `;
 }
 
+// ----------------------------
+// TEXT CARDS (new)
+// ----------------------------
+// Renders into the #textcards container in index.html, below #campaigns.
+// Source: backend/content-registry.json, published from backend/textcards.csv
+// by backend/scripts/generate-content-registry.js (simple cards), plus any
+// hand-edited persistent cards (category RANKING/LEADERBOARD/SCOREBOARD/
+// STANDINGS/STATS, persistent: true) merged into the same file.
+const TEXTCARD_TABS = ["ALL", "NEWS", "UPDATE", "ANNOUNCEMENT", "ANALYSIS", "RANKINGS"] as const;
+let activeTextCardTab: (typeof TEXTCARD_TABS)[number] = "ALL";
+
+function formatCardDate(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+// Persistent cards carry structured content (an entries array, or a flat
+// key/value object) instead of prose. Rendered generically — by key, not
+// by category — so a new persistent category never needs a new render path.
+function renderTextCardContent(c: TextCard): string {
+  if (typeof c.content === "string") {
+    return `<div class="textcard-body">${c.content}</div>`;
+  }
+
+  const structured = c.content as { entries?: Array<Record<string, string | number>> };
+  if (Array.isArray(structured.entries)) {
+    return `
+      <ol class="textcard-entries">
+        ${structured.entries.map((entry) => `
+          <li class="textcard-entry">
+            ${Object.entries(entry).map(([k, v]) => `<span class="textcard-entry-field">${k}: ${v}</span>`).join(" ")}
+          </li>
+        `).join("")}
+      </ol>
+    `;
+  }
+
+  return `
+    <div class="textcard-stats">
+      ${Object.entries(c.content as Record<string, string | number>).map(([k, v]) => `
+        <div class="textcard-stat"><span class="textcard-stat-label">${k}</span><span class="textcard-stat-value">${v}</span></div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function buildTextCard(c: TextCard): string {
+  const showUpdated = c.updatedDate && c.updatedDate !== c.publishedDate;
+  return `
+    <div class="textcard" id="textcard-${c.textCardId}">
+      <div class="textcard-category">${c.category}${c.persistent ? " · Persistent" : ""}</div>
+      <div class="textcard-headline">${c.headline}</div>
+      ${c.subheadline ? `<div class="textcard-subheadline">${c.subheadline}</div>` : ""}
+      ${renderTextCardContent(c)}
+      <div class="textcard-meta">
+        <span class="textcard-date">${formatCardDate(c.publishedDate)}</span>
+        ${showUpdated ? `<span class="textcard-updated">Updated ${formatCardDate(c.updatedDate)}</span>` : ""}
+      </div>
+    </div>
+  `;
+}
+
+// Visibility rule: status ACTIVE, publishedDate has passed, and (no
+// expiresAt or it hasn't passed yet). Never filters cards out of
+// state.textCards itself — only out of what's rendered — so expired/draft
+// cards stay in the data untouched, per the "never delete" design.
+function isTextCardVisible(c: TextCard): boolean {
+  if (c.status !== "ACTIVE") return false;
+  const now = Date.now();
+  if (Date.parse(c.publishedDate) > now) return false;
+  if (c.expiresAt && Date.parse(c.expiresAt) <= now) return false;
+  return true;
+}
+
+function textCardMatchesTab(c: TextCard): boolean {
+  if (activeTextCardTab === "ALL") return true;
+  if (activeTextCardTab === "RANKINGS") return c.persistent === true;
+  return c.category === activeTextCardTab;
+}
+
+function getVisibleTextCards(): TextCard[] {
+  return state.textCards
+    .filter(isTextCardVisible)
+    .filter(textCardMatchesTab)
+    .sort((a, b) => {
+      if (a.featured !== b.featured) return a.featured ? -1 : 1;
+      if (a.priority !== b.priority) return b.priority - a.priority;
+      return Date.parse(b.publishedDate) - Date.parse(a.publishedDate);
+    });
+}
+
+function renderTextCards() {
+  const root = document.getElementById("textcards");
+  if (!root) return;
+
+  if (state.textCards.length === 0) {
+    root.innerHTML = "";
+    return;
+  }
+
+  const visibleCards = getVisibleTextCards();
+
+  root.innerHTML = `
+    <div class="textcards-title">News</div>
+    <div class="textcards-tabs">
+      ${TEXTCARD_TABS.map((tab) => `
+        <div
+          class="textcards-tab ${activeTextCardTab === tab ? "active" : ""}"
+          data-textcard-tab="${tab}">
+          ${tab}
+        </div>
+      `).join("")}
+    </div>
+    ${visibleCards.length === 0
+      ? '<p class="empty">No posts in this category yet.</p>'
+      : `<div class="textcards-grid">${visibleCards.map(buildTextCard).join("")}</div>`
+    }
+  `;
+
+  root.querySelectorAll("[data-textcard-tab]").forEach((tabEl) => {
+    tabEl.addEventListener("click", () => {
+      const tab = (tabEl as HTMLElement).dataset.textcardTab as (typeof TEXTCARD_TABS)[number] | undefined;
+      if (!tab) return;
+      activeTextCardTab = tab;
+      renderTextCards();
+    });
+  });
+}
+
 export function initUIEngine() {
   subscribe("status", renderStatus);
   subscribe("minting", renderMintButtons);
@@ -353,12 +493,21 @@ export function initUIEngine() {
     const sidebarEl = document.getElementById("sidebar");
     if (sidebarEl) renderSidebar(sidebarEl);
   });
+  subscribe("textCards", () => {
+    renderTextCards();
+    // Same bootstrap-order issue as campaigns above: text cards load
+    // after the initial registry render, so the sidebar's News entry
+    // needs an explicit re-render here too, or it never appears.
+    const sidebarEl = document.getElementById("sidebar");
+    if (sidebarEl) renderSidebar(sidebarEl);
+  });
   renderStatus();
   renderMintButtons();
   renderWallet();
   renderRegistry();
   renderMintCounter();
   renderCampaigns();
+  renderTextCards();
   requestAnimationFrame(() => {
     renderStatus();
     renderMintButtons();
@@ -366,5 +515,6 @@ export function initUIEngine() {
     renderRegistry();
     renderMintCounter();
     renderCampaigns();
+    renderTextCards();
   });
 }
