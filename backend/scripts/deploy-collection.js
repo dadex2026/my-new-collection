@@ -291,21 +291,65 @@ async function main() {
     });
   }
 
+  // ---- Royalty enforcement (Metaplex Core Royalties plugin) --------------
+  // Royalties are a COLLECTION-level plugin, not a per-drop setting, even
+  // though sellerFeeBasisPoints lives per-row in master.csv. If rows in
+  // this collection disagree on the value, that's a real ambiguity (same
+  // class of problem as treasurySplits) — warn loudly and use the first
+  // row's value rather than silently picking one with no visibility.
+  const basisPointValues = [...new Set(matchingRows.map((r) => Number(r.sellerFeeBasisPoints) || 0))];
+  if (basisPointValues.length > 1) {
+    log({
+      status: "warning",
+      message: `Rows in "${collectionSlug}" specify different sellerFeeBasisPoints values (${basisPointValues.join(", ")}). Royalties are collection-wide in Metaplex Core — using ${basisPointValues[0]} from the first row. Make these consistent across all rows in this collection if that's not intended.`,
+    });
+  }
+  const royaltyBasisPoints = basisPointValues[0] || 0;
+
   // ---- Deploy ---------------------------------------------------------
   let signature;
   let collectionAddress;
   try {
     const umi = await getUmi(config.rpc);
-    const { generateSigner } = await import("@metaplex-foundation/umi");
+    const { generateSigner, publicKey: umiPublicKey } = await import("@metaplex-foundation/umi");
     const { createCollection } = await import("@metaplex-foundation/mpl-core");
 
     const collectionSigner = generateSigner(umi);
+
+    // Only attach the Royalties plugin if a real basis-points value is
+    // configured — a 0% collection just skips it rather than deploying
+    // a meaningless enforced-zero-royalty plugin.
+    const plugins = [];
+    if (royaltyBasisPoints > 0) {
+      plugins.push({
+        type: "Royalties",
+        basisPoints: royaltyBasisPoints,
+        // Single-recipient default: 100% of the royalty goes to the
+        // configured treasury. Verified shape requires percentages to
+        // sum to 100 across all listed creators.
+        creators: [{ address: umiPublicKey(config.treasury), percentage: 100 }],
+        // 'None' = no marketplace allow/deny-list restriction — royalty
+        // is declared and enforced by the Core program itself regardless
+        // of which marketplace the trade happens on. This is the
+        // permissive, broadly-compatible default; a stricter ruleSet can
+        // be substituted later if you specifically need to block trades
+        // on marketplaces that don't honor royalties.
+        ruleSet: { type: "None" },
+      });
+      log({
+        status: "info",
+        message: `Attaching Royalties plugin: ${royaltyBasisPoints} basis points (${(royaltyBasisPoints / 100).toFixed(2)}%) to ${config.treasury}`,
+      });
+    } else {
+      log({ status: "info", message: "sellerFeeBasisPoints is 0 — no Royalties plugin attached." });
+    }
 
     const { signature: txSig } = await createCollection(umi, {
       collection: collectionSigner,
       name: firstRow.collectionName || collectionSlug,
       uri: firstRow.collectionImage || "",
       updateAuthority: umi.identity.publicKey,
+      plugins,
     }).sendAndConfirm(umi);
 
     signature = encodeBase58(Buffer.from(txSig));

@@ -9,11 +9,17 @@
  *
  * Idempotent: a row is skipped if its itemImage is already a real,
  * non-placeholder URL. Re-running this script after a partial run or a
- * crash only uploads what's still outstanding â€” nothing already
+ * crash only uploads what's still outstanding — nothing already
  * uploaded is re-uploaded or re-paid for.
  *
+ * --force overrides this: re-uploads every matching row's local image
+ * regardless of an existing real URL. For when the source image itself
+ * changed and needs to actually replace what's already live — without
+ * this, there was previously no supported way to do that short of
+ * manually clearing the itemImage field in master.csv by hand first.
+ *
  * Network comes from backend/config.json ("devnet" or "mainnet"), not
- * a hardcoded .devnet()/.mainnet() call â€” so switching networks is a
+ * a hardcoded .devnet()/.mainnet() call — so switching networks is a
  * one-line edit to config.json, not a code change.
  *
  * Exit codes:
@@ -26,6 +32,7 @@
  *   node scripts/upload-images.js
  *   node scripts/upload-images.js --fund         (auto-fund any shortfall before uploading)
  *   node scripts/upload-images.js --strict       (fail if any drop has no local image)
+ *   node scripts/upload-images.js --force        (re-upload even if itemImage already has a real URL)
  *   node scripts/upload-images.js --dry-run      (simulate the whole run, no network calls)
  *   node scripts/upload-images.js --slug founders (override config.json's collectionSlug)
  *
@@ -203,17 +210,18 @@ async function main() {
   const autoFund = args.includes("--fund");
   const strict = args.includes("--strict");
   const dryRun = args.includes("--dry-run");
+  const force = args.includes("--force");
   const slugFlagIndex = args.indexOf("--slug");
 
   const config = loadConfig();
   const collectionSlug =
     slugFlagIndex !== -1 && args[slugFlagIndex + 1] ? args[slugFlagIndex + 1] : config.collectionSlug;
 
-  log({ status: "start", collectionSlug, network: config.network, autoFund, strict, dryRun });
+  log({ status: "start", collectionSlug, network: config.network, autoFund, strict, force, dryRun });
 
   if (!fs.existsSync(IMAGES_DIR)) {
     fs.mkdirSync(IMAGES_DIR, { recursive: true });
-    log({ status: "info", message: "Created backend/images/ â€” add image files and re-run." });
+    log({ status: "info", message: "Created backend/images/ — add image files and re-run." });
     process.exit(0);
   }
 
@@ -239,7 +247,10 @@ async function main() {
     const dropItemId = row.dropItemId;
     if (!dropItemId) continue;
 
-    if (!isPlaceholder(row.itemImage)) {
+    // --force bypasses the "already has a real URL" skip — the row is
+    // treated as needing upload regardless of its current itemImage,
+    // as long as a local source image is actually available.
+    if (!force && !isPlaceholder(row.itemImage)) {
       alreadyUploaded.push(dropItemId);
       continue;
     }
@@ -259,6 +270,7 @@ async function main() {
     alreadyUploaded: alreadyUploaded.length,
     toUpload: toUpload.length,
     missingLocal: missingLocal.length,
+    force,
   });
 
   if (missingLocal.length > 0) {
@@ -270,7 +282,7 @@ async function main() {
   }
 
   if (toUpload.length === 0) {
-    log({ status: "success", message: "Nothing to upload â€” all drops already have a real image URL or no local image is available." });
+    log({ status: "success", message: "Nothing to upload — all drops already have a real image URL or no local image is available." });
     process.exit(0);
   }
 
@@ -289,7 +301,7 @@ async function main() {
     writeCsv(MASTER_CSV_PATH, header, rows);
     log({
       status: "success",
-      message: `[dry-run] Simulated ${toUpload.length} upload(s). master.csv updated with fake URLs â€” do not deploy real metadata from this.`,
+      message: `[dry-run] Simulated ${toUpload.length} upload(s). master.csv updated with fake URLs — do not deploy real metadata from this.`,
     });
     process.exit(0);
   }

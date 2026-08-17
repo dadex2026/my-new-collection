@@ -171,15 +171,53 @@ export async function mint(dropId: string): Promise<void> {
 
     const asset = generateSigner(umi);
 
+    // ---- Holder-discount branch --------------------------------------
+    // drop.holderRequiredCollection is only ever set (by generate-
+    // registry.js, carrying it from deploy-candy-machine.js) for drops
+    // deployed WITH guard groups. Drops deployed the original way (no
+    // groups) leave this empty — for those, `group` must be omitted
+    // entirely below, not set to some("public"), since a candy machine
+    // with an empty groups array has no group named "public" to match.
+    let group: string | undefined;
+    const mintArgs: any = {};
+
+    if (drop.holderRequiredCollection) {
+      setStatus("Checking holder eligibility...");
+      const qualifyingAsset = await findQualifyingHolderAsset(walletAddress, drop.holderRequiredCollection);
+
+      if (qualifyingAsset) {
+        group = "holder";
+        mintArgs.assetGate = some({ asset: umiPublicKey(qualifyingAsset) });
+        // Only include assetMintLimit args if this drop's holder group
+        // actually has that guard active (tracked via holderMintLimitId,
+        // set at deploy time) — sending mismatched guard args would
+        // desync the serialized instruction from what the on-chain
+        // program expects to deserialize for this group.
+        if (drop.holderMintLimitId) {
+          mintArgs.assetMintLimit = some({ id: Number(drop.holderMintLimitId), asset: umiPublicKey(qualifyingAsset) });
+        }
+        setStatus(
+          drop.holderPrice != null
+            ? `Holder discount applied — minting at ${drop.holderPrice} SOL...`
+            : "Holder discount applied..."
+        );
+      } else {
+        group = "public";
+        mintArgs.solPayment = some({ destination: umiPublicKey(drop.treasury) });
+      }
+    } else {
+      // Original, unchanged path — no groups, no group parameter passed.
+      mintArgs.solPayment = some({ destination: umiPublicKey(drop.treasury) });
+    }
+
     setStatus("Waiting for wallet approval...");
 
     const builder = mintV1(umi, {
       candyMachine: umiPublicKey(drop.candyMachineAddress),
       collection: umiPublicKey(drop.collectionAddress),
       asset,
-      mintArgs: {
-        solPayment: some({ destination: umiPublicKey(drop.treasury) }),
-      },
+      ...(group ? { group: some(group) } : {}),
+      mintArgs,
     });
 
     setStatus("Minting...");
@@ -199,4 +237,49 @@ export async function mint(dropId: string): Promise<void> {
     setMinting(false);
     setStatus(describeMintError(err));
   }
+}
+
+// ---- Holder eligibility check (DAS query, browser-side) -----------------
+// Checks whether the connected wallet holds at least one asset from the
+// required collection, using the same Helius DAS getAssetsByOwner method
+// already used server-side elsewhere in this project (get-holders.js
+// uses the sibling getAssetsByGroup method). This is a UI convenience
+// only — the real, trustless enforcement is the on-chain assetGate guard
+// itself; a wallet that doesn't actually qualify would have its mint
+// rejected by the program even if this check were somehow bypassed.
+async function findQualifyingHolderAsset(walletAddress: string, requiredCollection: string): Promise<string | null> {
+  const MAX_PAGES = 3; // bounded — checking a personal wallet, not building a full holder list
+  const PAGE_LIMIT = 1000;
+
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    let response: Response;
+    try {
+      response = await fetch(RPC_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: "holder-check",
+          method: "getAssetsByOwner",
+          params: { ownerAddress: walletAddress, page, limit: PAGE_LIMIT },
+        }),
+      });
+    } catch {
+      return null; // network failure — treat as "not verified", fall back to public group
+    }
+
+    if (!response.ok) return null;
+
+    const body = await response.json();
+    const items = body.result?.items || [];
+
+    const match = items.find((item: any) =>
+      (item.grouping || []).some((g: any) => g.group_key === "collection" && g.group_value === requiredCollection)
+    );
+    if (match) return match.id;
+
+    if (items.length < PAGE_LIMIT) break; // last page
+  }
+
+  return null;
 }

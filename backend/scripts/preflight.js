@@ -32,6 +32,12 @@
  *   node scripts/preflight.js
  *   node scripts/preflight.js --slug founders
  *   node scripts/preflight.js --force        (allow re-deploying an already-deployed collection)
+ *   node scripts/preflight.js --allow-warnings   (deliberately downgrade reserved-prefix/placeholder
+ *                                                  checks from failures to warnings — e.g. for an
+ *                                                  intentional throwaway mainnet test. Never the
+ *                                                  default; must be typed explicitly every time.
+ *                                                  Structural checks like an invalid treasury address
+ *                                                  or missing deployer key are NEVER downgradable.)
  *   node scripts/preflight.js --reserved-slug-prefix demo- --reserved-id-prefix DEMO-
  */
 
@@ -48,6 +54,7 @@ const BACKEND_DIR = path.join(__dirname, "..");
 const PROJECT_ROOT = path.join(BACKEND_DIR, "..");
 const CONFIG_PATH = path.join(BACKEND_DIR, "config.json");
 const MASTER_CSV_PATH = path.join(BACKEND_DIR, "master.csv");
+const CAMPAIGNS_CSV_PATH = path.join(BACKEND_DIR, "campaigns.csv");
 const ENV_ADMIN_PATH = path.join(BACKEND_DIR, ".env.admin");
 const GITIGNORE_PATH = path.join(PROJECT_ROOT, ".gitignore");
 const LOGS_DIR = path.join(BACKEND_DIR, "logs");
@@ -162,6 +169,89 @@ function checkDeployerKeyPresent() {
   return { pass: true, detail: "DEPLOYER_PRIVATE_KEY is present" };
 }
 
+// Derives a Solana keypair's public (base58) address directly from its
+// base58-encoded 64-byte secret key — bytes[32:64] of a standard
+// Solana secret key ARE the public key, verified directly against the
+// real @metaplex-foundation/umi library before implementing this (a
+// generated keypair's known public key matched byte-for-byte). No
+// network call, no crypto library needed beyond base58 encode/decode.
+const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+function decodeBase58(str) {
+  const bytes = [0];
+  for (const char of str) {
+    const value = BASE58_ALPHABET.indexOf(char);
+    if (value < 0) throw new Error("Invalid base58 character: " + char);
+    let carry = value;
+    for (let i = 0; i < bytes.length; i++) {
+      carry += bytes[i] * 58;
+      bytes[i] = carry & 0xff;
+      carry >>= 8;
+    }
+    while (carry > 0) {
+      bytes.push(carry & 0xff);
+      carry >>= 8;
+    }
+  }
+  for (const char of str) {
+    if (char === "1") bytes.push(0);
+    else break;
+  }
+  return new Uint8Array(bytes.reverse());
+}
+
+function encodeBase58(buffer) {
+  const digits = [0];
+  for (let i = 0; i < buffer.length; i++) {
+    let carry = buffer[i];
+    for (let j = 0; j < digits.length; j++) {
+      carry += digits[j] << 8;
+      digits[j] = carry % 58;
+      carry = (carry / 58) | 0;
+    }
+    while (carry > 0) {
+      digits.push(carry % 58);
+      carry = (carry / 58) | 0;
+    }
+  }
+  let result = "";
+  for (let k = 0; buffer[k] === 0 && k < buffer.length - 1; k++) result += "1";
+  for (let i = digits.length - 1; i >= 0; i--) result += BASE58_ALPHABET[digits[i]];
+  return result;
+}
+
+// Content check, not structural: there ARE legitimate reasons to use
+// the same wallet for both on a cheap throwaway test (the original
+// test-drop mainnet test in this project deliberately did exactly
+// this — "the tiny test payment just comes back to you"). This is a
+// judgment call worth flagging loudly, not an unconditional block.
+function checkDeployerNotTreasury(config) {
+  const secret = process.env.DEPLOYER_PRIVATE_KEY;
+  if (!secret || !config.treasury) {
+    // Can't check without both values — other checks already cover
+    // their individual presence/validity, so just pass here silently.
+    return { pass: true, detail: "Skipped — DEPLOYER_PRIVATE_KEY or config.treasury not available to compare" };
+  }
+  let derivedDeployerAddress;
+  try {
+    const secretKeyBytes = decodeBase58(secret.trim());
+    if (secretKeyBytes.length !== 64) {
+      return { pass: true, detail: "Skipped — DEPLOYER_PRIVATE_KEY is not a standard 64-byte secret key, cannot derive its address" };
+    }
+    derivedDeployerAddress = encodeBase58(secretKeyBytes.slice(32, 64));
+  } catch (err) {
+    return { pass: true, detail: `Skipped — could not decode DEPLOYER_PRIVATE_KEY to compare: ${err.message}` };
+  }
+
+  if (derivedDeployerAddress === config.treasury) {
+    return {
+      pass: false,
+      detail: `config.json "treasury" (${config.treasury}) is the SAME wallet as DEPLOYER_PRIVATE_KEY. This mixes deployment funds with sale proceeds — recommended to use a separate treasury wallet for anything beyond a cheap throwaway test.`,
+    };
+  }
+  return { pass: true, detail: "Deployer wallet and treasury wallet are different addresses" };
+}
+
 function checkNoReservedSlug(collectionSlug, reservedSlugPrefixes) {
   if (hasReservedPrefix(collectionSlug, reservedSlugPrefixes)) {
     return {
@@ -183,6 +273,25 @@ function checkNoReservedDropIds(rows, reservedIdPrefixes) {
     };
   }
   return { pass: true, detail: "No drops use a reserved test ID prefix" };
+}
+
+// campaigns.csv is optional — not every collection runs campaigns. If the
+// file doesn't exist, this check is skipped entirely (not a failure) by
+// the caller, rather than treating "no campaigns.csv" as an error.
+// Checks campaignId against BOTH the slug-style and ID-style reserved
+// prefix lists (combined), since campaign IDs don't have one fixed
+// casing convention the way collectionSlug/dropItemId do.
+function checkNoReservedCampaignIds(campaignRows, reservedPrefixes) {
+  const offenders = campaignRows
+    .map((r) => r.campaignId)
+    .filter((id) => id && hasReservedPrefix(id, reservedPrefixes));
+  if (offenders.length > 0) {
+    return {
+      pass: false,
+      detail: `${offenders.length} campaign(s) use a reserved/test ID prefix (${reservedPrefixes.join(", ")}): ${offenders.join(", ")}`,
+    };
+  }
+  return { pass: true, detail: "No campaigns use a reserved test ID prefix" };
 }
 
 function checkNoPlaceholderImages(rows) {
@@ -221,11 +330,40 @@ function checkNotAlreadyDeployed(rows, network, force) {
   return { pass: true, detail: `No drops already deployed on network "${network}"` };
 }
 
+// ---- Check categorization --------------------------------------------
+// STRUCTURAL checks are never warnings — a bad treasury address or a
+// missing deployer key isn't a judgment call, it's just broken
+// configuration that cannot safely proceed under any flag.
+//
+// CONTENT checks (reserved prefixes, placeholder data) ARE judgment
+// calls — there's a legitimate case for a deliberate test deploy using
+// a reserved prefix on purpose. These block by default, same as
+// everything else, but --allow-warnings lets you consciously downgrade
+// them to warnings instead of silently defaulting to permissive. The
+// override must be typed explicitly — never the default behavior.
+const CONTENT_CHECK_NAMES = new Set([
+  "no_reserved_slug",
+  "no_reserved_drop_ids",
+  "no_placeholder_images",
+  "no_placeholder_uris",
+  "no_reserved_campaign_ids",
+  "deployer_not_treasury",
+]);
+
+const CATEGORIES = [
+  { name: "Project Structure", checks: ["config_exists", "config_valid_json", "collection_slug_present", "collection_has_rows"] },
+  { name: "Environment", checks: ["env_admin_exists", "env_admin_gitignored", "deployer_key_present", "treasury_valid", "rpc_valid", "deployer_not_treasury"] },
+  { name: "Content Validation", checks: ["no_reserved_slug", "no_reserved_drop_ids", "no_placeholder_images", "no_placeholder_uris"] },
+  { name: "Campaign Validation", checks: ["no_reserved_campaign_ids"] },
+  { name: "Deployment State", checks: ["not_already_deployed"] },
+];
+
 // ---- Main ---------------------------------------------------------------
 
 function main() {
   const args = process.argv.slice(2);
   const force = args.includes("--force");
+  const allowWarnings = args.includes("--allow-warnings");
   const slugFlagIndex = args.indexOf("--slug");
   const reservedSlugFlagIndex = args.indexOf("--reserved-slug-prefix");
   const reservedIdFlagIndex = args.indexOf("--reserved-id-prefix");
@@ -239,7 +377,7 @@ function main() {
       ? [args[reservedIdFlagIndex + 1]]
       : DEFAULT_RESERVED_ID_PREFIXES;
 
-  log({ status: "start", force, reservedSlugPrefixes, reservedIdPrefixes });
+  log({ status: "start", force, allowWarnings, reservedSlugPrefixes, reservedIdPrefixes });
 
   const results = [];
 
@@ -248,6 +386,14 @@ function main() {
   results.push({ name: "env_admin_exists", ...checkEnvAdminExists() });
   results.push({ name: "env_admin_gitignored", ...checkEnvAdminGitignored() });
   results.push({ name: "deployer_key_present", ...checkDeployerKeyPresent() });
+
+  // campaigns.csv is optional — only checked if it actually exists. Not
+  // every collection runs campaigns, so its absence is not an error.
+  if (fs.existsSync(CAMPAIGNS_CSV_PATH)) {
+    const { rows: campaignRows } = readCsv(CAMPAIGNS_CSV_PATH);
+    const combinedReservedPrefixes = [...new Set([...reservedSlugPrefixes, ...reservedIdPrefixes])];
+    results.push({ name: "no_reserved_campaign_ids", ...checkNoReservedCampaignIds(campaignRows, combinedReservedPrefixes) });
+  }
 
   let config = null;
   if (fs.existsSync(CONFIG_PATH)) {
@@ -263,6 +409,7 @@ function main() {
       slugFlagIndex !== -1 && args[slugFlagIndex + 1] ? args[slugFlagIndex + 1] : config.collectionSlug;
 
     results.push({ name: "treasury_valid", ...checkTreasuryValid(config) });
+    results.push({ name: "deployer_not_treasury", ...checkDeployerNotTreasury(config) });
     results.push({ name: "rpc_valid", ...checkRpcValid(config) });
 
     if (collectionSlug) {
@@ -288,30 +435,74 @@ function main() {
     }
   }
 
-  // ---- Report ---------------------------------------------------------
-  const failed = results.filter((r) => !r.pass);
-  const passed = results.filter((r) => r.pass);
+  // ---- Classify: hard failures vs. downgraded warnings -------------------
+  // A failed CONTENT check becomes a warning ONLY if --allow-warnings was
+  // explicitly passed. A failed STRUCTURAL check is ALWAYS a hard failure,
+  // regardless of any flag — there is no override for broken config.
+  const hardFailures = results.filter((r) => !r.pass && !(allowWarnings && CONTENT_CHECK_NAMES.has(r.name)));
+  const warnings = results.filter((r) => !r.pass && allowWarnings && CONTENT_CHECK_NAMES.has(r.name));
 
-  console.log("\nPreflight results:");
   for (const r of results) {
-    console.log(`  ${r.pass ? "✓" : "✗"} ${r.name}: ${r.detail}`);
     log({ status: r.pass ? "check_passed" : "check_failed", check: r.name, detail: r.detail });
   }
 
-  console.log(`\n${passed.length}/${results.length} checks passed.`);
+  // ---- Categorized report -------------------------------------------------
+  const byName = new Map(results.map((r) => [r.name, r]));
 
-  if (failed.length > 0) {
+  console.log("\n=========================================");
+  console.log("PRE-FLIGHT REPORT");
+  console.log("=========================================\n");
+
+  for (const category of CATEGORIES) {
+    const inCategory = category.checks.map((n) => byName.get(n)).filter(Boolean);
+    if (inCategory.length === 0) continue;
+
+    const categoryHardFail = inCategory.some(
+      (r) => !r.pass && !(allowWarnings && CONTENT_CHECK_NAMES.has(r.name))
+    );
+    const categoryWarn = inCategory.some((r) => !r.pass && allowWarnings && CONTENT_CHECK_NAMES.has(r.name));
+    const status = categoryHardFail ? "✗ FAIL" : categoryWarn ? "⚠ WARN" : "✓ PASS";
+
+    console.log(`${category.name.padEnd(24)}${status}`);
+    for (const r of inCategory) {
+      if (!r.pass) {
+        const isWarning = allowWarnings && CONTENT_CHECK_NAMES.has(r.name);
+        console.log(`  ${isWarning ? "⚠" : "✗"} ${r.detail}`);
+      }
+    }
+  }
+
+  if (warnings.length > 0) {
+    console.log("\nWarnings (downgraded via --allow-warnings — review before proceeding):");
+    for (const w of warnings) {
+      console.log(`  ⚠ ${w.detail}`);
+    }
+  }
+
+  console.log("\nDeployment Readiness:");
+  if (hardFailures.length > 0) {
+    console.log(`  NOT READY — ${hardFailures.length} failure(s) must be resolved.\n`);
     log({
       status: "failure",
-      message: `${failed.length} check(s) failed — do not deploy until resolved.`,
-      failedChecks: failed.map((r) => r.name),
+      message: `${hardFailures.length} check(s) failed — do not deploy until resolved.`,
+      failedChecks: hardFailures.map((r) => r.name),
+      warnings: warnings.map((r) => r.name),
     });
-    console.log(`\n✗ Preflight FAILED. Do not run deploy-collection.js until these are resolved.`);
     process.exit(1);
   }
 
+  if (warnings.length > 0) {
+    console.log(`  READY WITH WARNINGS — proceeding is your explicit decision (--allow-warnings was set).\n`);
+    log({
+      status: "success",
+      message: `Preflight passed with ${warnings.length} warning(s) downgraded via --allow-warnings.`,
+      warnings: warnings.map((r) => r.name),
+    });
+    process.exit(0);
+  }
+
+  console.log("  READY — all checks passed.\n");
   log({ status: "success", message: "All preflight checks passed. Safe to deploy." });
-  console.log(`\n✓ Preflight PASSED. Safe to run deploy-collection.js.`);
   process.exit(0);
 }
 
