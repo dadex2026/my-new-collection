@@ -145,7 +145,7 @@
 
     .drops {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      grid-template-columns: repeat(3, 1fr);
       gap: 16px;
     }
 
@@ -253,7 +253,7 @@
 
     .campaigns-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      grid-template-columns: repeat(3, 1fr);
       gap: 16px;
     }
 
@@ -332,21 +332,46 @@
     .drop-panel-header {
       display: flex;
       justify-content: flex-end;
-      margin-bottom: 12px;
+      margin-bottom: 16px;
+    }
+
+    .collection-filter {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #171717;
+      border: 1px solid #512da8;
+      border-radius: 8px;
+      padding: 6px 8px 6px 14px;
+    }
+
+    .collection-filter-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #b899f0;
+      white-space: nowrap;
     }
 
     .collection-select {
-      background: #1a1a1a;
+      background: #232323;
       color: #fff;
-      border: 1px solid #333;
+      border: 1px solid #512da8;
       border-radius: 6px;
-      padding: 8px 12px;
+      padding: 8px 14px;
       font-size: 13px;
+      font-weight: 600;
       cursor: pointer;
     }
 
     .collection-select:hover {
-      border-color: #512da8;
+      background: #2c2c2c;
+      border-color: #6a3fcb;
+    }
+
+    .collection-select:focus {
+      outline: 2px solid #6a3fcb;
+      outline-offset: 1px;
     }
 
     .pagination {
@@ -425,8 +450,21 @@
 
     .textcards-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      grid-template-columns: repeat(3, 1fr);
       gap: 16px;
+    }
+
+    /* Below this width, 3 fixed columns get too cramped — fall back to
+       auto-fill so cards keep a sane minimum width and wrap naturally.
+       These three selectors are deliberately the ONLY responsive rule in
+       this file (there were none before); keep new grid tweaks paired
+       with an update here so mobile doesn't regress. */
+    @media (max-width: 720px) {
+      .drops,
+      .campaigns-grid,
+      .textcards-grid {
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      }
     }
 
     .textcard {

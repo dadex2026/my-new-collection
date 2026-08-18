@@ -394,14 +394,17 @@ function renderCollectionSelect(container: HTMLElement) {
   }
 
   container.innerHTML = `
-    <select class="collection-select" id="collection-select">
-      <option value="all" ${activeCollectionSlug === "all" ? "selected" : ""}>All Collections</option>
-      ${collections.map((col) => `
-        <option value="${col.collection.slug}" ${col.collection.slug === activeCollectionSlug ? "selected" : ""}>
-          ${col.collection.name}
-        </option>
-      `).join("")}
-    </select>
+    <div class="collection-filter">
+      <label class="collection-filter-label" for="collection-select">Filter by collection</label>
+      <select class="collection-select" id="collection-select">
+        <option value="all" ${activeCollectionSlug === "all" ? "selected" : ""}>All Collections</option>
+        ${collections.map((col) => `
+          <option value="${col.collection.slug}" ${col.collection.slug === activeCollectionSlug ? "selected" : ""}>
+            ${col.collection.name}
+          </option>
+        `).join("")}
+      </select>
+    </div>
   `;
 
   const select = container.querySelector<HTMLSelectElement>("#collection-select");
