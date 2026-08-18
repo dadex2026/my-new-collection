@@ -33,15 +33,53 @@ function paginate<T>(items: T[], page: number): { pageItems: T[]; totalPages: nu
   return { pageItems: items.slice(start, start + PAGE_SIZE), totalPages, page: clampedPage };
 }
 
+// Below this many total pages, just show every page number — truncation
+// only kicks in once the row would otherwise get unwieldy.
+const PAGINATION_VISIBLE_THRESHOLD = 7;
+
+// Builds the list of page numbers/ellipsis tokens to render: always the
+// first 2 and last 2 pages, plus the current page and its immediate
+// neighbors, with "..." standing in for any larger gap. A gap of exactly
+// one hidden page is shown as that page's own number instead of an
+// ellipsis, since collapsing a single page isn't worth the visual noise.
+function buildPageList(current: number, total: number): (number | "...")[] {
+  if (total <= PAGINATION_VISIBLE_THRESHOLD) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+
+  const keep = new Set<number>([1, 2, total - 1, total, current]);
+  keep.add(current - 1);
+  keep.add(current + 1);
+
+  const sorted = Array.from(keep)
+    .filter((p) => p >= 1 && p <= total)
+    .sort((a, b) => a - b);
+
+  const result: (number | "...")[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0) {
+      const gap = sorted[i] - sorted[i - 1];
+      if (gap === 2) {
+        result.push(sorted[i - 1] + 1);
+      } else if (gap > 2) {
+        result.push("...");
+      }
+    }
+    result.push(sorted[i]);
+  }
+  return result;
+}
+
 function buildPaginationControls(page: number, totalPages: number): string {
   if (totalPages <= 1) return "";
-  const pages = Array.from({ length: totalPages }, (_, i) => i + 1);
+  const pageList = buildPageList(page, totalPages);
   return `
     <div class="pagination">
       <button class="pagination-arrow" data-page-action="prev" ${page <= 1 ? "disabled" : ""}>&larr;</button>
-      ${pages.map((p) => `
-        <button class="pagination-num ${p === page ? "active" : ""}" data-page-num="${p}">${p}</button>
-      `).join("")}
+      ${pageList.map((p) => p === "..."
+        ? `<span class="pagination-ellipsis">&hellip;</span>`
+        : `<button class="pagination-num ${p === page ? "active" : ""}" data-page-num="${p}">${p}</button>`
+      ).join("")}
       <button class="pagination-arrow" data-page-action="next" ${page >= totalPages ? "disabled" : ""}>&rarr;</button>
     </div>
   `;
