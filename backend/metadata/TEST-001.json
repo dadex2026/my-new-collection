@@ -1,0 +1,27 @@
+{
+  "name": "Test Item A",
+  "symbol": "",
+  "description": "Eligibility item",
+  "seller_fee_basis_points": 0,
+  "image": "https://gateway.irys.xyz/CDKZz6S3Hu2283oMYB8z7zx39eRXS647TP9sffoVPKeM",
+  "external_url": "",
+  "attributes": [
+    {
+      "trait_type": "Trait",
+      "value": "Test"
+    }
+  ],
+  "properties": {
+    "files": [
+      {
+        "uri": "https://gateway.irys.xyz/CDKZz6S3Hu2283oMYB8z7zx39eRXS647TP9sffoVPKeM",
+        "type": "image/png"
+      }
+    ],
+    "category": "image"
+  },
+  "collection": {
+    "name": "Mechanics Test A",
+    "family": "test-mech-a"
+  }
+}

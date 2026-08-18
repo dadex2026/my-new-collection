@@ -1,0 +1,28 @@
+{
+  "name": "Test Item D",
+  "symbol": "",
+  "description": "Fourth test item",
+  "seller_fee_basis_points": 0,
+  "image": "https://gateway.irys.xyz/8KmSDszcgqa68pAg6azfrKRiH2Ne1yNECoT1e6jQhcHz",
+  "external_url": "",
+  "attributes": [
+    {
+      "trait_type": "Trait",
+      "value": "Test"
+    }
+  ],
+  "properties": {
+    "files": [
+      {
+        "uri": "https://gateway.irys.xyz/8KmSDszcgqa68pAg6azfrKRiH2Ne1yNECoT1e6jQhcHz",
+        "type": "image/png"
+      }
+    ],
+    "category": "image"
+  },
+  "collection": {
+    "name": "Mechanics Test D",
+    "family": "test-mech",
+    "address": "DWGTLJUEyGUH33dLut6JLLbPqpHnPm8tLW2ejnj6EEcw"
+  }
+}

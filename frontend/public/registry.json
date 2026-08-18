@@ -1,42 +1,126 @@
 {
-  "generatedAt": "2026-07-21T21:19:29.327Z",
+  "generatedAt": "2026-08-14T14:35:30.121Z",
   "collections": {
-    "sample-collection": {
-      "slug": "sample-collection",
-      "name": "Sample Collection",
-      "description": "Example row for guidance - copy this pattern and replace every value with your own",
-      "image": "https://placehold.co/600x400?text=Sample+Collection",
-      "externalUrl": "https://example.com",
-      "collectionAddress": ""
+    "test-mech-a": {
+      "slug": "test-mech-a",
+      "name": "Mechanics Test A",
+      "description": "Eligibility drop",
+      "image": "https://placehold.co/400x400?text=A",
+      "externalUrl": "",
+      "collectionAddress": "7DayQZfbPCXz5xMpkFG3RsPdsWL4hwWX9ea3EjKj2xVP"
+    },
+    "test-mech-b": {
+      "slug": "test-mech-b",
+      "name": "Mechanics Test B",
+      "description": "Target drop",
+      "image": "https://placehold.co/400x400?text=B",
+      "externalUrl": "",
+      "collectionAddress": "4VKpPBoWctoQCECh5QquzaX9WM6vJChEArWCb2kUxJF9"
+    },
+    "test-mech": {
+      "slug": "test-mech",
+      "name": "Mechanics Test C",
+      "description": "Third test drop",
+      "image": "https://placehold.co/400x400?text=C",
+      "externalUrl": "",
+      "collectionAddress": "DWGTLJUEyGUH33dLut6JLLbPqpHnPm8tLW2ejnj6EEcw"
     }
   },
   "drops": {
-    "SAMPLE-001": {
-      "collectionKey": "sample-collection",
-      "dropItemId": "SAMPLE-001",
-      "itemName": "Sample Item #1",
-      "itemDescription": "Example drop - copy this pattern and replace every value",
-      "itemImage": "https://placehold.co/400x400?text=Sample+Item",
-      "itemExternalUrl": "https://example.com/sample-001",
-      "sellerFeeBasisPoints": 500,
+    "TEST-001": {
+      "collectionKey": "test-mech-a",
+      "dropItemId": "TEST-001",
+      "itemName": "Test Item A",
+      "itemDescription": "Eligibility item",
+      "itemImage": "https://gateway.irys.xyz/CDKZz6S3Hu2283oMYB8z7zx39eRXS647TP9sffoVPKeM",
+      "itemExternalUrl": "",
+      "sellerFeeBasisPoints": 0,
       "attributes": [
         {
           "trait_type": "Trait",
-          "value": "Example"
-        },
-        {
-          "trait_type": "Category",
-          "value": "Sample"
+          "value": "Test"
         }
       ],
-      "maxSupply": null,
-      "price": 0.01,
+      "maxSupply": 5,
+      "price": 0.001,
       "status": "ready",
-      "uri": "",
-      "collectionAddress": "",
+      "uri": "https://gateway.irys.xyz/Cb6o5VzJjVJc1pk4QWmUZD2itWpwtzBFcrfN3aFu5Qi8",
+      "collectionAddress": "7DayQZfbPCXz5xMpkFG3RsPdsWL4hwWX9ea3EjKj2xVP",
       "candyMachineAddress": "",
       "treasury": "",
-      "network": "",
+      "network": "mainnet",
+      "minted": null
+    },
+    "TEST-002": {
+      "collectionKey": "test-mech-b",
+      "dropItemId": "TEST-002",
+      "itemName": "Test Item B",
+      "itemDescription": "Reward item",
+      "itemImage": "https://gateway.irys.xyz/Hv4Aa6aD6nKyGEXrxafcwJSKyS4XdLAHr9nq8z9rzApC",
+      "itemExternalUrl": "",
+      "sellerFeeBasisPoints": 0,
+      "attributes": [
+        {
+          "trait_type": "Trait",
+          "value": "Test"
+        }
+      ],
+      "maxSupply": 5,
+      "price": 0.001,
+      "status": "ready",
+      "uri": "https://gateway.irys.xyz/Ft8D9rfRN83g642ANR3UwKT4NMr38KDiQ2QiGFH6k9D4",
+      "collectionAddress": "4VKpPBoWctoQCECh5QquzaX9WM6vJChEArWCb2kUxJF9",
+      "candyMachineAddress": "CzTMdNb7Umu9mexAex8L6NYUaYquoCRiTNQEC6kpsX8T",
+      "treasury": "7XJJvj5N4aBMNyX9g5NZqSEzi9vY6vYxWydezMZvC4n9",
+      "network": "mainnet",
+      "minted": null
+    },
+    "TEST-003": {
+      "collectionKey": "test-mech",
+      "dropItemId": "TEST-003",
+      "itemName": "Test Item C",
+      "itemDescription": "Third test item",
+      "itemImage": "https://gateway.irys.xyz/BjUjK9J54W7NBZVyG1F8SQdaJ2bDmC8pHMa29byist4P",
+      "itemExternalUrl": "",
+      "sellerFeeBasisPoints": 0,
+      "attributes": [
+        {
+          "trait_type": "Trait",
+          "value": "Test"
+        }
+      ],
+      "maxSupply": 5,
+      "price": 0.001,
+      "status": "ready",
+      "uri": "https://gateway.irys.xyz/BZBY3SCCiT69K4DGRzLRuojZhHDVeyC2Jzgc6Mx71PBX",
+      "collectionAddress": "DWGTLJUEyGUH33dLut6JLLbPqpHnPm8tLW2ejnj6EEcw",
+      "candyMachineAddress": "D24hPHn7rx6mLcwYwsBRXh2oDrpYbPTM8eTWVzceY27U",
+      "treasury": "7XJJvj5N4aBMNyX9g5NZqSEzi9vY6vYxWydezMZvC4n9",
+      "network": "mainnet",
+      "minted": null
+    },
+    "TEST-004": {
+      "collectionKey": "test-mech",
+      "dropItemId": "TEST-004",
+      "itemName": "Test Item D",
+      "itemDescription": "Fourth test item",
+      "itemImage": "https://gateway.irys.xyz/8KmSDszcgqa68pAg6azfrKRiH2Ne1yNECoT1e6jQhcHz",
+      "itemExternalUrl": "",
+      "sellerFeeBasisPoints": 0,
+      "attributes": [
+        {
+          "trait_type": "Trait",
+          "value": "Test"
+        }
+      ],
+      "maxSupply": 5,
+      "price": 0.001,
+      "status": "ready",
+      "uri": "https://gateway.irys.xyz/F1JjYUuiEtX858koZsxtisKodYCLXi2FNe9CPQP3DmM3",
+      "collectionAddress": "DWGTLJUEyGUH33dLut6JLLbPqpHnPm8tLW2ejnj6EEcw",
+      "candyMachineAddress": "BLGGzRUgu5KQKJCkTM7CevhJibvpf9geCmDrxerusp7P",
+      "treasury": "7XJJvj5N4aBMNyX9g5NZqSEzi9vY6vYxWydezMZvC4n9",
+      "network": "mainnet",
       "minted": null
     }
   }

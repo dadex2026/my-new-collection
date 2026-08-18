@@ -37,7 +37,21 @@
  *   node scripts/deploy-candy-machine.js
  *   node scripts/deploy-candy-machine.js --drop OE-001   (deploy a single drop only)
  *   node scripts/deploy-candy-machine.js --slug founders (override config.json's collectionSlug)
- *   node scripts/deploy-candy-machine.js --mint-limit 5  (add a per-wallet mint cap guard)
+ *   node scripts/deploy-candy-machine.js --mint-limit 5  (per-wallet mint cap guard — raises the
+ *                                                          cost of single-wallet bulk sniping)
+ *   node scripts/deploy-candy-machine.js --start-date "2026-08-01T18:00:00.000Z"
+ *                                                         (blocks minting until this time — closes
+ *                                                          the "mint before anyone sees the
+ *                                                          announcement" sniping window)
+ *   node scripts/deploy-candy-machine.js --bot-tax 0.01  (SOL penalty charged to transactions that
+ *                                                          fail guard validation — discourages bot
+ *                                                          spam; also enforces the mint instruction
+ *                                                          must be last in its transaction, blocking
+ *                                                          a common bundling attack pattern)
+ *   node scripts/deploy-candy-machine.js --mutable       (allow metadata changes after deploy —
+ *                                                          OFF by default; once real buyers have
+ *                                                          minted, deployer-editable metadata is a
+ *                                                          trust liability, not a convenience)
  *
  * Dependencies (npm install):
  *   @metaplex-foundation/umi
@@ -257,7 +271,9 @@ async function getUmi(rpc) {
 
 // ---- Deploy one drop's Candy Machine + Candy Guard ------------------------
 
-async function deployDropCandyMachine({ umi, umiCore, mplCandyMachine }, row, config, mintLimitPerWallet) {
+async function deployDropCandyMachine({ umi, umiCore, mplCandyMachine }, row, config, options) {
+  const { mintLimitPerWallet, startDateIso, botTaxSol, mutable } = options;
+
   const candyMachineSigner = umiCore.generateSigner(umi);
   const itemsAvailable = parseMaxSupply(row.maxSupply);
   const priceSol = Number(row.price) || 0;
@@ -275,12 +291,34 @@ async function deployDropCandyMachine({ umi, umiCore, mplCandyMachine }, row, co
     guards.mintLimit = { id: 1, limit: mintLimitPerWallet };
   }
 
+  if (startDateIso) {
+    // Blocks minting entirely until this timestamp — closes the
+    // "mint before anyone even sees the announcement" sniping window.
+    // Verified shape: { date: DateTimeInput } where DateTimeInput
+    // accepts an ISO string directly, converted via umi's dateTime().
+    guards.startDate = { date: umiCore.dateTime(startDateIso) };
+  }
+
+  if (botTaxSol && botTaxSol > 0) {
+    // Charges a small non-refundable fee to transactions that fail
+    // guard validation — raises the cost of bot spam attempts.
+    // lastInstruction: true additionally requires the mint be the last
+    // instruction in its transaction, which blocks a common bundling
+    // attack pattern (stacking extra logic around the mint call).
+    guards.botTax = { lamports: umiCore.sol(botTaxSol), lastInstruction: true };
+  }
+
   const builder = await mplCandyMachine.create(umi, {
     candyMachine: candyMachineSigner,
     collection: umiCore.publicKey(row.collectionAddress),
     collectionUpdateAuthority: umi.identity,
     itemsAvailable,
-    isMutable: true,
+    // Defaults to immutable (isMutable: false) — safer default. Once
+    // real buyers have minted, the ability for the deployer authority
+    // to change collection metadata is a trust liability, not a
+    // convenience. Pass --mutable explicitly if you genuinely need to
+    // update metadata post-launch (e.g. still actively iterating).
+    isMutable: !!mutable,
     hiddenSettings: {
       name: (row.itemName || row.dropItemId).slice(0, 32),
       uri: row.uri,
@@ -305,6 +343,9 @@ async function main() {
   const slugFlagIndex = args.indexOf("--slug");
   const dropFlagIndex = args.indexOf("--drop");
   const mintLimitFlagIndex = args.indexOf("--mint-limit");
+  const startDateFlagIndex = args.indexOf("--start-date");
+  const botTaxFlagIndex = args.indexOf("--bot-tax");
+  const mutable = args.includes("--mutable");
 
   const config = loadConfig();
   const collectionSlug =
@@ -312,10 +353,27 @@ async function main() {
   const onlyDropId = dropFlagIndex !== -1 ? args[dropFlagIndex + 1] : null;
   const mintLimitPerWallet =
     mintLimitFlagIndex !== -1 && args[mintLimitFlagIndex + 1] ? Number(args[mintLimitFlagIndex + 1]) : null;
+  const startDateIso =
+    startDateFlagIndex !== -1 && args[startDateFlagIndex + 1] ? args[startDateFlagIndex + 1] : null;
+  const botTaxSol =
+    botTaxFlagIndex !== -1 && args[botTaxFlagIndex + 1] ? Number(args[botTaxFlagIndex + 1]) : null;
+
+  if (startDateIso && Number.isNaN(Date.parse(startDateIso))) {
+    fail("invalid_start_date", `--start-date "${startDateIso}" is not a valid date. Use ISO format, e.g. "2026-08-01T18:00:00.000Z"`, 1);
+  }
 
   validateTreasury(config);
 
-  log({ status: "start", collectionSlug, network: config.network, onlyDropId, mintLimitPerWallet });
+  log({
+    status: "start",
+    collectionSlug,
+    network: config.network,
+    onlyDropId,
+    mintLimitPerWallet,
+    startDateIso,
+    botTaxSol,
+    mutable,
+  });
 
   if (config.network === "mainnet") {
     log({ status: "info", message: "Deploying to MAINNET — this costs real SOL. 5 second window to cancel (Ctrl+C)." });
@@ -417,7 +475,7 @@ async function main() {
         umiContext,
         row,
         config,
-        mintLimitPerWallet
+        { mintLimitPerWallet, startDateIso, botTaxSol, mutable }
       );
 
       row.candyMachineAddress = candyMachineAddress;

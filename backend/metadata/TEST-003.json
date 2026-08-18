@@ -1,0 +1,28 @@
+{
+  "name": "Test Item C",
+  "symbol": "",
+  "description": "Third test item",
+  "seller_fee_basis_points": 0,
+  "image": "https://gateway.irys.xyz/BjUjK9J54W7NBZVyG1F8SQdaJ2bDmC8pHMa29byist4P",
+  "external_url": "",
+  "attributes": [
+    {
+      "trait_type": "Trait",
+      "value": "Test"
+    }
+  ],
+  "properties": {
+    "files": [
+      {
+        "uri": "https://gateway.irys.xyz/BjUjK9J54W7NBZVyG1F8SQdaJ2bDmC8pHMa29byist4P",
+        "type": "image/png"
+      }
+    ],
+    "category": "image"
+  },
+  "collection": {
+    "name": "Mechanics Test C",
+    "family": "test-mech",
+    "address": "DWGTLJUEyGUH33dLut6JLLbPqpHnPm8tLW2ejnj6EEcw"
+  }
+}

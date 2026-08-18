@@ -1,7 +1,9 @@
 {
-  "collectionSlug": "your-collection-slug",
-  "network": "devnet",
-  "rpc": "https://api.devnet.solana.com",
-  "treasury": "YOUR_TREASURY_ADDRESS",
-  "price": 0.01
+  "collectionSlug": "test-mech-b",
+  "network": "mainnet",
+  "rpc": "https://mainnet.helius-rpc.com/?api-key=14913885-2a81-4332-912a-ac6418ba6d41",
+  "treasury": "7XJJvj5N4aBMNyX9g5NZqSEzi9vY6vYxWydezMZvC4n9",
+  "price": 0.001
 }
+
+

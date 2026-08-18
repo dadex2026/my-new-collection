@@ -1,7 +1,7 @@
 import { state, subscribe } from "./state";
 import { clearNodes } from "./domDiff";
 import { batch } from "./batch";
-import { RegistryDrop } from "./types";
+import { RegistryDrop, Campaign } from "./types";
 
 let activeCollectionSlug = "all";
 let activeFilters: Record<string, string> = {};
@@ -22,6 +22,12 @@ function renderMintButtons() {
   btns.forEach((btn) => {
     btn.disabled = !state.wallet.connected || state.ui.minting;
     btn.textContent = state.ui.minting ? "Minting..." : "Mint";
+  });
+  // Campaign claim buttons follow the same enable/disable rule as mint
+  // buttons — need a connected wallet, and disabled mid-transaction.
+  const claimBtns = document.querySelectorAll<HTMLButtonElement>(".campaign-claim-btn");
+  claimBtns.forEach((btn) => {
+    btn.disabled = !state.wallet.connected || state.ui.minting;
   });
 }
 
@@ -129,7 +135,6 @@ function renderSidebar(sidebarEl: HTMLElement) {
   const collections = state.registry;
   const allDrops = getAllDrops();
 
-  // Build filter groups — only traits with more than 1 unique value
   const activeGroups = FILTER_TRAITS.filter(
     (trait) => getUniqueTraitValues(allDrops, trait).length > 1
   );
@@ -150,6 +155,14 @@ function renderSidebar(sidebarEl: HTMLElement) {
         ${col.collection.name}
       </div>
     `).join("")}
+
+    ${state.campaigns.length > 0 ? `
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-title">Holder Rewards</div>
+      <div class="sidebar-item sidebar-item-rewards" data-action="scroll-to-rewards">
+        Rewards
+      </div>
+    ` : ""}
 
     ${activeGroups.length > 0 ? `
       <div class="sidebar-divider"></div>
@@ -178,8 +191,7 @@ function renderSidebar(sidebarEl: HTMLElement) {
     ` : ""}
   `;
 
-  // Bind collection items
-  sidebarEl.querySelectorAll(".sidebar-item").forEach((item) => {
+  sidebarEl.querySelectorAll(".sidebar-item[data-slug]").forEach((item) => {
     item.addEventListener("click", () => {
       const slug = (item as HTMLElement).dataset.slug;
       if (!slug) return;
@@ -192,7 +204,13 @@ function renderSidebar(sidebarEl: HTMLElement) {
     });
   });
 
-  // Bind filter items
+  const rewardsItem = sidebarEl.querySelector(".sidebar-item-rewards");
+  if (rewardsItem) {
+    rewardsItem.addEventListener("click", () => {
+      document.getElementById("campaigns")?.scrollIntoView({ behavior: "smooth" });
+    });
+  }
+
   sidebarEl.querySelectorAll(".sidebar-filter-item").forEach((item) => {
     item.addEventListener("click", () => {
       const trait = (item as HTMLElement).dataset.filterTrait!;
@@ -207,7 +225,6 @@ function renderSidebar(sidebarEl: HTMLElement) {
     });
   });
 
-  // Bind clear
   const clearBtn = sidebarEl.querySelector("[data-action='clear-filters']");
   if (clearBtn) {
     clearBtn.addEventListener("click", () => {
@@ -225,12 +242,6 @@ function renderRegistry() {
 
   clearNodes();
 
-  // FIX: previously this was `if (collections.length === 0) return;` with
-  // no clearNodes()/root.innerHTML update at all — meaning a legitimately
-  // empty registry (e.g. a freshly reset template) left whatever static
-  // placeholder text was in index.html (like "Loading registry...")
-  // untouched forever, with no indication anything actually finished
-  // loading. Now it renders an explicit empty state instead.
   if (collections.length === 0) {
     root.innerHTML = '<p class="empty">No collections available yet. Check back soon.</p>';
     return;
@@ -262,28 +273,98 @@ function renderMintCounter() {
   el.textContent = `Minted: ${totalMinted}`;
 }
 
+// ----------------------------
+// CAMPAIGNS (new)
+// ----------------------------
+// Renders into a #campaigns container — NOT YET PRESENT in index.html.
+// Add `<div id="campaigns"></div>` somewhere in the page markup (e.g.
+// below the #registry container) for this to have anywhere to render
+// into. Until that div exists, this function runs harmlessly and does
+// nothing (the `if (!root) return;` guard below), same failure mode as
+// every other render* function here when its target element is missing.
+function buildCampaignCard(c: Campaign): string {
+  const walletConnected = state.wallet.connected;
+  const soldOut = c.claimed != null && c.claimed >= c.allocation;
+
+  return `
+    <div class="campaign" id="campaign-${c.campaignId}">
+      ${c.targetImage ? `<img src="${c.targetImage}" alt="${c.title}" />` : ""}
+      <div class="campaign-title">${c.title}</div>
+      <div class="campaign-headline">${c.headline}</div>
+      ${c.description ? `<div class="campaign-desc">${c.description}</div>` : ""}
+      ${c.eligibilityText ? `<div class="campaign-eligibility">${c.eligibilityText}</div>` : ""}
+      ${c.rewardText ? `<div class="campaign-reward">${c.rewardText}</div>` : ""}
+      <div class="campaign-price">${c.priceText}</div>
+      <div class="campaign-allocation">
+        ${c.claimed ?? 0} / ${c.allocation} claimed
+      </div>
+      ${soldOut
+        ? `<div class="campaign-sold-out">${c.soldOutText}</div>`
+        : `<button
+            class="campaign-claim-btn"
+            data-action="claim-campaign"
+            data-campaign-id="${c.campaignId}"
+            ${!walletConnected ? "disabled" : ""}>
+            ${c.claimText}
+          </button>`
+      }
+    </div>
+  `;
+}
+
+function renderCampaigns() {
+  const root = document.getElementById("campaigns");
+  if (!root) return;
+
+  const campaigns = state.campaigns || [];
+
+  if (campaigns.length === 0) {
+    root.innerHTML = "";
+    return;
+  }
+
+  root.innerHTML = `
+    <div class="campaigns-title">Holder Campaigns</div>
+    <div class="campaigns-grid">
+      ${campaigns.map(buildCampaignCard).join("")}
+    </div>
+  `;
+}
+
 export function initUIEngine() {
   subscribe("status", renderStatus);
   subscribe("minting", renderMintButtons);
   subscribe("wallet", renderMintButtons);
   subscribe("wallet", renderWallet);
   subscribe("wallet", () => renderDropPanel());
+  subscribe("wallet", () => renderCampaigns());
   subscribe("registry", () => {
     batch(() => {
       renderRegistry();
       renderMintCounter();
     });
   });
+  subscribe("campaigns", () => {
+    renderCampaigns();
+    // Campaigns load AFTER the initial registry render (see main.ts's
+    // bootstrap order) — without re-rendering the sidebar here too,
+    // the Rewards entry would never appear on first page load, since
+    // the sidebar was already drawn before any campaign data existed.
+    const sidebarEl = document.getElementById("sidebar");
+    if (sidebarEl) renderSidebar(sidebarEl);
+  });
   renderStatus();
   renderMintButtons();
   renderWallet();
   renderRegistry();
   renderMintCounter();
+  renderCampaigns();
   requestAnimationFrame(() => {
     renderStatus();
     renderMintButtons();
     renderWallet();
     renderRegistry();
     renderMintCounter();
+    renderCampaigns();
   });
 }

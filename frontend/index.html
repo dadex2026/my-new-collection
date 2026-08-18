@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -44,19 +44,11 @@
     .status-success { color: #6dd96d; }
     .status-error { color: #ff6b6b; }
 
-    /* --------------------------------------------------------
-       LAYOUT
-    -------------------------------------------------------- */
-
     .registry-layout {
       display: flex;
       gap: 24px;
       margin-top: 24px;
     }
-
-    /* --------------------------------------------------------
-       SIDEBAR
-    -------------------------------------------------------- */
 
     .sidebar {
       width: 200px;
@@ -145,10 +137,6 @@
     .sidebar-clear:hover {
       color: #aaa;
     }
-
-    /* --------------------------------------------------------
-       DROP PANEL
-    -------------------------------------------------------- */
 
     .drop-panel {
       flex: 1;
@@ -253,6 +241,93 @@
       font-size: 14px;
       padding: 24px 0;
     }
+
+    .campaigns-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #666;
+      margin: 24px 0 8px;
+      padding-left: 4px;
+    }
+
+    .campaigns-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+    }
+
+    .campaign {
+      background: #1f1f1f;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .campaign img {
+      width: 100%;
+      border-radius: 6px;
+      margin-bottom: 10px;
+    }
+
+    .campaign-title {
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .campaign-headline {
+      color: #aaa;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .campaign-desc,
+    .campaign-eligibility,
+    .campaign-reward {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 6px;
+    }
+
+    .campaign-price {
+      color: #aaa;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+
+    .campaign-allocation {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 10px;
+    }
+
+    .campaign-sold-out {
+      font-size: 13px;
+      color: #ff6b6b;
+      padding: 10px 0;
+      text-align: center;
+    }
+
+    .campaign-claim-btn {
+      width: 100%;
+      padding: 10px;
+      background: #512da8;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 0;
+    }
+
+    .campaign-claim-btn:hover:not(:disabled) {
+      background: #6a3fcb;
+    }
+
+    .campaign-claim-btn:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 
@@ -278,6 +353,8 @@
   <div id="registry" class="registry-layout">
     <p>Loading registry...</p>
   </div>
+
+  <div id="campaigns"></div>
 
 </div>
 

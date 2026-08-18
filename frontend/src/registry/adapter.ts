@@ -3,36 +3,48 @@
  *
  * Replaces the live GET /registry call to server.js. Fetches the
  * static registry.json produced by scripts/generate-registry.js
- * instead â€” no backend involved at page-load time.
+ * instead — no backend involved at page-load time.
  *
- * CONFIRMED AGAINST THE REAL state.ts / normalize.ts / ui.engine.ts:
+ * loadCampaigns() (new) does the same thing for campaigns.json,
+ * produced by scripts/generate-campaigns-registry.js — a completely
+ * separate static file, separate fetch, separate state field
+ * (state.campaigns), kept independent of the drop registry the same
+ * way deploy-campaign.js's on-chain supply is kept independent of a
+ * drop's normal public candy machine.
  *
- *   1. normalizeRegistry() returns two flat maps: {collections, drops}
- *      (collections keyed by slug, drops keyed by dropItemId). But
- *      ui.engine.ts expects state.registry to be an ARRAY, where each
- *      element is { collection, drops: RegistryDrop[] } â€” collections
- *      already grouped with their own nested drops, and each drop
- *      using a `key` field (not `dropItemId`) as its identity.
+ * CONFIRMED AGAINST THE REAL state.ts / normalize.ts (not guessed):
  *
- *      Nothing previously transformed one shape into the other â€” that
- *      was the actual bug causing "wallet connects but no cards show".
- *      groupForUI() below does that reshaping, kept here (not in
- *      normalize.ts) since it's UI-shape-specific, not a generic
- *      normalization concern.
+ *   1. The normalize function is named normalizeRegistry, not
+ *      adaptRegistry. It types drops/collections values as `unknown`,
+ *      not a concrete shape — so mint.ts casts to `any` when reading
+ *      candyMachineAddress/collectionAddress/treasury off a drop.
  *
- *   2. setStatus(status: string) takes a plain string, not an object.
+ *   2. setStatus(status: string) takes a plain string, not an object —
+ *      there's no {type, message} shape in this codebase's state.ts.
+ *
+ *   3. groupForUI() reshapes normalizeRegistry()'s flat {collections,
+ *      drops} maps into the array-of-{collection, drops} shape
+ *      ui.engine.ts actually renders, renaming each drop's dropItemId
+ *      to key. campaigns.json is NOT run through this — it's already
+ *      a flat array of campaign objects, matching what a prospective
+ *      renderCampaigns() in ui.engine.ts would iterate directly.
  *
  * STILL AN OPEN ITEM, not code:
  *
- *   3. frontend/.env's VITE_REGISTRY_URL must point at wherever
+ *   4. frontend/.env's VITE_REGISTRY_URL must point at wherever
  *      registry.json is actually served (e.g. "/registry.json").
+ *      campaigns.json needs the equivalent: VITE_CAMPAIGNS_URL,
+ *      defaulting to "/campaigns.json" if not set, matching where
+ *      generate-campaigns-registry.js actually copies it.
  */
 
 import { normalizeRegistry } from "./normalize";
 import type { NormalizedRegistry } from "./normalize";
-import { setRegistry, setStatus } from "../state";
+import { setRegistry, setCampaigns, setStatus } from "../state";
+import type { Campaign } from "../types";
 
 const REGISTRY_URL = import.meta.env.VITE_REGISTRY_URL as string;
+const CAMPAIGNS_URL = (import.meta.env.VITE_CAMPAIGNS_URL as string) || "/campaigns.json";
 
 /**
  * Reshapes the flat {collections, drops} maps normalizeRegistry()
@@ -89,13 +101,57 @@ export async function loadRegistry(): Promise<NormalizedRegistry | null> {
 }
 
 /**
+ * Fetches campaigns.json (produced by generate-campaigns-registry.js)
+ * and pushes it into state.campaigns. Unlike loadRegistry(), there's
+ * no reshaping needed — campaigns.json's `campaigns` array is already
+ * the flat shape a campaign UI would iterate directly.
+ *
+ * A missing/404 campaigns.json is NOT treated as an error — most
+ * collections won't have any campaigns running, and that's a normal,
+ * expected state, not a failure. state.campaigns is just left empty.
+ */
+export async function loadCampaigns(): Promise<Campaign[]> {
+  try {
+    const res = await fetch(CAMPAIGNS_URL, { cache: "no-store" });
+
+    if (!res.ok) {
+      // Not found is expected/normal for a collection with no campaigns.
+      // Only genuinely unexpected statuses get surfaced as a status message.
+      if (res.status !== 404) {
+        setStatus(`Could not load campaigns (HTTP ${res.status}).`);
+      }
+      setCampaigns([]);
+      return [];
+    }
+
+    const raw = await res.json();
+    const campaigns: Campaign[] = raw.campaigns || [];
+    setCampaigns(campaigns);
+    return campaigns;
+  } catch (err) {
+    // Log the real reason rather than fail completely silently — an
+    // empty campaigns list IS a normal state (most collections won't
+    // have any), so this deliberately doesn't call setStatus() and
+    // interrupt the whole page over an optional feature. But a
+    // genuine fetch failure (network blip, bad URL, CORS) should be
+    // visible somewhere, not indistinguishable from "no campaigns
+    // configured" — this exact silent-failure pattern is what turned
+    // a one-line missing #campaigns div into a long debugging session.
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Campaigns fetch failed: ${message}`);
+    setCampaigns([]);
+    return [];
+  }
+}
+
+/**
  * OPTIONAL enrichment: registry.json's `minted` count is a snapshot
- * from whenever generate-registry.js last ran â€” it can go stale
+ * from whenever generate-registry.js last ran — it can go stale
  * between deploys. This fetches the live itemsRedeemed count directly
  * from each drop's on-chain candy machine account, merges it into the
  * raw (flat-map) registry, then re-groups and re-pushes to state.
  *
- * NOT called automatically inside loadRegistry() â€” one RPC call per
+ * NOT called automatically inside loadRegistry() — one RPC call per
  * drop with a candy machine deployed, fine for a handful of drops but
  * shouldn't block the initial page render for a large catalog. Call
  * this after the first render (e.g. from ui.engine.ts), passing the
@@ -136,7 +192,7 @@ export async function refreshMintedCounts(registry: NormalizedRegistry): Promise
         drop.minted = Number(account.itemsRedeemed);
       }
     } catch {
-      // Best-effort only â€” leave the static snapshot value in place
+      // Best-effort only — leave the static snapshot value in place
       // rather than surfacing an error for a non-critical enrichment.
     }
   }
