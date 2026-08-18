@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-18T04:57:30.941Z",
+  "generatedAt": "2026-08-18T13:25:34.685Z",
   "cards": [
     {
       "textCardId": "TEST-001",
@@ -16,6 +16,166 @@
         "test"
       ],
       "featured": true,
+      "priority": 0,
+      "author": null,
+      "media": {},
+      "relationships": {}
+    },
+    {
+      "textCardId": "TEST-002",
+      "category": "UPDATE",
+      "persistent": false,
+      "headline": "Pagination test card 2",
+      "subheadline": "Second placeholder card",
+      "content": "Test-only content added to exercise Text Cards pagination. Safe to delete once real content is ready.",
+      "publishedDate": "2026-08-11T00:00:00.000Z",
+      "updatedDate": "2026-08-11T00:00:00.000Z",
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "tags": [
+        "test"
+      ],
+      "featured": false,
+      "priority": 1,
+      "author": null,
+      "media": {},
+      "relationships": {}
+    },
+    {
+      "textCardId": "TEST-003",
+      "category": "UPDATE",
+      "persistent": false,
+      "headline": "Pagination test card 3",
+      "subheadline": "Third placeholder card",
+      "content": "Test-only content added to exercise Text Cards pagination. Safe to delete once real content is ready.",
+      "publishedDate": "2026-08-12T00:00:00.000Z",
+      "updatedDate": "2026-08-12T00:00:00.000Z",
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "tags": [
+        "test"
+      ],
+      "featured": false,
+      "priority": 1,
+      "author": null,
+      "media": {},
+      "relationships": {}
+    },
+    {
+      "textCardId": "TEST-004",
+      "category": "UPDATE",
+      "persistent": false,
+      "headline": "Pagination test card 4",
+      "subheadline": "Fourth placeholder card",
+      "content": "Test-only content added to exercise Text Cards pagination. Safe to delete once real content is ready.",
+      "publishedDate": "2026-08-13T00:00:00.000Z",
+      "updatedDate": "2026-08-13T00:00:00.000Z",
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "tags": [
+        "test"
+      ],
+      "featured": false,
+      "priority": 1,
+      "author": null,
+      "media": {},
+      "relationships": {}
+    },
+    {
+      "textCardId": "TEST-005",
+      "category": "UPDATE",
+      "persistent": false,
+      "headline": "Pagination test card 5",
+      "subheadline": "Fifth placeholder card",
+      "content": "Test-only content added to exercise Text Cards pagination. Safe to delete once real content is ready.",
+      "publishedDate": "2026-08-14T00:00:00.000Z",
+      "updatedDate": "2026-08-14T00:00:00.000Z",
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "tags": [
+        "test"
+      ],
+      "featured": true,
+      "priority": 2,
+      "author": null,
+      "media": {},
+      "relationships": {}
+    },
+    {
+      "textCardId": "TEST-006",
+      "category": "ANNOUNCEMENT",
+      "persistent": false,
+      "headline": "Pagination test card 6",
+      "subheadline": "Sixth placeholder card",
+      "content": "Test-only content added to exercise Text Cards pagination. Safe to delete once real content is ready.",
+      "publishedDate": "2026-08-15T00:00:00.000Z",
+      "updatedDate": "2026-08-15T00:00:00.000Z",
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "tags": [
+        "test"
+      ],
+      "featured": false,
+      "priority": 0,
+      "author": null,
+      "media": {},
+      "relationships": {}
+    },
+    {
+      "textCardId": "TEST-007",
+      "category": "ANNOUNCEMENT",
+      "persistent": false,
+      "headline": "Pagination test card 7",
+      "subheadline": "Seventh placeholder card",
+      "content": "Test-only content added to exercise Text Cards pagination. Safe to delete once real content is ready.",
+      "publishedDate": "2026-08-16T00:00:00.000Z",
+      "updatedDate": "2026-08-16T00:00:00.000Z",
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "tags": [
+        "test"
+      ],
+      "featured": false,
+      "priority": 0,
+      "author": null,
+      "media": {},
+      "relationships": {}
+    },
+    {
+      "textCardId": "TEST-008",
+      "category": "ANALYSIS",
+      "persistent": false,
+      "headline": "Pagination test card 8",
+      "subheadline": "Eighth placeholder card",
+      "content": "Test-only content added to exercise Text Cards pagination. Safe to delete once real content is ready.",
+      "publishedDate": "2026-08-17T00:00:00.000Z",
+      "updatedDate": "2026-08-17T00:00:00.000Z",
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "tags": [
+        "test"
+      ],
+      "featured": false,
+      "priority": 0,
+      "author": null,
+      "media": {},
+      "relationships": {}
+    },
+    {
+      "textCardId": "TEST-009",
+      "category": "NEWS",
+      "persistent": false,
+      "headline": "Pagination test card 9",
+      "subheadline": "Ninth placeholder card",
+      "content": "Test-only content added to exercise Text Cards pagination. Safe to delete once real content is ready.",
+      "publishedDate": "2026-08-18T00:00:00.000Z",
+      "updatedDate": "2026-08-18T00:00:00.000Z",
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "tags": [
+        "test"
+      ],
+      "featured": false,
       "priority": 0,
       "author": null,
       "media": {},
