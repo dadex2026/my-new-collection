@@ -10,6 +10,7 @@ export const state: AppState = {
   },
   registry: [],
   campaigns: [],
+  textCards: [],
 };
 // ----------------------------
 // SIGNAL SYSTEM
@@ -22,6 +23,7 @@ const listeners: Record<SignalName, Set<Listener>> = {
   status: new Set(),
   minting: new Set(),
   campaigns: new Set(),
+  textCards: new Set(),
 };
 export function subscribe(signal: SignalName, fn: Listener) {
   listeners[signal].add(fn);
@@ -65,4 +67,11 @@ export function setRegistry(registry: AppState["registry"]) {
 export function setCampaigns(campaigns: AppState["campaigns"]) {
   state.campaigns = campaigns;
   notify(SIGNALS.CAMPAIGNS);
+}
+// ----------------------------
+// TEXT CARDS
+// ----------------------------
+export function setTextCards(textCards: AppState["textCards"]) {
+  state.textCards = textCards;
+  notify(SIGNALS.TEXTCARDS);
 }

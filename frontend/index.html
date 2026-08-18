@@ -328,6 +328,126 @@
       opacity: .5;
       cursor: not-allowed;
     }
+
+    .textcards-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #666;
+      margin: 24px 0 8px;
+      padding-left: 4px;
+    }
+
+    .textcards-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+
+    .textcards-tab {
+      padding: 6px 12px;
+      border-radius: 20px;
+      cursor: pointer;
+      color: #aaa;
+      font-size: 12px;
+      border: 1px solid #333;
+      transition: all 0.15s;
+    }
+
+    .textcards-tab:hover {
+      background: #1f1f1f;
+      color: #fff;
+    }
+
+    .textcards-tab.active {
+      background: #512da8;
+      border-color: #512da8;
+      color: #fff;
+    }
+
+    .textcards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
+    }
+
+    .textcard {
+      background: #1f1f1f;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .textcard-category {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #666;
+      margin-bottom: 6px;
+    }
+
+    .textcard-headline {
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .textcard-subheadline {
+      color: #aaa;
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+
+    .textcard-body {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 10px;
+    }
+
+    .textcard-entries {
+      list-style: decimal;
+      padding-left: 18px;
+      margin: 0 0 10px;
+      font-size: 13px;
+      color: #ccc;
+    }
+
+    .textcard-entry {
+      margin-bottom: 4px;
+    }
+
+    .textcard-entry-field {
+      margin-right: 10px;
+      color: #aaa;
+    }
+
+    .textcard-stats {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 10px;
+    }
+
+    .textcard-stat {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+    }
+
+    .textcard-stat-label {
+      color: #666;
+    }
+
+    .textcard-stat-value {
+      color: #ccc;
+    }
+
+    .textcard-meta {
+      display: flex;
+      gap: 10px;
+      font-size: 11px;
+      color: #555;
+    }
   </style>
 </head>
 
@@ -355,6 +475,8 @@
   </div>
 
   <div id="campaigns"></div>
+
+  <div id="textcards"></div>
 
 </div>
 

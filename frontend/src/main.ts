@@ -1,4 +1,4 @@
-import { loadRegistry, loadCampaigns } from "./registry/adapter";
+import { loadRegistry, loadCampaigns, loadTextCards } from "./registry/adapter";
 import { initUIEngine } from "./ui.engine";
 import { connectWallet, disconnectWallet, autoReconnect } from "./wallet";
 import { mint } from "./mint";
@@ -39,6 +39,7 @@ async function bootstrap() {
   await autoReconnect();
   await loadRegistry();
   await loadCampaigns();
+  await loadTextCards();
   console.log("? READY");
 }
 window.addEventListener("load", bootstrap);

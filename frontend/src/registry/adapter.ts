@@ -3,48 +3,46 @@
  *
  * Replaces the live GET /registry call to server.js. Fetches the
  * static registry.json produced by scripts/generate-registry.js
- * instead — no backend involved at page-load time.
+ * instead â€” no backend involved at page-load time.
  *
- * loadCampaigns() (new) does the same thing for campaigns.json,
- * produced by scripts/generate-campaigns-registry.js — a completely
- * separate static file, separate fetch, separate state field
- * (state.campaigns), kept independent of the drop registry the same
- * way deploy-campaign.js's on-chain supply is kept independent of a
- * drop's normal public candy machine.
+ * loadCampaigns() does the same thing for campaigns.json, produced by
+ * scripts/generate-campaigns-registry.js â€” a completely separate
+ * static file, separate fetch, separate state field (state.campaigns).
  *
- * CONFIRMED AGAINST THE REAL state.ts / normalize.ts (not guessed):
+ * loadTextCards() (new) does the same for content-registry.json,
+ * produced by scripts/generate-content-registry.js â€” separate again,
+ * separate state field (state.textCards). Same missing/404-is-normal
+ * handling as loadCampaigns(), for the same reason: most collections
+ * won't have any text cards published, and that's a normal state, not
+ * a failure.
+ *
+ * CONFIRMED AGAINST THE REAL state.ts / normalize.ts / types.ts:
  *
  *   1. The normalize function is named normalizeRegistry, not
  *      adaptRegistry. It types drops/collections values as `unknown`,
- *      not a concrete shape — so mint.ts casts to `any` when reading
+ *      not a concrete shape â€” so mint.ts casts to `any` when reading
  *      candyMachineAddress/collectionAddress/treasury off a drop.
  *
- *   2. setStatus(status: string) takes a plain string, not an object —
+ *   2. setStatus(status: string) takes a plain string, not an object â€”
  *      there's no {type, message} shape in this codebase's state.ts.
  *
  *   3. groupForUI() reshapes normalizeRegistry()'s flat {collections,
  *      drops} maps into the array-of-{collection, drops} shape
  *      ui.engine.ts actually renders, renaming each drop's dropItemId
- *      to key. campaigns.json is NOT run through this — it's already
- *      a flat array of campaign objects, matching what a prospective
- *      renderCampaigns() in ui.engine.ts would iterate directly.
- *
- * STILL AN OPEN ITEM, not code:
- *
- *   4. frontend/.env's VITE_REGISTRY_URL must point at wherever
- *      registry.json is actually served (e.g. "/registry.json").
- *      campaigns.json needs the equivalent: VITE_CAMPAIGNS_URL,
- *      defaulting to "/campaigns.json" if not set, matching where
- *      generate-campaigns-registry.js actually copies it.
+ *      to key. campaigns.json and content-registry.json are NOT run
+ *      through this â€” they're already flat arrays (campaigns / cards),
+ *      matching what renderCampaigns()/renderTextCards() iterate
+ *      directly in ui.engine.ts.
  */
 
 import { normalizeRegistry } from "./normalize";
 import type { NormalizedRegistry } from "./normalize";
-import { setRegistry, setCampaigns, setStatus } from "../state";
-import type { Campaign } from "../types";
+import { setRegistry, setCampaigns, setTextCards, setStatus } from "../state";
+import type { Campaign, TextCard } from "../types";
 
 const REGISTRY_URL = import.meta.env.VITE_REGISTRY_URL as string;
 const CAMPAIGNS_URL = (import.meta.env.VITE_CAMPAIGNS_URL as string) || "/campaigns.json";
+const CONTENT_REGISTRY_URL = (import.meta.env.VITE_CONTENT_REGISTRY_URL as string) || "/content-registry.json";
 
 /**
  * Reshapes the flat {collections, drops} maps normalizeRegistry()
@@ -103,10 +101,10 @@ export async function loadRegistry(): Promise<NormalizedRegistry | null> {
 /**
  * Fetches campaigns.json (produced by generate-campaigns-registry.js)
  * and pushes it into state.campaigns. Unlike loadRegistry(), there's
- * no reshaping needed — campaigns.json's `campaigns` array is already
+ * no reshaping needed â€” campaigns.json's `campaigns` array is already
  * the flat shape a campaign UI would iterate directly.
  *
- * A missing/404 campaigns.json is NOT treated as an error — most
+ * A missing/404 campaigns.json is NOT treated as an error â€” most
  * collections won't have any campaigns running, and that's a normal,
  * expected state, not a failure. state.campaigns is just left empty.
  */
@@ -129,13 +127,13 @@ export async function loadCampaigns(): Promise<Campaign[]> {
     setCampaigns(campaigns);
     return campaigns;
   } catch (err) {
-    // Log the real reason rather than fail completely silently — an
+    // Log the real reason rather than fail completely silently â€” an
     // empty campaigns list IS a normal state (most collections won't
     // have any), so this deliberately doesn't call setStatus() and
     // interrupt the whole page over an optional feature. But a
     // genuine fetch failure (network blip, bad URL, CORS) should be
     // visible somewhere, not indistinguishable from "no campaigns
-    // configured" — this exact silent-failure pattern is what turned
+    // configured" â€” this exact silent-failure pattern is what turned
     // a one-line missing #campaigns div into a long debugging session.
     const message = err instanceof Error ? err.message : String(err);
     console.error(`Campaigns fetch failed: ${message}`);
@@ -145,13 +143,45 @@ export async function loadCampaigns(): Promise<Campaign[]> {
 }
 
 /**
+ * Fetches content-registry.json (produced by
+ * generate-content-registry.js) and pushes it into state.textCards.
+ * Same shape as loadCampaigns() above, for the same reason: no
+ * reshaping needed (content-registry.json's `cards` array is already
+ * flat), and a missing/404 file is a normal "no text cards published
+ * yet" state, not an error.
+ */
+export async function loadTextCards(): Promise<TextCard[]> {
+  try {
+    const res = await fetch(CONTENT_REGISTRY_URL, { cache: "no-store" });
+
+    if (!res.ok) {
+      if (res.status !== 404) {
+        setStatus(`Could not load text cards (HTTP ${res.status}).`);
+      }
+      setTextCards([]);
+      return [];
+    }
+
+    const raw = await res.json();
+    const cards: TextCard[] = raw.cards || [];
+    setTextCards(cards);
+    return cards;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Text cards fetch failed: ${message}`);
+    setTextCards([]);
+    return [];
+  }
+}
+
+/**
  * OPTIONAL enrichment: registry.json's `minted` count is a snapshot
- * from whenever generate-registry.js last ran — it can go stale
+ * from whenever generate-registry.js last ran â€” it can go stale
  * between deploys. This fetches the live itemsRedeemed count directly
  * from each drop's on-chain candy machine account, merges it into the
  * raw (flat-map) registry, then re-groups and re-pushes to state.
  *
- * NOT called automatically inside loadRegistry() — one RPC call per
+ * NOT called automatically inside loadRegistry() â€” one RPC call per
  * drop with a candy machine deployed, fine for a handful of drops but
  * shouldn't block the initial page render for a large catalog. Call
  * this after the first render (e.g. from ui.engine.ts), passing the
@@ -192,7 +222,7 @@ export async function refreshMintedCounts(registry: NormalizedRegistry): Promise
         drop.minted = Number(account.itemsRedeemed);
       }
     } catch {
-      // Best-effort only — leave the static snapshot value in place
+      // Best-effort only â€” leave the static snapshot value in place
       // rather than surfacing an error for a non-critical enrichment.
     }
   }
