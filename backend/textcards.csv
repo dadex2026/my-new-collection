@@ -1,0 +1,7 @@
+textCardId,category,headline,subheadline,content,publishedDate,updatedDate,status,expiresAt,tags,featured,priority,author
+NEWS-001,NEWS,Genesis Collection Is Live,,The Genesis Collection is now available for public mint. Head to the mint page to claim yours. Over 40% minted in the first hour.,2026-08-17T00:00:00Z,2026-08-19T09:00:00Z,ACTIVE,,genesis|launch|mint,FALSE,0,System
+NEWS-005,NEWS,New Community Features,,We've rolled out new community tools including holder campaign self-claim and improved wallet status checks.,2026-08-17T00:00:00Z,2026-08-17T00:00:00Z,ACTIVE,,community|features,FALSE,0,System
+UPDATE-002,UPDATE,Building the Next Generation,Platform roadmap notes,We're creating a platform that combines public minting with reusable holder-campaign tooling for future drops.,2026-08-16T00:00:00Z,2026-08-16T00:00:00Z,ACTIVE,,platform|roadmap,FALSE,0,System
+ANALYSIS-003,ANALYSIS,Platform Development Update,,New features are currently being developed and tested against mainnet before rollout.,2026-08-14T00:00:00Z,2026-08-14T00:00:00Z,ACTIVE,,development,FALSE,0,System
+ANNOUNCEMENT-004,ANNOUNCEMENT,Community Announcement,,Important updates for the community regarding the upcoming holder campaign window.,2026-08-10T00:00:00Z,2026-08-10T00:00:00Z,ACTIVE,,community,FALSE,0,System
+ANNOUNCEMENT-010,ANNOUNCEMENT,Limited-Time Claim Window,,The current holder campaign claim window closes soon. Check the campaign page for eligibility.,2026-08-12T00:00:00Z,2026-08-12T00:00:00Z,ACTIVE,2026-08-24T23:59:59Z,campaign|claim,TRUE,5,System

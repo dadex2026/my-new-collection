@@ -1,0 +1,130 @@
+{
+  "generatedAt": "2026-08-18T01:51:28.029Z",
+  "cards": [
+    {
+      "textCardId": "ANALYSIS-003",
+      "category": "ANALYSIS",
+      "persistent": false,
+      "headline": "Platform Development Update",
+      "subheadline": null,
+      "content": "New features are currently being developed and tested against mainnet before rollout.",
+      "publishedDate": "2026-08-14T00:00:00.000Z",
+      "updatedDate": "2026-08-14T00:00:00.000Z",
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "tags": [
+        "development"
+      ],
+      "featured": false,
+      "priority": 0,
+      "author": "System",
+      "media": {},
+      "relationships": {}
+    },
+    {
+      "textCardId": "ANNOUNCEMENT-004",
+      "category": "ANNOUNCEMENT",
+      "persistent": false,
+      "headline": "Community Announcement",
+      "subheadline": null,
+      "content": "Important updates for the community regarding the upcoming holder campaign window.",
+      "publishedDate": "2026-08-10T00:00:00.000Z",
+      "updatedDate": "2026-08-10T00:00:00.000Z",
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "tags": [
+        "community"
+      ],
+      "featured": false,
+      "priority": 0,
+      "author": "System",
+      "media": {},
+      "relationships": {}
+    },
+    {
+      "textCardId": "ANNOUNCEMENT-010",
+      "category": "ANNOUNCEMENT",
+      "persistent": false,
+      "headline": "Limited-Time Claim Window",
+      "subheadline": null,
+      "content": "The current holder campaign claim window closes soon. Check the campaign page for eligibility.",
+      "publishedDate": "2026-08-12T00:00:00.000Z",
+      "updatedDate": "2026-08-12T00:00:00.000Z",
+      "status": "ACTIVE",
+      "expiresAt": "2026-08-24T23:59:59.000Z",
+      "tags": [
+        "campaign",
+        "claim"
+      ],
+      "featured": true,
+      "priority": 5,
+      "author": "System",
+      "media": {},
+      "relationships": {}
+    },
+    {
+      "textCardId": "NEWS-001",
+      "category": "NEWS",
+      "persistent": false,
+      "headline": "Genesis Collection Is Live",
+      "subheadline": null,
+      "content": "The Genesis Collection is now available for public mint. Head to the mint page to claim yours. Over 40% minted in the first hour.",
+      "publishedDate": "2026-08-17T00:00:00.000Z",
+      "updatedDate": "2026-08-19T09:00:00.000Z",
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "tags": [
+        "genesis",
+        "launch",
+        "mint"
+      ],
+      "featured": false,
+      "priority": 0,
+      "author": "System",
+      "media": {},
+      "relationships": {}
+    },
+    {
+      "textCardId": "NEWS-005",
+      "category": "NEWS",
+      "persistent": false,
+      "headline": "New Community Features",
+      "subheadline": null,
+      "content": "We've rolled out new community tools including holder campaign self-claim and improved wallet status checks.",
+      "publishedDate": "2026-08-17T00:00:00.000Z",
+      "updatedDate": "2026-08-17T00:00:00.000Z",
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "tags": [
+        "community",
+        "features"
+      ],
+      "featured": false,
+      "priority": 0,
+      "author": "System",
+      "media": {},
+      "relationships": {}
+    },
+    {
+      "textCardId": "UPDATE-002",
+      "category": "UPDATE",
+      "persistent": false,
+      "headline": "Building the Next Generation",
+      "subheadline": "Platform roadmap notes",
+      "content": "We're creating a platform that combines public minting with reusable holder-campaign tooling for future drops.",
+      "publishedDate": "2026-08-16T00:00:00.000Z",
+      "updatedDate": "2026-08-16T00:00:00.000Z",
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "tags": [
+        "platform",
+        "roadmap"
+      ],
+      "featured": false,
+      "priority": 0,
+      "author": "System",
+      "media": {},
+      "relationships": {}
+    }
+  ]
+}
