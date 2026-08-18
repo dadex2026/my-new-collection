@@ -7,6 +7,81 @@ let activeCollectionSlug = "all";
 let activeFilters: Record<string, string> = {};
 const FILTER_TRAITS = ["Category", "Market", "Tier", "Element", "Series"];
 
+// ----------------------------
+// PAGINATION (shared across Drops, Campaigns, Text Cards)
+// ----------------------------
+// Each of the three sections keeps its OWN page number — changing page on
+// one section never touches the others. Deliberately three independent
+// data sources (registry.json / campaigns.json / content-registry.json),
+// each with its own pagination, rather than a single merged/paginated
+// list — these are different systems with different lifecycles, not
+// variations of one "campaign record" type.
+const PAGE_SIZE = 6;
+let dropsPage = 1;
+let campaignsPage = 1;
+let textCardsPage = 1;
+
+function paginate<T>(items: T[], page: number): { pageItems: T[]; totalPages: number; page: number } {
+  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+  const clampedPage = Math.min(Math.max(1, page), totalPages);
+  const start = (clampedPage - 1) * PAGE_SIZE;
+  return { pageItems: items.slice(start, start + PAGE_SIZE), totalPages, page: clampedPage };
+}
+
+function buildPaginationControls(page: number, totalPages: number): string {
+  if (totalPages <= 1) return "";
+  const pages = Array.from({ length: totalPages }, (_, i) => i + 1);
+  return `
+    <div class="pagination">
+      <button class="pagination-arrow" data-page-action="prev" ${page <= 1 ? "disabled" : ""}>&larr;</button>
+      ${pages.map((p) => `
+        <button class="pagination-num ${p === page ? "active" : ""}" data-page-num="${p}">${p}</button>
+      `).join("")}
+      <button class="pagination-arrow" data-page-action="next" ${page >= totalPages ? "disabled" : ""}>&rarr;</button>
+    </div>
+  `;
+}
+
+// Binds click handlers for a single .pagination block that was just
+// (re)rendered inside `container`. Rebinding on every render matches this
+// codebase's existing full-innerHTML-replace-then-rebind pattern (see
+// renderSidebar/renderTextCards) rather than a persistent listener.
+function wirePagination(
+  container: Element,
+  getPage: () => number,
+  setPage: (p: number) => void,
+  totalPages: number,
+  rerender: () => void
+) {
+  const pagination = container.querySelector(".pagination");
+  if (!pagination) return;
+
+  pagination.querySelectorAll<HTMLButtonElement>("[data-page-num]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const n = Number(btn.dataset.pageNum);
+      if (!n) return;
+      setPage(n);
+      rerender();
+    });
+  });
+
+  const prevBtn = pagination.querySelector<HTMLButtonElement>('[data-page-action="prev"]');
+  if (prevBtn && !prevBtn.disabled) {
+    prevBtn.addEventListener("click", () => {
+      setPage(Math.max(1, getPage() - 1));
+      rerender();
+    });
+  }
+
+  const nextBtn = pagination.querySelector<HTMLButtonElement>('[data-page-action="next"]');
+  if (nextBtn && !nextBtn.disabled) {
+    nextBtn.addEventListener("click", () => {
+      setPage(Math.min(totalPages, getPage() + 1));
+      rerender();
+    });
+  }
+}
+
 let lastStatus = "";
 function renderStatus() {
   const value = state.ui.status;
@@ -124,11 +199,31 @@ function renderDropPanel() {
     dropPanel.appendChild(dropGrid);
   }
 
+  let dropPagination = document.getElementById("drop-pagination");
+  if (!dropPagination) {
+    dropPagination = document.createElement("div");
+    dropPagination.id = "drop-pagination";
+    dropPanel.appendChild(dropPagination);
+  }
+
   if (filteredDrops.length === 0) {
     dropGrid.innerHTML = '<p class="empty">No drops match the selected filters.</p>';
+    dropPagination.innerHTML = "";
     return;
   }
-  dropGrid.innerHTML = filteredDrops.map(buildDropCard).join("");
+
+  const { pageItems, totalPages, page } = paginate(filteredDrops, dropsPage);
+  dropsPage = page;
+
+  dropGrid.innerHTML = pageItems.map(buildDropCard).join("");
+  dropPagination.innerHTML = buildPaginationControls(page, totalPages);
+  wirePagination(
+    dropPagination,
+    () => dropsPage,
+    (p) => { dropsPage = p; },
+    totalPages,
+    renderDropPanel
+  );
 }
 
 function renderSidebar(sidebarEl: HTMLElement) {
@@ -205,8 +300,11 @@ function renderSidebar(sidebarEl: HTMLElement) {
       if (!slug) return;
       activeCollectionSlug = slug;
       activeFilters = {};
-      const dropPanel = document.getElementById("drop-panel");
-      if (dropPanel) dropPanel.innerHTML = "";
+      dropsPage = 1;
+      const dropGrid = document.getElementById("drop-grid");
+      if (dropGrid) dropGrid.innerHTML = "";
+      const select = document.getElementById("collection-select") as HTMLSelectElement | null;
+      if (select) select.value = slug;
       renderSidebar(sidebarEl);
       renderDropPanel();
     });
@@ -272,11 +370,56 @@ function renderRegistry() {
   dropPanel.className = "drop-panel";
   dropPanel.id = "drop-panel";
 
+  const dropPanelHeader = document.createElement("div");
+  dropPanelHeader.className = "drop-panel-header";
+  dropPanelHeader.id = "drop-panel-header";
+  dropPanel.appendChild(dropPanelHeader);
+
   root.appendChild(sidebar);
   root.appendChild(dropPanel);
 
   renderSidebar(sidebar);
+  renderCollectionSelect(dropPanelHeader);
   renderDropPanel();
+}
+
+// Drops-only collection filter. Deliberately not applied to Campaigns or
+// Text Cards — those are independent sections with their own data sources
+// and are not scoped by collection the way Drops are via the sidebar.
+function renderCollectionSelect(container: HTMLElement) {
+  const collections = state.registry;
+  if (collections.length === 0) {
+    container.innerHTML = "";
+    return;
+  }
+
+  container.innerHTML = `
+    <select class="collection-select" id="collection-select">
+      <option value="all" ${activeCollectionSlug === "all" ? "selected" : ""}>All Collections</option>
+      ${collections.map((col) => `
+        <option value="${col.collection.slug}" ${col.collection.slug === activeCollectionSlug ? "selected" : ""}>
+          ${col.collection.name}
+        </option>
+      `).join("")}
+    </select>
+  `;
+
+  const select = container.querySelector<HTMLSelectElement>("#collection-select");
+  if (select) {
+    select.addEventListener("change", () => {
+      activeCollectionSlug = select.value;
+      activeFilters = {};
+      dropsPage = 1;
+      const sidebarEl = document.getElementById("sidebar");
+      const dropPanel = document.getElementById("drop-panel");
+      if (dropPanel) {
+        const grid = document.getElementById("drop-grid");
+        if (grid) grid.innerHTML = "";
+      }
+      if (sidebarEl) renderSidebar(sidebarEl);
+      renderDropPanel();
+    });
+  }
 }
 
 function renderMintCounter() {
@@ -333,12 +476,24 @@ function renderCampaigns() {
     return;
   }
 
+  const { pageItems, totalPages, page } = paginate(campaigns, campaignsPage);
+  campaignsPage = page;
+
   root.innerHTML = `
     <div class="campaigns-title">Holder Campaigns</div>
     <div class="campaigns-grid">
-      ${campaigns.map(buildCampaignCard).join("")}
+      ${pageItems.map(buildCampaignCard).join("")}
     </div>
+    ${buildPaginationControls(page, totalPages)}
   `;
+
+  wirePagination(
+    root,
+    () => campaignsPage,
+    (p) => { campaignsPage = p; },
+    totalPages,
+    renderCampaigns
+  );
 }
 
 // ----------------------------
@@ -443,6 +598,8 @@ function renderTextCards() {
   }
 
   const visibleCards = getVisibleTextCards();
+  const { pageItems, totalPages, page } = paginate(visibleCards, textCardsPage);
+  textCardsPage = page;
 
   root.innerHTML = `
     <div class="textcards-title">News</div>
@@ -457,7 +614,8 @@ function renderTextCards() {
     </div>
     ${visibleCards.length === 0
       ? '<p class="empty">No posts in this category yet.</p>'
-      : `<div class="textcards-grid">${visibleCards.map(buildTextCard).join("")}</div>`
+      : `<div class="textcards-grid">${pageItems.map(buildTextCard).join("")}</div>
+         ${buildPaginationControls(page, totalPages)}`
     }
   `;
 
@@ -466,9 +624,20 @@ function renderTextCards() {
       const tab = (tabEl as HTMLElement).dataset.textcardTab as (typeof TEXTCARD_TABS)[number] | undefined;
       if (!tab) return;
       activeTextCardTab = tab;
+      textCardsPage = 1;
       renderTextCards();
     });
   });
+
+  if (visibleCards.length > 0) {
+    wirePagination(
+      root,
+      () => textCardsPage,
+      (p) => { textCardsPage = p; },
+      totalPages,
+      renderTextCards
+    );
+  }
 }
 
 export function initUIEngine() {
