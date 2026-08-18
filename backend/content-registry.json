@@ -1,0 +1,25 @@
+{
+  "generatedAt": "2026-08-18T04:57:30.941Z",
+  "cards": [
+    {
+      "textCardId": "TEST-001",
+      "category": "NEWS",
+      "persistent": false,
+      "headline": "Text Cards is live",
+      "subheadline": "This is a placeholder test card",
+      "content": "Replace this row in backend/textcards.csv with real content whenever you're ready, then re-run the generator script.",
+      "publishedDate": "2026-08-18T00:00:00.000Z",
+      "updatedDate": "2026-08-18T00:00:00.000Z",
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "tags": [
+        "test"
+      ],
+      "featured": true,
+      "priority": 0,
+      "author": null,
+      "media": {},
+      "relationships": {}
+    }
+  ]
+}

@@ -1,1 +1,2 @@
 textCardId,category,headline,subheadline,content,publishedDate,updatedDate,status,expiresAt,tags,featured,priority,author
+TEST-001,NEWS,Text Cards is live,This is a placeholder test card,"Replace this row in backend/textcards.csv with real content whenever you're ready, then re-run the generator script.",2026-08-18,,ACTIVE,,test,TRUE,0,
