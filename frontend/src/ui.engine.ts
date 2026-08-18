@@ -16,7 +16,12 @@ const FILTER_TRAITS = ["Category", "Market", "Tier", "Element", "Series"];
 // each with its own pagination, rather than a single merged/paginated
 // list — these are different systems with different lifecycles, not
 // variations of one "campaign record" type.
-const PAGE_SIZE = 6;
+// Kept in lockstep with the 3-column grid in index.html's .drops /
+// .campaigns-grid / .textcards-grid rules (repeat(3, 1fr)) — PAGE_SIZE must
+// stay a multiple of that column count, or a page's last row shows fewer
+// cards than the grid has columns for. If the grid's column count changes,
+// update this to match.
+const PAGE_SIZE = 3;
 let dropsPage = 1;
 let campaignsPage = 1;
 let textCardsPage = 1;
