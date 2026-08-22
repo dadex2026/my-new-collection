@@ -120,8 +120,124 @@ The reliable way to do this:
    template's pre-that-feature baseline in exactly the ways that feature
    added, and a later feature (e.g. Text Cards) needs to layer on top of
    that, not replace it.
+5. Newer template features also arrive as **whole directories that an older
+   collection simply doesn't have** — currently `backend/standings/`,
+   `backend/methodology/`, and the scripts that serve them
+   (`import-ranked-boards.js`, `import-community-boards.js`,
+   `generate-standings-cards.js`, `generate-methodology.js`). There is
+   nothing to merge for these: copy the directory across, then delete the
+   template's sample data (see the Rankings section below). A file-by-file
+   diff won't surface them, so check for missing directories explicitly
+   rather than relying on the diff loop above.
 
-## Step 5 — Create a dedicated Netlify site
+## Step 5 — Set the collection's display name (do this before minting)
+
+`template-version.json` carries the collection's human-readable name:
+
+```json
+{
+  "templateName": "TEMPLATE-OPEN-EDITION",
+  "version": "1.0.0",
+  "collectionName": "Template Open Edition"
+}
+```
+
+`collectionName` is the single source for three separate things:
+
+- the browser tab title and the on-page `<h1>` (injected into
+  `frontend/index.html` at build time by a Vite `transformIndexHtml` plugin),
+  and
+- the **name written on-chain** by `scripts/deployCoreAsset.ts` when the
+  collection asset is minted.
+
+**Change it before you mint.** A Netlify title is a one-line fix at any time;
+an on-chain asset name is not renameable after the fact. A collection minted
+while this still says "Template Open Edition" carries that name permanently.
+
+Grep for any lingering hardcoded name before minting:
+
+```powershell
+git grep -n "Template Open Edition"
+```
+
+The only hit should be `template-version.json` itself.
+
+## Step 6 — Point the RPC at the proxy, not at a keyed endpoint
+
+**Never commit a keyed RPC URL.** A URL of the form
+`https://mainnet.helius-rpc.com/?api-key=<key>` is a live credential, and a
+public collection repo puts it in front of anyone. Frontend builds make this
+worse: Vite bakes `VITE_*` values into the shipped bundle, so a keyed URL in
+the frontend env is readable by every visitor even if the repo is private.
+
+The collection therefore talks to a **Cloudflare Worker proxy** that holds
+the Helius key server-side. The Worker source lives in its own repo (a copy
+of `helius-labs/helius-rpc-proxy`); the working checkout for these
+collections is `C:\Users\User\Desktop\rpc-proxy`.
+
+### Deploying or redeploying the Worker
+
+```powershell
+npx wrangler deploy src/index.ts   # or: npm run deploy
+```
+
+### The two Worker variables
+
+| Variable | Required | Notes |
+|---|---|---|
+| `HELIUS_API_KEY` | yes | The real Helius key. Set it as an **encrypted** variable so it's hidden from the dashboard, the API, and logs. Without it the Worker returns `500 Missing HELIUS_API_KEY`. |
+| `CORS_ALLOW_ORIGIN` | no | Comma-separated list of allowed origins. **If unset, the Worker answers `Access-Control-Allow-Origin: *`** — any site on the internet can route Solana RPC through your key's quota. |
+
+Set them under **Workers & Pages → your worker → Settings → Variables**, or
+with `npx wrangler secret put HELIUS_API_KEY`.
+
+### The CORS gotcha worth understanding before you set it
+
+The Worker's logic is all-or-nothing per request: if `CORS_ALLOW_ORIGIN` is
+set and the incoming `Origin` **isn't** on the list, it returns no
+`Access-Control-Allow-Origin` header at all — and the browser blocks the
+call. There is no partial credit. So the list must contain *every* origin
+that legitimately calls the proxy:
+
+- the production site — `https://<your-site>.netlify.app` (and any custom
+  domain)
+- local dev — `http://localhost:5173`
+
+Netlify **deploy previews and branch deploys get generated subdomains**
+(`deploy-preview-12--your-site.netlify.app`), which can't be enumerated in
+advance. If you rely on previews for testing, either accept that RPC calls
+fail there, or leave the variable unset and rely on the Helius-side IP
+allow-list instead. Decide deliberately; don't discover it mid-review.
+
+### Where the proxy URL goes
+
+Set the Worker URL (no key, no query string) in each place the collection
+reads an RPC endpoint:
+
+- `deployment.json` → `rpc`
+- `backend/config.json` → `rpc`
+- `frontend/.env` → `VITE_SOLANA_RPC_URL` (and the matching Netlify
+  environment variable — see Step 8)
+- `backend/.env` → `SOLANA_RPC_URL`, `VITE_SOLANA_RPC_URL`
+
+### Rotating a leaked key
+
+1. Delete the exposed key in the Helius dashboard **first** — that's what
+   actually stops the bleeding. Scrubbing the repo does not.
+2. Create a replacement key and update `HELIUS_API_KEY` on the Worker.
+   Cloudflare rolls out a new version on save; the collection needs no
+   redeploy, because the collection never held the key.
+3. Confirm the repo is clean at the current tip:
+
+   ```powershell
+   git grep -n "api-key="
+   ```
+
+   Remember that a key committed at any point remains in git history even
+   after it's removed from the working tree — which is exactly why step 1 is
+   deletion at the provider, not a rewrite.
+
+## Step 7 — Create a dedicated Netlify site
 
 Netlify terminology: the dashboard's top-level entity is now called a
 **Project** (previously "Site") — look for **"Add new project"**, not "Add
@@ -142,7 +258,7 @@ new site."
    - Build command: `npm run build`
    - Publish directory: `../dist`
 4. **Before the first successful full deploy**, add environment variables
-   (see Step 6 — this is the step most likely to be missed).
+   (see Step 8 — this is the step most likely to be missed).
 5. Deploy.
 
 ### Renaming the site
@@ -158,7 +274,7 @@ Newer Netlify projects can default to restricted visibility. Check:
 **Production visibility** and **Deploy Preview visibility** to **Public** if
 you want the site reachable without a Netlify login.
 
-## Step 6 — Environment variables (the step most likely to break a first deploy)
+## Step 8 — Environment variables (the step most likely to break a first deploy)
 
 `.env` files are gitignored by design (they hold live secrets like RPC API
 keys) — which means **none of a collection's local `.env` values are
@@ -167,7 +283,8 @@ automatically present on Netlify.** They must be added manually:
 **Project configuration → Environment variables**, matching whatever keys
 exist in `frontend/.env` locally, at minimum:
 
-- `VITE_SOLANA_RPC_URL`
+- `VITE_SOLANA_RPC_URL` — the **Worker proxy URL** from Step 6, never a keyed
+  Helius URL. Vite inlines this into the public bundle at build time.
 - `VITE_REGISTRY_URL` — set this to `/registry.json`. Unlike
   `VITE_CAMPAIGNS_URL` and `VITE_CONTENT_REGISTRY_URL`, this one has **no
   fallback default in code** — if it's missing, the deployed app tries to
@@ -182,7 +299,7 @@ them into the bundle at build time, not read at runtime) — after adding or
 changing one, trigger a fresh deploy: **Deploys tab → Trigger deploy →
 Deploy site.**
 
-## Step 7 — Verify the live deploy
+## Step 9 — Verify the live deploy
 
 Don't just eyeball the homepage — check the actual data endpoints directly,
 since a broken fetch can fail silently behind a normal-looking page:
@@ -191,20 +308,23 @@ since a broken fetch can fail silently behind a normal-looking page:
 https://<your-site>.netlify.app/registry.json
 https://<your-site>.netlify.app/campaigns.json
 https://<your-site>.netlify.app/content-registry.json
+https://<your-site>.netlify.app/standings.json
+https://<your-site>.netlify.app/methodology.json
 ```
 
-A 404 on `campaigns.json` or `content-registry.json` is *normal* if that
-collection has no campaigns or text cards published yet (both are handled
-as an expected empty state, not an error, in the frontend code). A 404 on
-`registry.json`, or a request to a literal `/undefined` URL, means something
-is actually broken — almost always the missing `VITE_REGISTRY_URL`
-environment variable from Step 6.
+A 404 on `campaigns.json`, `content-registry.json`, `standings.json` or
+`methodology.json` is *normal* if that collection has no campaigns, text
+cards, or published boards yet (all are handled as an expected empty state,
+not an error, in the frontend code). A 404 on `registry.json`, or a request
+to a literal `/undefined` URL, means something is actually broken — almost
+always the missing `VITE_REGISTRY_URL` environment variable from Step 8.
 
 Also check the browser console (F12 → Console) on the live site for any
 `Failed to load resource` lines and cross-reference them against the
-environment variables above.
+environment variables above. A CORS error naming the Worker URL points at
+`CORS_ALLOW_ORIGIN` (Step 6), not at Netlify.
 
-## Ongoing content workflow (Text Cards example)
+## Ongoing content workflow — Text Cards
 
 Once the site is live, publishing new simple content (News/Update/
 Announcement/Analysis cards) is a repeatable loop, not a one-time setup:
@@ -225,23 +345,128 @@ Announcement/Analysis cards) is a repeatable loop, not a one-time setup:
 4. Netlify auto-rebuilds on push; hard-refresh the live site once the build
    finishes to see the new content.
 
-Persistent/structured cards (RANKING, LEADERBOARD, SCOREBOARD, STANDINGS,
-STATS categories) are never managed through the CSV — they're hand-edited
-directly in `content-registry.json`'s `cards` array and are never touched or
-removed by the generator script. Each card has a permanent `textCardId` that
-is never reused once assigned, even if the card is later retired — set
-`status` to `INACTIVE`/`EXPIRED`/`ARCHIVED` instead of deleting the entry.
 Simple cards (NEWS/UPDATE/ANNOUNCEMENT/ANALYSIS) are ordered for display by
 `featured` (true first), then `priority` (descending), then `publishedDate`
 (most recent first) — see `frontend/src/ui.engine.ts`'s
 `getVisibleTextCards()` for the exact sort/filter logic.
 
+### Who owns which card in `content-registry.json`
+
+Two generators share the file and never overlap. Getting this wrong is how
+work gets silently overwritten, so it's worth stating precisely:
+
+| Card kind | Id prefix | Source of truth | Written by |
+|---|---|---|---|
+| Simple (NEWS, UPDATE, ANNOUNCEMENT, ANALYSIS) | any | `backend/textcards.csv` | `generate-content-registry.js` |
+| Generated standings | `STANDINGS-` | a board file in `backend/standings/` | `generate-standings-cards.js` |
+| Hand-authored persistent (RANKING, LEADERBOARD, SCOREBOARD, STATS) | anything *except* `STANDINGS-` | the registry entry itself | nobody — edit by hand |
+
+`generate-content-registry.js` leaves every persistent card alone.
+`generate-standings-cards.js` rewrites every card whose id starts with
+`STANDINGS-` and carries everything else through untouched.
+
+So: **a `STANDINGS-` card must never be hand-edited** — the next generator
+run will overwrite it. Edit the board file in `backend/standings/` and re-run
+the script instead. A persistent card with any other id is yours to edit
+directly and no script will touch it.
+
+Every card keeps a permanent `textCardId` that is never reused once assigned,
+even if the card is later retired — set `status` to
+`INACTIVE`/`EXPIRED`/`ARCHIVED` instead of deleting the entry.
+
+## Ongoing content workflow — Rankings and standings
+
+Ranked boards are a separate pipeline with its own source of truth. The full
+reference is `backend/standings/README.md`; this is the operational summary.
+
+**The shape of it:** one JSON file per board in `backend/standings/`. A
+generator projects each board into a `STANDINGS-` card for the news grid's
+RANKINGS tab, and publishes the complete board — every entry, not just the
+rows the card shows — to `frontend/public/standings.json`.
+
+Boards are produced by importers rather than written by hand:
+
+```powershell
+# Participant leaderboards from a Ledger export (one export → four boards)
+node backend/scripts/import-community-boards.js
+
+# Everything else — games, racing, poker, player stats, category rankings
+node backend/scripts/import-ranked-boards.js
+
+# Project the boards into cards + publish standings.json
+node backend/scripts/generate-standings-cards.js
+```
+
+Inputs live in `backend/standings/_input/`:
+
+- `import-config.json` — importer settings, including `columnMap` when the
+  source app's column labels differ from the logical names (Sports Ledger
+  writes `FinalPoints`/`SkillEdge`/`Predictions`; Entertainment Ledger writes
+  `Points`/`Edge`/`Resolved`).
+- `rulesets.json` — the ruleset changelog; each board stamps the
+  `rulesetVersion` that produced it.
+- `boards.json` plus dated exports in `_input/boards/` — the declarations
+  `import-ranked-boards.js` reads. **Neither exists in a fresh template
+  checkout**; create them when you add your first ranked board (the README
+  has a worked example).
+
+**Rules that will stop a run, by design:**
+
+- A board with `capture.complete: false` is a hard failure. A response that
+  was never captured is indistinguishable from a participant who didn't play,
+  so a partial round is refused rather than published as final. Pass
+  `--allow-incomplete` to publish it `INACTIVE` for review instead.
+- Entries must already be in rank order. Ranks that jump around usually mean
+  the list was re-sorted by score after ranking, which quietly breaks the
+  movement column.
+- Nothing here scores anything. Ranks, scores and movement arrive settled
+  from the source; projection is formatting, not arithmetic. That's what
+  makes a published card reproducible from its board file.
+
+**Two behaviours that look like bugs but aren't:** a `cardLimit` of 10 can
+publish 12 rows, because the slice extends through the whole tie group at the
+cut line rather than cutting a tie in half; and deleting a board file marks
+its card `ARCHIVED` on the next run rather than removing it, so history
+survives.
+
+**For a new collection:** delete `backend/standings/EXAMPLE-participants-accuracy.json`.
+It exists only to prove the pipeline end to end, and it publishes a visible
+card tagged `example` if left in place.
+
+## Ongoing content workflow — the Methodology page
+
+The Rankings link in the site's top navigation points at `#methodology`, and
+that page is generated:
+
+```powershell
+node backend/scripts/generate-methodology.js
+```
+
+It merges authored prose from `backend/methodology/methodology.json` with
+facts **derived from the standings themselves** — which boards exist, which
+ruleset produced each one, which export files they were built from, the
+current eligibility minimum, and the full ruleset changelog — and writes
+`frontend/public/methodology.json`.
+
+The split is the point: edit `methodology.json` when the *explanation*
+changes, and let everything that could go stale be re-derived. A methodology
+page quietly describing last month's rules is worse than no methodology page,
+because readers trust it.
+
+Practical consequence: **re-run this after any standings change.** The
+ordinary sequence for a new round is import → generate standings cards →
+generate methodology → commit → push.
+
 ## Known non-issues (safe to ignore)
 
 - **`warning: ... LF will be replaced by CRLF ...`** during `git add` — this
   is Windows Git normalizing line endings on checkout. Cosmetic, not an
-  error.
+  error. (If you see a diff of thousands of untouched lines instead, that's a
+  different problem: the collection is missing the `.gitattributes` file the
+  template carries. Copy it over and renormalize.)
 - **A 401 fetching your own site from an automated tool** while it loads
   fine in an actual browser (including incognito) — some hosts apply
   different handling to non-browser/automated requests at the edge. Trust
   real browser verification over an automated fetch in this case.
+- **A 404 on `standings.json` or `methodology.json`** before you've published
+  any boards. Expected empty state, handled in the frontend.

@@ -746,24 +746,32 @@
       gap: 6px;
     }
 
+    /* Solid purple/white, matching .drop-mint-btn and .pagination-num.active
+       rather than the muted pill these started as — these are primary
+       navigation actions, so they read as buttons, not as secondary chrome. */
     .section-nav-link {
       padding: 6px 14px;
       border-radius: 20px;
-      color: #aaa;
+      background: #512da8;
+      color: #fff;
       font-size: 13px;
-      border: 1px solid #333;
+      border: 1px solid #512da8;
       transition: all 0.15s;
     }
 
     .section-nav-link:hover {
-      background: #1f1f1f;
+      background: #6a3fcb;
+      border-color: #6a3fcb;
       color: #fff;
       text-decoration: none;
     }
 
+    /* Current section. Same lighter purple as the mint button's hover, plus a
+       pale ring — the background alone can't distinguish it now that the
+       resting state is already purple. */
     .section-nav-link.active {
-      background: #512da8;
-      border-color: #512da8;
+      background: #6a3fcb;
+      border-color: #b9a3f0;
       color: #fff;
     }
 
