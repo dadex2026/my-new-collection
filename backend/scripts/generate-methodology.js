@@ -88,7 +88,17 @@ function readJson(filePath, label) {
    while the domain wording stays owned locally. Same split as everywhere else —
    template owns the mechanism, collection owns the vocabulary. */
 function mergeSections(defaults, overrides) {
-  const sections = defaults.map((s) => ({ id: s.id, heading: s.heading, body: Array.isArray(s.body) ? s.body.slice() : [] }));
+  // The shape is a whitelist so a stray key cannot reach the page. The two
+  // conditional variants are part of that shape: resolveConditionalBody folds
+  // them into body once the changelog length is known.
+  const carryVariants = (out, s) => {
+    if (s.bodyWhenChangelog) out.bodyWhenChangelog = s.bodyWhenChangelog;
+    if (s.bodyWhenNoChangelog) out.bodyWhenNoChangelog = s.bodyWhenNoChangelog;
+    return out;
+  };
+  const sections = defaults.map((s) =>
+    carryVariants({ id: s.id, heading: s.heading, body: Array.isArray(s.body) ? s.body.slice() : [] }, s)
+  );
   const indexOf = (id) => sections.findIndex((s) => s.id === id);
   const applied = { patched: [], added: [], removed: [] };
 
@@ -110,6 +120,7 @@ function mergeSections(defaults, overrides) {
     if (at !== -1) {
       if (o.heading) sections[at].heading = o.heading;
       if (o.body) sections[at].body = Array.isArray(o.body) ? o.body : [String(o.body)];
+      carryVariants(sections[at], o);
       applied.patched.push(o.id);
       return;
     }
@@ -125,7 +136,7 @@ function mergeSections(defaults, overrides) {
       );
     }
 
-    const newSection = { id: o.id, heading: o.heading, body: Array.isArray(o.body) ? o.body : [String(o.body)] };
+    const newSection = carryVariants({ id: o.id, heading: o.heading, body: Array.isArray(o.body) ? o.body : [String(o.body)] }, o);
     if (o.after) {
       const afterAt = indexOf(o.after);
       if (afterAt === -1) fail("override_after_missing", `Override "${o.id}" asks to sit after "${o.after}", which does not exist.`, 1);
@@ -161,6 +172,26 @@ function buildChangelog(rulesets) {
       note: rulesets[id].note || "",
     }))
     .sort((a, b) => String(a.effectiveFrom || "").localeCompare(String(b.effectiveFrom || "")) || a.id.localeCompare(b.id));
+}
+
+// A section may carry a sentence that only makes sense once the changelog has
+// entries, and a different one for when it does not. The template ships with an
+// empty rulesets file by design, so without this every new collection would
+// publish "every version is listed below" above nothing at all — a page whose
+// argument is that any figure can be checked should not point at a list that
+// is not there. Declared in the source rather than detected here, so a
+// collection can override either variant like any other prose.
+function resolveConditionalBody(sections, hasChangelog) {
+  return sections.map((s) => {
+    if (!s.bodyWhenChangelog && !s.bodyWhenNoChangelog) return s;
+    const copy = { ...s };
+    delete copy.bodyWhenChangelog;
+    delete copy.bodyWhenNoChangelog;
+    copy.body = Array.isArray(s.body) ? s.body.slice() : [];
+    const extra = hasChangelog ? s.bodyWhenChangelog : s.bodyWhenNoChangelog;
+    if (extra) copy.body.push(extra);
+    return copy;
+  });
 }
 
 function describeBoards(boards) {
@@ -225,6 +256,8 @@ function main() {
   }
 
   const rulesetsDoc = readJson(RULESETS_PATH, "rulesets");
+  const changelog = buildChangelog(rulesetsDoc.rulesets || {});
+  const resolvedSections = resolveConditionalBody(sections, changelog.length > 0);
   const config = readJson(CONFIG_PATH, "import config");
   const boards = listBoards();
 
@@ -245,10 +278,10 @@ function main() {
       minPicks: config.minPicks || null,
       cardLimit: config.cardLimit || null,
     },
-    sections,
+    sections: resolvedSections,
     boards: describeBoards(boards),
     unranked: collectUnranked(boards),
-    changelog: buildChangelog(rulesetsDoc.rulesets || {}),
+    changelog,
     kinds: rulesetsDoc._kinds || {},
     sources: describeSources(boards),
   };

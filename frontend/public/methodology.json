@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-22T05:51:33.898Z",
+  "generatedAt": "2026-08-22T06:35:59.266Z",
   "title": "How these rankings are produced",
   "intro": "Every number on this site is computed from predictions people posted publicly, and every one of them can be checked. This page explains where the figures come from, what each board measures, who is and is not ranked, and how to verify any position yourself.",
   "collection": {
@@ -75,7 +75,7 @@
       "body": [
         "A bug fix restores what the stated rules always meant, so history is recomputed and republished as a correction.",
         "A rule change is a new rule. It applies forward from a stated date, and earlier rounds keep the scoring they were published under — they are never restated. Where a round sits either side of a rule change, position movement is not shown for it, because a change in position would measure the rule change as much as the participant.",
-        "Every version is listed below, with what changed and when it took effect."
+        "This collection is running its first ruleset, so there are no changes to list yet."
       ]
     }
   ],
