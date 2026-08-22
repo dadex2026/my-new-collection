@@ -1,0 +1,22 @@
+# Line endings are normalised to LF everywhere.
+#
+# Without this, Git on Windows rewrites LF to CRLF on checkout and every text
+# file in the repository shows as modified — a three-file change reads as a
+# forty-file diff, and cherry-picking a commit back to TEMPLATE-OPEN-EDITION
+# becomes impractical.
+#
+# LF also matches what the template shipped and what the Netlify build runs on,
+# so this keeps the fork, the template and the deploy target in agreement.
+* text=auto eol=lf
+
+# Binary and generated assets Git should never try to normalise.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
+*.zip binary
