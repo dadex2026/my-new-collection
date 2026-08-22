@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-18T01:51:28.029Z",
+  "generatedAt": "2026-08-22T05:51:36.313Z",
   "cards": [
     {
       "textCardId": "ANALYSIS-003",
@@ -104,6 +104,75 @@
       "author": "System",
       "media": {},
       "relationships": {}
+    },
+    {
+      "textCardId": "STANDINGS-EXAMPLE-PARTICIPANTS-ACCURACY",
+      "category": "LEADERBOARD",
+      "persistent": true,
+      "headline": "Example · Prediction Accuracy",
+      "subheadline": "Sample board — delete once real standings exist",
+      "content": {
+        "entries": [
+          {
+            "rank": 1,
+            "name": "@example_one",
+            "score": 24,
+            "rate": "75%",
+            "entries": 12,
+            "movement": "▲ 2"
+          },
+          {
+            "rank": 2,
+            "name": "@example_two",
+            "score": 22,
+            "rate": "69%",
+            "entries": 12,
+            "movement": "▼ 1"
+          },
+          {
+            "rank": 3,
+            "name": "@example_three",
+            "score": 21,
+            "rate": "66%",
+            "entries": 12,
+            "movement": "—"
+          },
+          {
+            "rank": 3,
+            "name": "@example_four",
+            "score": 21,
+            "rate": "63%",
+            "entries": 8,
+            "movement": "new"
+          }
+        ]
+      },
+      "publishedDate": "2026-08-21T00:00:00.000Z",
+      "updatedDate": "2026-08-21T00:00:00.000Z",
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "tags": [
+        "standings",
+        "prediction",
+        "participant",
+        "season-2026-EXAMPLE",
+        "example"
+      ],
+      "featured": false,
+      "priority": 10,
+      "author": null,
+      "media": {},
+      "relationships": {
+        "boardId": "example-participants-accuracy",
+        "track": "prediction",
+        "entityType": "participant",
+        "seasonId": "2026-EXAMPLE",
+        "rulesetVersion": "0.0.0-example",
+        "promptVersion": null,
+        "entryCount": 5,
+        "shownCount": 4,
+        "captureComplete": true
+      }
     },
     {
       "textCardId": "UPDATE-002",

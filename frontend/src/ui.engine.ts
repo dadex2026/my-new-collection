@@ -1,7 +1,7 @@
 import { state, subscribe } from "./state";
 import { clearNodes } from "./domDiff";
 import { batch } from "./batch";
-import { RegistryDrop, Campaign, TextCard } from "./types";
+import { RegistryDrop, Campaign, TextCard, Methodology } from "./types";
 
 let activeCollectionSlug = "all";
 let activeFilters: Record<string, string> = {};
@@ -310,6 +310,14 @@ function renderSidebar(sidebarEl: HTMLElement) {
       </div>
     ` : ""}
 
+    ${state.methodology ? `
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-title">Rankings</div>
+      <div class="sidebar-item sidebar-item-methodology" data-action="scroll-to-methodology">
+        Methodology
+      </div>
+    ` : ""}
+
     ${activeGroups.length > 0 ? `
       <div class="sidebar-divider"></div>
       <div class="sidebar-title">Filters</div>
@@ -364,6 +372,13 @@ function renderSidebar(sidebarEl: HTMLElement) {
   if (textCardsItem) {
     textCardsItem.addEventListener("click", () => {
       document.getElementById("textcards")?.scrollIntoView({ behavior: "smooth" });
+    });
+  }
+
+  const methodologyItem = sidebarEl.querySelector(".sidebar-item-methodology");
+  if (methodologyItem) {
+    methodologyItem.addEventListener("click", () => {
+      document.getElementById("methodology")?.scrollIntoView({ behavior: "smooth" });
     });
   }
 
@@ -562,6 +577,54 @@ function formatCardDate(iso: string): string {
 // Persistent cards carry structured content (an entries array, or a flat
 // key/value object) instead of prose. Rendered generically — by key, not
 // by category — so a new persistent category never needs a new render path.
+//
+// An entries array renders as a table whenever the rows agree on their keys,
+// which is the normal case for a ranked board: one header row instead of the
+// key repeated on every line, and columns that line up so a reader can scan
+// down a score. Rows that disagree on keys fall back to the labelled-field
+// list, since there is no honest header for a ragged set. Both paths stay
+// keyed on the data, not on the card's category.
+function renderEntryValue(v: string | number): string {
+  return String(v);
+}
+
+function renderEntriesTable(entries: Array<Record<string, string | number>>): string {
+  const columns = Object.keys(entries[0]);
+  const uniform = entries.every(
+    (e) => Object.keys(e).length === columns.length && columns.every((col) => col in e)
+  );
+
+  if (!uniform) {
+    // Ragged rows: no shared header exists, so label each field inline. The
+    // list is unordered here — numbering rows by position would invent a rank
+    // the data never supplied.
+    return `
+      <ul class="textcard-entries">
+        ${entries.map((entry) => `
+          <li class="textcard-entry">
+            ${Object.entries(entry).map(([k, v]) => `<span class="textcard-entry-field">${k}: ${renderEntryValue(v)}</span>`).join(" ")}
+          </li>
+        `).join("")}
+      </ul>
+    `;
+  }
+
+  return `
+    <div class="textcard-table-wrap">
+      <table class="textcard-table">
+        <thead>
+          <tr>${columns.map((col) => `<th>${col}</th>`).join("")}</tr>
+        </thead>
+        <tbody>
+          ${entries.map((entry) => `
+            <tr>${columns.map((col) => `<td>${renderEntryValue(entry[col])}</td>`).join("")}</tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
 function renderTextCardContent(c: TextCard): string {
   if (typeof c.content === "string") {
     return `<div class="textcard-body">${c.content}</div>`;
@@ -569,15 +632,8 @@ function renderTextCardContent(c: TextCard): string {
 
   const structured = c.content as { entries?: Array<Record<string, string | number>> };
   if (Array.isArray(structured.entries)) {
-    return `
-      <ol class="textcard-entries">
-        ${structured.entries.map((entry) => `
-          <li class="textcard-entry">
-            ${Object.entries(entry).map(([k, v]) => `<span class="textcard-entry-field">${k}: ${v}</span>`).join(" ")}
-          </li>
-        `).join("")}
-      </ol>
-    `;
+    if (structured.entries.length === 0) return "";
+    return renderEntriesTable(structured.entries);
   }
 
   return `
@@ -589,6 +645,19 @@ function renderTextCardContent(c: TextCard): string {
   `;
 }
 
+// A card that shows only part of a list has to say so. Silently truncating a
+// ranked board leaves a reader unable to tell the top ten from the whole field,
+// and on a board whose whole point is verifiability that costs more than the
+// space it saves. Counts come from the card's own relationships, so no card
+// shape changes and any producer that reports them gets the note for free.
+function renderTruncationNote(c: TextCard): string {
+  const rel = c.relationships as { entryCount?: unknown; shownCount?: unknown };
+  const total = typeof rel.entryCount === "number" ? rel.entryCount : null;
+  const shown = typeof rel.shownCount === "number" ? rel.shownCount : null;
+  if (total === null || shown === null || shown >= total) return "";
+  return `<div class="textcard-truncation">Showing top ${shown} of ${total}</div>`;
+}
+
 function buildTextCard(c: TextCard): string {
   const showUpdated = c.updatedDate && c.updatedDate !== c.publishedDate;
   return `
@@ -597,6 +666,7 @@ function buildTextCard(c: TextCard): string {
       <div class="textcard-headline">${c.headline}</div>
       ${c.subheadline ? `<div class="textcard-subheadline">${c.subheadline}</div>` : ""}
       ${renderTextCardContent(c)}
+      ${renderTruncationNote(c)}
       <div class="textcard-meta">
         <span class="textcard-date">${formatCardDate(c.publishedDate)}</span>
         ${showUpdated ? `<span class="textcard-updated">Updated ${formatCardDate(c.updatedDate)}</span>` : ""}
@@ -686,6 +756,142 @@ function renderTextCards() {
   }
 }
 
+// ----------------------------
+// METHODOLOGY
+// ----------------------------
+// Renders into #methodology in index.html, below #textcards.
+// Source: frontend/public/methodology.json, produced by
+// backend/scripts/generate-methodology.js — authored prose merged with facts
+// derived from the boards themselves, so the page cannot describe rules that
+// are no longer the ones in force.
+//
+// Everything here is presentation only. No number is computed, formatted into
+// existence, or interpreted; if a fact is not in the document, it is not shown.
+function esc(s: unknown): string {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function renderMethodologySections(m: Methodology): string {
+  return m.sections.map((s) => `
+    <div class="method-section" id="method-${esc(s.id)}">
+      <div class="method-heading">${esc(s.heading)}</div>
+      ${s.body.map((p) => `<p class="method-body">${esc(p)}</p>`).join("")}
+    </div>
+  `).join("");
+}
+
+// The boards table states which ruleset produced each board and whether
+// movement is shown — and where it is not, why. A board silently missing its
+// arrows would otherwise look broken rather than deliberate.
+function renderMethodologyBoards(m: Methodology): string {
+  if (!m.boards.length) return "";
+  return `
+    <div class="method-section">
+      <div class="method-heading">Boards published</div>
+      <div class="textcard-table-wrap">
+        <table class="textcard-table">
+          <thead>
+            <tr><th>board</th><th>ranked</th><th>season</th><th>ruleset</th><th>movement</th></tr>
+          </thead>
+          <tbody>
+            ${m.boards.map((b) => `
+              <tr>
+                <td>${esc(b.title)}</td>
+                <td>${b.rankedCount}</td>
+                <td>${esc(b.seasonId)}</td>
+                <td>${esc(b.rulesetVersion || "—")}</td>
+                <td>${b.movementShown ? "shown" : "not shown"}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+      ${m.boards.filter((b) => b.omittedReason || b.movementSuppressedReason).map((b) => `
+        <p class="method-note">
+          <strong>${esc(b.title)}:</strong>
+          ${esc(b.omittedReason || "")} ${esc(b.movementSuppressedReason || "")}
+        </p>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderMethodologyUnranked(m: Methodology): string {
+  if (!m.unranked.length) return "";
+  return `
+    <div class="method-section">
+      <div class="method-heading">Participants not ranked</div>
+      <p class="method-body">
+        These participants posted predictions that are part of the record but do not reach a board.
+      </p>
+      <ul class="method-list">
+        ${m.unranked.map((u) => `
+          <li><strong>${esc(u.handle)}</strong> — ${esc(u.reason)}
+          (${u.predictions} prediction${u.predictions === 1 ? "" : "s"}, ${u.countingPredictions} counting)</li>
+        `).join("")}
+      </ul>
+    </div>
+  `;
+}
+
+function renderMethodologyChangelog(m: Methodology): string {
+  if (!m.changelog.length) return "";
+  return `
+    <div class="method-section">
+      <div class="method-heading">Rule changes</div>
+      <ul class="method-list">
+        ${m.changelog.map((c) => `
+          <li>
+            <span class="method-version">${esc(c.id)}</span>
+            <span class="method-kind method-kind-${esc(c.kind)}">${esc(c.kind)}</span>
+            ${c.effectiveFrom ? `<span class="method-date">from ${esc(c.effectiveFrom)}</span>` : ""}
+            <div class="method-note">${esc(c.note)}</div>
+          </li>
+        `).join("")}
+      </ul>
+    </div>
+  `;
+}
+
+function renderMethodologySources(m: Methodology): string {
+  const all = m.sources.roundExports.concat(m.sources.evidenceExports);
+  if (!all.length) return "";
+  return `
+    <div class="method-section">
+      <div class="method-heading">Where this data came from</div>
+      <p class="method-body">${esc(m.sources.captureMethod)}</p>
+      <ul class="method-list">
+        ${all.map((f) => `<li><span class="method-version">${esc(f)}</span></li>`).join("")}
+      </ul>
+    </div>
+  `;
+}
+
+function renderMethodology() {
+  const root = document.getElementById("methodology");
+  if (!root) return;
+
+  const m = state.methodology;
+  if (!m) {
+    root.innerHTML = "";
+    return;
+  }
+
+  root.innerHTML = `
+    <div class="method-title">${esc(m.title)}</div>
+    <p class="method-intro">${esc(m.intro)}</p>
+    ${renderMethodologySections(m)}
+    ${renderMethodologyBoards(m)}
+    ${renderMethodologyUnranked(m)}
+    ${renderMethodologyChangelog(m)}
+    ${renderMethodologySources(m)}
+    <div class="method-generated">Generated ${esc(formatCardDate(m.generatedAt))}</div>
+  `;
+}
+
 export function initUIEngine() {
   subscribe("status", renderStatus);
   subscribe("minting", renderMintButtons);
@@ -705,6 +911,14 @@ export function initUIEngine() {
     // bootstrap order) — without re-rendering the sidebar here too,
     // the Rewards entry would never appear on first page load, since
     // the sidebar was already drawn before any campaign data existed.
+    const sidebarEl = document.getElementById("sidebar");
+    if (sidebarEl) renderSidebar(sidebarEl);
+  });
+  subscribe("methodology", () => {
+    renderMethodology();
+    // Same bootstrap-order issue as campaigns and text cards: the methodology
+    // loads after the initial sidebar render, so without this its entry would
+    // never appear on first load.
     const sidebarEl = document.getElementById("sidebar");
     if (sidebarEl) renderSidebar(sidebarEl);
   });

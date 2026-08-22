@@ -1,0 +1,19 @@
+{
+  "collectionTitle": "CHANGE ME",
+  "seasonId": "2026",
+  "rulesetPrefix": "CHANGE ME",
+  "rulesetVersion": null,
+  "promptVersion": null,
+  "minPicks": 3,
+  "cardLimit": 10,
+  "columnMap": {},
+
+  "_collectionTitle": "Appears in board titles and on the methodology page. Set it before the first import.",
+  "_seasonId": "A season is a scope, not a reset. Every board states which season it belongs to, and a season boundary is the cleanest effective date for a rules change.",
+  "_rulesetPrefix": "A source app stamps its own build as, say, 'v1.3', which is unambiguous inside that app but not here — another source could also reach v1.3. This prefix qualifies a bare stamp into a ruleset id declared in rulesets.json. An already-qualified stamp is used as-is.",
+  "_rulesetVersion": "Fallback for exports taken before the source app began stamping AppVersion. Leave null once every export carries a stamp; set it only if you must import an unstamped export, and declare that id in rulesets.json first.",
+  "_promptVersion": "Which extraction prompt version produced the underlying parses. Published on the board for traceability; null until you version prompts.",
+  "_minPicks": "Below this many resolved predictions a participant is provisional, and sinks to the bottom of the skill-ordered boards rather than topping them on one lucky pick.",
+  "_cardLimit": "How many rows reach the news card. The full board always reaches standings.json regardless, and the slice extends through a tie group at the cut line.",
+  "_columnMap": "Only needed when the source export labels a column differently from the logical name the importer reads. Example: { \"Points\": \"FinalPoints\", \"Edge\": \"SkillEdge\", \"Resolved\": \"Predictions\" }. Mapping is additive — the original headers stay on the row — and a source that already uses the logical names needs no entry at all."
+}

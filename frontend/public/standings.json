@@ -1,0 +1,99 @@
+{
+  "generatedAt": "2026-08-22T05:51:36.313Z",
+  "boards": [
+    {
+      "boardId": "example-participants-accuracy",
+      "title": "Example · Prediction Accuracy",
+      "subtitle": "Sample board — delete once real standings exist",
+      "track": "prediction",
+      "entityType": "participant",
+      "seasonId": "2026-EXAMPLE",
+      "throughRound": "R3",
+      "rulesetVersion": "0.0.0-example",
+      "promptVersion": null,
+      "capture": {
+        "complete": true,
+        "method": "manual",
+        "capturedAt": "2026-08-21T00:00:00.000Z"
+      },
+      "eligibility": {
+        "minEntries": 3,
+        "note": "Below the minimum, a participant is listed but not ranked."
+      },
+      "columns": [
+        "rank",
+        "name",
+        "score",
+        "rate",
+        "entries",
+        "movement"
+      ],
+      "example": true,
+      "entries": [
+        {
+          "rank": 1,
+          "entityId": "example-p-001",
+          "name": "@example_one",
+          "score": 24,
+          "rate": "75%",
+          "entries": 12,
+          "previousRank": 3,
+          "movement": {
+            "state": "up",
+            "delta": 2
+          }
+        },
+        {
+          "rank": 2,
+          "entityId": "example-p-002",
+          "name": "@example_two",
+          "score": 22,
+          "rate": "69%",
+          "entries": 12,
+          "previousRank": 1,
+          "movement": {
+            "state": "down",
+            "delta": 1
+          }
+        },
+        {
+          "rank": 3,
+          "entityId": "example-p-003",
+          "name": "@example_three",
+          "score": 21,
+          "rate": "66%",
+          "entries": 12,
+          "previousRank": 3,
+          "movement": {
+            "state": "hold",
+            "delta": 0
+          }
+        },
+        {
+          "rank": 3,
+          "entityId": "example-p-004",
+          "name": "@example_four",
+          "score": 21,
+          "rate": "63%",
+          "entries": 8,
+          "previousRank": null,
+          "movement": {
+            "state": "new"
+          }
+        },
+        {
+          "rank": 5,
+          "entityId": "example-p-005",
+          "name": "@example_five",
+          "score": 11,
+          "rate": "55%",
+          "entries": 5,
+          "previousRank": null,
+          "movement": {
+            "state": "returning"
+          }
+        }
+      ]
+    }
+  ]
+}

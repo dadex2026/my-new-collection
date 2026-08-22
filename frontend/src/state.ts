@@ -12,6 +12,7 @@ export const state: AppState = {
   registry: [],
   campaigns: [],
   textCards: [],
+  methodology: null,
 };
 
 // ----------------------------
@@ -27,6 +28,7 @@ const listeners: Record<SignalName, Set<Listener>> = {
   minting: new Set(),
   campaigns: new Set(),
   textCards: new Set(),
+  methodology: new Set(),
 };
 
 export function subscribe(signal: SignalName, fn: Listener) {
@@ -85,4 +87,12 @@ export function setCampaigns(campaigns: AppState["campaigns"]) {
 export function setTextCards(textCards: AppState["textCards"]) {
   state.textCards = textCards;
   notify(SIGNALS.TEXTCARDS);
+}
+
+// ----------------------------
+// METHODOLOGY
+// ----------------------------
+export function setMethodology(methodology: AppState["methodology"]) {
+  state.methodology = methodology;
+  notify(SIGNALS.METHODOLOGY);
 }

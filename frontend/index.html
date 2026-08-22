@@ -508,11 +508,55 @@
     }
 
     .textcard-entries {
-      list-style: decimal;
-      padding-left: 18px;
+      list-style: none;
+      padding-left: 0;
       margin: 0 0 10px;
       font-size: 13px;
       color: #ccc;
+    }
+
+    /* Structured entries whose rows agree on their keys render as a table:
+       one header instead of the key repeated per line, and columns that line
+       up so a score or rank can be scanned down. Scrolls inside its own
+       container so a wide board never pushes the card sideways. */
+    .textcard-table-wrap {
+      overflow-x: auto;
+      margin: 0 0 10px;
+    }
+
+    .textcard-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .textcard-table th {
+      text-align: left;
+      font-weight: 500;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #666;
+      padding: 0 10px 5px 0;
+      border-bottom: 1px solid #2a2a2a;
+      white-space: nowrap;
+    }
+
+    .textcard-table td {
+      padding: 5px 10px 5px 0;
+      color: #ccc;
+      border-bottom: 1px solid #1c1c1c;
+      white-space: nowrap;
+    }
+
+    .textcard-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .textcard-table th:last-child,
+    .textcard-table td:last-child {
+      padding-right: 0;
     }
 
     .textcard-entry {
@@ -543,6 +587,110 @@
 
     .textcard-stat-value {
       color: #ccc;
+    }
+
+    /* Methodology. Prose measure is held near 70 characters — this is the one
+       section on the page meant to be read rather than scanned. */
+    #methodology {
+      margin-top: 40px;
+      padding-top: 24px;
+      border-top: 1px solid #2a2a2a;
+    }
+
+    .method-title {
+      font-size: 18px;
+      color: #ddd;
+      margin-bottom: 8px;
+    }
+
+    .method-intro {
+      font-size: 13px;
+      color: #999;
+      max-width: 70ch;
+      margin: 0 0 24px;
+      line-height: 1.6;
+    }
+
+    .method-section { margin-bottom: 22px; }
+
+    .method-heading {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #666;
+      margin-bottom: 8px;
+    }
+
+    .method-body {
+      font-size: 13px;
+      color: #aaa;
+      max-width: 70ch;
+      margin: 0 0 10px;
+      line-height: 1.65;
+    }
+
+    .method-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      font-size: 13px;
+      color: #aaa;
+      max-width: 70ch;
+    }
+
+    .method-list li {
+      padding: 8px 0;
+      border-bottom: 1px solid #1c1c1c;
+      line-height: 1.55;
+    }
+
+    .method-list li:last-child { border-bottom: none; }
+
+    .method-note {
+      font-size: 12px;
+      color: #777;
+      max-width: 70ch;
+      margin: 6px 0 0;
+      line-height: 1.55;
+    }
+
+    .method-version {
+      font-family: 'Space Mono', ui-monospace, monospace;
+      font-size: 11px;
+      color: #888;
+    }
+
+    .method-kind {
+      font-family: 'Space Mono', ui-monospace, monospace;
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border: 1px solid #333;
+      border-radius: 3px;
+      color: #888;
+      margin-left: 6px;
+    }
+
+    /* Only a rule change moves numbers, so only it is marked. */
+    .method-kind-rule-change { color: #c9a227; border-color: #5a4a1a; }
+
+    .method-date { font-size: 11px; color: #666; margin-left: 6px; }
+
+    .method-generated {
+      font-size: 11px;
+      color: #555;
+      margin-top: 22px;
+      padding-top: 12px;
+      border-top: 1px solid #1c1c1c;
+    }
+
+    /* Says what the card left out. A ranked board shown ten rows deep looks
+       identical to a board that only has ten rows without it. */
+    .textcard-truncation {
+      font-size: 11px;
+      color: #666;
+      margin: 0 0 10px;
     }
 
     .textcard-meta {
@@ -580,6 +728,8 @@
   <div id="campaigns"></div>
 
   <div id="textcards"></div>
+
+  <div id="methodology"></div>
 
 </div>
 

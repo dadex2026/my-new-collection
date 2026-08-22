@@ -6,6 +6,7 @@ export const SIGNALS = {
   MINTING: "minting",
   CAMPAIGNS: "campaigns",
   TEXTCARDS: "textCards",
+  METHODOLOGY: "methodology",
 } as const;
 
 export type SignalName = typeof SIGNALS[keyof typeof SIGNALS];
@@ -130,6 +131,71 @@ export type TextCard = {
 };
 
 // ----------------------------
+// METHODOLOGY
+// ----------------------------
+// Matches frontend/public/methodology.json, produced by
+// backend/scripts/generate-methodology.js. Authored prose lives in
+// backend/methodology/methodology.json; everything that could go stale —
+// which boards exist, which ruleset produced each, which exports they were
+// built from — is derived at generate time rather than written by hand.
+export type MethodologySection = {
+  id: string;
+  heading: string;
+  body: string[];
+};
+
+export type MethodologyBoard = {
+  boardId: string;
+  title: string;
+  track: string;
+  entityType: string;
+  seasonId: string;
+  throughRound: string | null;
+  rulesetVersion: string | null;
+  rankedCount: number;
+  omittedNoValue: number;
+  omittedReason: string | null;
+  movementShown: boolean;
+  movementSuppressedReason: string | null;
+};
+
+export type MethodologyChangelogEntry = {
+  id: string;
+  kind: string;
+  effectiveFrom: string | null;
+  note: string;
+};
+
+export type MethodologyUnranked = {
+  handle: string;
+  predictions: number;
+  countingPredictions: number;
+  reason: string;
+};
+
+export type Methodology = {
+  generatedAt: string;
+  title: string;
+  intro: string;
+  collection: {
+    title: string;
+    seasonId: string;
+    minPicks: number | null;
+    cardLimit: number | null;
+  };
+  sections: MethodologySection[];
+  boards: MethodologyBoard[];
+  unranked: MethodologyUnranked[];
+  changelog: MethodologyChangelogEntry[];
+  kinds: Record<string, string>;
+  sources: {
+    roundExports: string[];
+    evidenceExports: string[];
+    captureMethod: string;
+  };
+};
+
+// ----------------------------
 // UI STATE
 // ----------------------------
 export type UIState = {
@@ -154,4 +220,5 @@ export type AppState = {
   registry: CollectionWithDrops[];
   campaigns: Campaign[];
   textCards: TextCard[];
+  methodology: Methodology | null;
 };

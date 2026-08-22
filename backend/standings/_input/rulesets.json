@@ -1,0 +1,20 @@
+{
+  "_note": "Every ruleset version that has ever produced an export in this folder must be declared here. The importer refuses a version it has not been told about, so an unfamiliar build becomes a decision rather than something that slips through stamped with a stale value. This file is also the changelog the methodology page publishes. Start a new collection by declaring its first version as 'baseline'.",
+
+  "_kinds": {
+    "baseline": "The first version imported here. Nothing precedes it to compare against.",
+    "rule-change": "A new rule. Applies forward from effectiveFrom; earlier rounds keep the scoring they were published under and are never restated. Movement across the boundary is suppressed, because a delta spanning two rulesets measures the rule change as much as the participant.",
+    "bug-fix": "Restores what the stated rules always meant. History is recomputed and republished as a correction, and movement across the boundary stays meaningful.",
+    "export-only": "Changed what the export carries, not how anything is scored. Movement is retained — no number moved."
+  },
+
+  "_example": {
+    "my-ledger-v1.0": {
+      "kind": "baseline",
+      "effectiveFrom": "2026-01-01",
+      "note": "Delete this block and declare the real first version under 'rulesets' below. The id is the rulesetPrefix from import-config.json joined to the source app's own build stamp."
+    }
+  },
+
+  "rulesets": {}
+}
