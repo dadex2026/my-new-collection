@@ -54,3 +54,5 @@ Desktop.ini
 # --------------------------------------------------
 *.tmp
 *.temp
+# Local Netlify folder
+.netlify
