@@ -8,6 +8,25 @@
   <style>
     * { box-sizing: border-box; }
 
+    html {
+      scroll-behavior: smooth;
+      /* Offsets EVERY in-page scroll landing point by the sticky nav bar's
+         height — not just the four .section-nav-link anchors, but also the
+         pre-existing sidebar's scrollIntoView() calls (Rewards/News/
+         Methodology), which would have the same problem now that a sticky
+         bar exists. Without this, whatever sits at the very top of a
+         section — Content's ALL/NEWS/UPDATE/... tab row, Collections'
+         filter header, a section title — lands underneath the sticky bar
+         instead of just below it. One global offset covers every section
+         uniformly; a per-element scroll-margin-top would need updating
+         every time a section's own top content changes. ~54px measured nav
+         height (10px padding top/bottom + ~34px content row) plus a small
+         gap so content doesn't sit flush against the bar.
+         Keep in sync with .section-nav's actual rendered height if its
+         padding/font-size ever changes. */
+      scroll-padding-top: 76px;
+    }
+
     body {
       margin: 0;
       padding: 40px;
@@ -699,6 +718,80 @@
       font-size: 11px;
       color: #555;
     }
+
+    /* Top section nav + search. Sticky so it stays reachable on a long page
+       — the whole reason for it existing is getting back to a section (or
+       re-searching) without scrolling up. Links are plain #anchor jumps into
+       existing sections; html{scroll-behavior:smooth} above is what makes
+       them animate instead of jumping instantly. */
+    .section-nav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin: 0 0 16px;
+      padding: 10px 14px;
+      background: #101010;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+    }
+
+    .section-nav-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .section-nav-link {
+      padding: 6px 14px;
+      border-radius: 20px;
+      color: #aaa;
+      font-size: 13px;
+      border: 1px solid #333;
+      transition: all 0.15s;
+    }
+
+    .section-nav-link:hover {
+      background: #1f1f1f;
+      color: #fff;
+      text-decoration: none;
+    }
+
+    .section-nav-link.active {
+      background: #512da8;
+      border-color: #512da8;
+      color: #fff;
+    }
+
+    .section-search {
+      background: #232323;
+      color: #fff;
+      border: 1px solid #512da8;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 13px;
+      min-width: 200px;
+    }
+
+    .section-search:focus {
+      outline: 2px solid #6a3fcb;
+      outline-offset: 1px;
+    }
+
+    @media (max-width: 720px) {
+      .section-nav {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .section-search {
+        min-width: 0;
+      }
+    }
   </style>
 </head>
 
@@ -707,6 +800,23 @@
 <div id="app">
 
   <h1>%COLLECTION_NAME%</h1>
+
+  <nav id="section-nav" class="section-nav">
+    <div class="section-nav-links">
+      <a href="#registry" class="section-nav-link">Collections</a>
+      <a href="#campaigns" class="section-nav-link">Campaigns</a>
+      <a href="#textcards" class="section-nav-link">Content</a>
+      <a href="#methodology" class="section-nav-link">Rankings</a>
+      <a href="#app" class="section-nav-link">&uarr; Top</a>
+    </div>
+    <input
+      type="search"
+      id="section-search"
+      class="section-search"
+      placeholder="Search this page…"
+      autocomplete="off"
+    />
+  </nav>
 
   <div id="wallet" class="panel">
     Wallet: Not connected

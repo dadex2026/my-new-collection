@@ -8,6 +8,27 @@ let activeFilters: Record<string, string> = {};
 const FILTER_TRAITS = ["Category", "Market", "Tier", "Element", "Series"];
 
 // ----------------------------
+// TOP SEARCH BAR
+// ----------------------------
+// One shared query from the #section-search input in index.html, applied
+// independently to Drops, Campaigns and Text Cards — each section re-filters
+// through its own existing pipeline (see matchesSearch below) rather than a
+// separate merged results view. Not scoped to "whichever section is
+// currently scrolled into view" — the input lives in a sticky bar above all
+// three sections, so it naturally re-filters all of them at once.
+let searchQuery = "";
+
+// Shared substring matcher: does `query` appear in any of the given fields,
+// case-insensitively? Reused by all three sections so they can't drift into
+// subtly different matching rules — an empty query always matches, since
+// search here is opt-in, not a required filter.
+function matchesSearch(query: string, ...fields: Array<string | null | undefined>): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return fields.some((f) => (f ?? "").toLowerCase().includes(q));
+}
+
+// ----------------------------
 // PAGINATION (shared across Drops, Campaigns, Text Cards)
 // ----------------------------
 // Each of the three sections keeps its OWN page number — changing page on
@@ -232,7 +253,9 @@ function renderDropPanel() {
   if (!dropPanel) return;
 
   const allDrops = getActiveDrops();
-  const filteredDrops = allDrops.filter(dropMatchesFilters);
+  const filteredDrops = allDrops
+    .filter(dropMatchesFilters)
+    .filter((d) => matchesSearch(searchQuery, d.itemName, d.itemDescription));
 
   let dropGrid = document.getElementById("drop-grid");
   if (!dropGrid) {
@@ -250,7 +273,9 @@ function renderDropPanel() {
   }
 
   if (filteredDrops.length === 0) {
-    dropGrid.innerHTML = '<p class="empty">No drops match the selected filters.</p>';
+    dropGrid.innerHTML = searchQuery.trim()
+      ? `<p class="empty">No drops match "${esc(searchQuery)}".</p>`
+      : '<p class="empty">No drops match the selected filters.</p>';
     dropPagination.innerHTML = "";
     return;
   }
@@ -526,6 +551,10 @@ function buildCampaignCard(c: Campaign): string {
   `;
 }
 
+function campaignMatchesSearch(c: Campaign): boolean {
+  return matchesSearch(searchQuery, c.title, c.headline, c.description);
+}
+
 function renderCampaigns() {
   const root = document.getElementById("campaigns");
   if (!root) return;
@@ -537,7 +566,17 @@ function renderCampaigns() {
     return;
   }
 
-  const { pageItems, totalPages, page } = paginate(campaigns, campaignsPage);
+  const filteredCampaigns = campaigns.filter(campaignMatchesSearch);
+
+  if (filteredCampaigns.length === 0) {
+    root.innerHTML = `
+      <div class="campaigns-title">Holder Campaigns</div>
+      <p class="empty">No campaigns match "${esc(searchQuery)}".</p>
+    `;
+    return;
+  }
+
+  const { pageItems, totalPages, page } = paginate(filteredCampaigns, campaignsPage);
   campaignsPage = page;
 
   root.innerHTML = `
@@ -693,10 +732,19 @@ function textCardMatchesTab(c: TextCard): boolean {
   return c.category === activeTextCardTab;
 }
 
+// Only matches prose fields, not a persistent card's structured `entries`
+// (Handle/Points/Rank rows) — that's a different shape of data than the top
+// search bar targets. A later version could add that; not needed for v1.
+function textCardMatchesSearch(c: TextCard): boolean {
+  const body = typeof c.content === "string" ? c.content : undefined;
+  return matchesSearch(searchQuery, c.headline, c.subheadline ?? undefined, body);
+}
+
 function getVisibleTextCards(): TextCard[] {
   return state.textCards
     .filter(isTextCardVisible)
     .filter(textCardMatchesTab)
+    .filter(textCardMatchesSearch)
     .sort((a, b) => {
       if (a.featured !== b.featured) return a.featured ? -1 : 1;
       if (a.priority !== b.priority) return b.priority - a.priority;
@@ -729,7 +777,7 @@ function renderTextCards() {
       `).join("")}
     </div>
     ${visibleCards.length === 0
-      ? '<p class="empty">No posts in this category yet.</p>'
+      ? `<p class="empty">${searchQuery.trim() ? `No posts match "${esc(searchQuery)}".` : "No posts in this category yet."}</p>`
       : `<div class="textcards-grid">${pageItems.map(buildTextCard).join("")}</div>
          ${buildPaginationControls(page, totalPages)}`
     }
@@ -892,7 +940,32 @@ function renderMethodology() {
   `;
 }
 
+// Debounced so fast typing doesn't re-render all three sections on every
+// keystroke. Attached once — #section-search is static markup in index.html,
+// never replaced by a render, so it doesn't need rebinding like the
+// pagination controls do.
+let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+function wireSearchInput() {
+  const input = document.getElementById("section-search") as HTMLInputElement | null;
+  if (!input) return;
+  input.addEventListener("input", () => {
+    const value = input.value;
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => {
+      searchQuery = value;
+      dropsPage = 1;
+      campaignsPage = 1;
+      textCardsPage = 1;
+      renderDropPanel();
+      renderCampaigns();
+      renderTextCards();
+    }, 150);
+  });
+}
+
 export function initUIEngine() {
+  wireSearchInput();
   subscribe("status", renderStatus);
   subscribe("minting", renderMintButtons);
   subscribe("wallet", renderMintButtons);
