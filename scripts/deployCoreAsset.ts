@@ -1,6 +1,7 @@
 console.log("🔥 DEPLOY SCRIPT BOOTING...");
 
 import fs from "fs";
+import path from "path";
 import dotenv from "dotenv";
 
 // IMPORTANT: load correct env file
@@ -32,6 +33,19 @@ async function main() {
   }
 
   // -----------------------------
+  // COLLECTION NAME
+  // -----------------------------
+  // Sourced from template-version.json so a renamed collection can't forget
+  // to update this — the on-chain asset name cannot be corrected after mint.
+  const templateVersion = JSON.parse(
+    fs.readFileSync(path.resolve(__dirname, "../template-version.json"), "utf-8")
+  );
+  const collectionName: string =
+    templateVersion.collectionName || templateVersion.templateName;
+
+  console.log("🏷️  Collection name:", collectionName);
+
+  // -----------------------------
   // INIT UMI
   // -----------------------------
   console.log("🟡 Initializing UMI...");
@@ -53,7 +67,7 @@ async function main() {
 
   await create(umi, {
     asset,
-    name: "Template Open Edition",
+    name: collectionName,
     uri: "https://example.com/metadata.json",
   }).sendAndConfirm(umi);
 
