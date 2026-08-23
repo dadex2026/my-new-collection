@@ -809,7 +809,9 @@ function main() {
           `Ruleset changed between rounds: ${versionInfo.previousVersion} -> ${version} (${kind}). ` +
           KINDS[kind].meaning +
           (suppressMovement
-            ? " Movement is suppressed on this round, because positions either side were produced under different rules."
+            ? ` Movement is suppressed on this round: ${suppressedBy} (${rulesets[suppressedBy].kind}) falls between them. ` +
+              KINDS[rulesets[suppressedBy].kind].meaning +
+              " Positions either side were produced under different rules."
             : " Movement across the boundary is retained."),
       });
     }
