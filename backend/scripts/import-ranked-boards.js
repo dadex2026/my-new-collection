@@ -172,6 +172,17 @@ function listBoardExports(inputDir, decl) {
 }
 
 // ---- Movement -------------------------------------------------------------
+/* What a board matches on between rounds. A declared idColumn wins, because a
+   display label is not an identity: a startup rebrands on exactly the round its
+   rank moves most, and matching on the label would read that as one entity
+   leaving and another arriving — resetting a standing with no error and no
+   trace. owner/repo needs none of this; a company name does. Normalised, so a
+   casing or spacing change in the export cannot silently break the chain. */
+function keyFor(row, decl) {
+  const raw = decl.idColumn ? row[decl.idColumn] : row[decl.labelColumn];
+  return String(raw || "").trim().toLowerCase();
+}
+
 function movementFor(key, rank, previous, seenEver) {
   if (!previous) return null;
   const prev = previous.get(key);
@@ -184,9 +195,9 @@ function movementFor(key, rank, previous, seenEver) {
 function rankMapFor(rows, decl) {
   const m = new Map();
   rows.forEach((r) => {
-    const name = String(r[decl.labelColumn] || "").trim();
+    const key = keyFor(r, decl);
     const rank = num(r.Position);
-    if (name && rank !== null) m.set(name, rank);
+    if (key && rank !== null) m.set(key, rank);
   });
   return m;
 }
@@ -204,8 +215,9 @@ function buildBoard(decl, exportInfo, rows, previous, seenEver, config, versionI
         if (v !== undefined && v !== "") fields[f] = num(v) === null ? v : num(v);
       });
 
-      const entry = { rank, entityId: name.toLowerCase(), name, score: num(r[decl.scoreColumn]), fields };
-      const mv = versionInfo.suppressMovement ? null : movementFor(name, rank, previous, seenEver);
+      const key = keyFor(r, decl);
+      const entry = { rank, entityId: key, name, score: num(r[decl.scoreColumn]), fields };
+      const mv = versionInfo.suppressMovement ? null : movementFor(key, rank, previous, seenEver);
       if (mv) entry.movement = mv;
       return entry;
     })
@@ -315,7 +327,7 @@ function main() {
       const { header, rows } = readCsv(exportInfo.filePath);
       if (rows.length === 0) fail("empty_export", `${exportInfo.fileName}: no data rows.`, 1);
 
-      ["Position", decl.labelColumn, decl.scoreColumn].forEach((c) => {
+      ["Position", decl.labelColumn, decl.scoreColumn, decl.idColumn].filter(Boolean).forEach((c) => {
         if (!header.includes(c)) {
           fail(
             "unexpected_shape",
@@ -338,8 +350,8 @@ function main() {
       }
 
       rows.forEach((r) => {
-        const n = String(r[decl.labelColumn] || "").trim();
-        if (n) seenEver.add(n);
+        const k = keyFor(r, decl);
+        if (k) seenEver.add(k);
       });
       previous = rankMapFor(rows, decl);
       previousVersion = version;

@@ -92,8 +92,7 @@ function mergeSections(defaults, overrides) {
   // conditional variants are part of that shape: resolveConditionalBody folds
   // them into body once the changelog length is known.
   const carryVariants = (out, s) => {
-    if (s.bodyWhenChangelog) out.bodyWhenChangelog = s.bodyWhenChangelog;
-    if (s.bodyWhenNoChangelog) out.bodyWhenNoChangelog = s.bodyWhenNoChangelog;
+    VARIANT_KEYS.forEach((k) => { if (s[k]) out[k] = s[k]; });
     return out;
   };
   const sections = defaults.map((s) =>
@@ -181,15 +180,28 @@ function buildChangelog(rulesets) {
 // argument is that any figure can be checked should not point at a list that
 // is not there. Declared in the source rather than detected here, so a
 // collection can override either variant like any other prose.
-function resolveConditionalBody(sections, hasChangelog) {
+/* Each pair is one fact the page can only assert when the underlying data is
+   actually there. Declared in the source rather than detected here, so a
+   collection can override either variant like any other prose, and a section
+   that states nothing conditional carries no extra keys at all. */
+const CONDITIONAL_BODY = [
+  { flag: "changelog", when: "bodyWhenChangelog", unless: "bodyWhenNoChangelog" },
+  { flag: "evidence", when: "bodyWhenEvidence", unless: "bodyWhenNoEvidence" },
+];
+
+const VARIANT_KEYS = CONDITIONAL_BODY.flatMap((c) => [c.when, c.unless]);
+
+function resolveConditionalBody(sections, conditions) {
   return sections.map((s) => {
-    if (!s.bodyWhenChangelog && !s.bodyWhenNoChangelog) return s;
+    if (!VARIANT_KEYS.some((k) => s[k])) return s;
     const copy = { ...s };
-    delete copy.bodyWhenChangelog;
-    delete copy.bodyWhenNoChangelog;
+    VARIANT_KEYS.forEach((k) => delete copy[k]);
     copy.body = Array.isArray(s.body) ? s.body.slice() : [];
-    const extra = hasChangelog ? s.bodyWhenChangelog : s.bodyWhenNoChangelog;
-    if (extra) copy.body.push(extra);
+    CONDITIONAL_BODY.forEach((c) => {
+      const extra = conditions[c.flag] ? s[c.when] : s[c.unless];
+      if (!extra) return;
+      (Array.isArray(extra) ? extra : [extra]).forEach((t) => copy.body.push(t));
+    });
     return copy;
   });
 }
@@ -257,7 +269,6 @@ function main() {
 
   const rulesetsDoc = readJson(RULESETS_PATH, "rulesets");
   const changelog = buildChangelog(rulesetsDoc.rulesets || {});
-  const resolvedSections = resolveConditionalBody(sections, changelog.length > 0);
   const config = readJson(CONFIG_PATH, "import config");
   const boards = listBoards();
 
@@ -267,6 +278,16 @@ function main() {
       message: "No boards found — the page will publish its prose with no rankings to describe.",
     });
   }
+
+  /* A collection that does not export the row layer publishes totals with no
+     breakdown behind them. The page must not then claim a reader can add a
+     total up from its parts — a verification promise nothing is backing is
+     worse than no promise, on a page whose whole argument is checkability. */
+  const hasEvidence = boards.some((b) => b.evidenceSource);
+  const resolvedSections = resolveConditionalBody(sections, {
+    changelog: changelog.length > 0,
+    evidence: hasEvidence,
+  });
 
   const doc = {
     generatedAt: new Date().toISOString(),
