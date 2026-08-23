@@ -697,10 +697,15 @@ function renderTruncationNote(c: TextCard): string {
   return `<div class="textcard-truncation">Showing top ${shown} of ${total}</div>`;
 }
 
+// A persistent card carries a table — rank / name / score / movement, ten-plus
+// rows after tie extension — where a simple card carries a few lines of prose.
+// At a third of the grid width that table can only scroll sideways, so
+// persistent cards span the whole row instead. See .textcard-wide.
 function buildTextCard(c: TextCard): string {
   const showUpdated = c.updatedDate && c.updatedDate !== c.publishedDate;
+  const wide = c.persistent ? " textcard-wide" : "";
   return `
-    <div class="textcard" id="textcard-${c.textCardId}">
+    <div class="textcard${wide}" id="textcard-${c.textCardId}">
       <div class="textcard-category">${c.category}${c.persistent ? " · Persistent" : ""}</div>
       <div class="textcard-headline">${c.headline}</div>
       ${c.subheadline ? `<div class="textcard-subheadline">${c.subheadline}</div>` : ""}

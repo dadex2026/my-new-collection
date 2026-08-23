@@ -501,6 +501,14 @@
       padding: 12px;
     }
 
+    /* Persistent cards (standings, leaderboards, stats) hold a table rather
+       than prose. In a third-width column that table only scrolls sideways,
+       so they take the full row. Works under the auto-fill fallback below
+       too — `-1` is the last column line whichever rule is in force. */
+    .textcard-wide {
+      grid-column: 1 / -1;
+    }
+
     .textcard-category {
       font-size: 11px;
       text-transform: uppercase;
