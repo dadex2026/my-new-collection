@@ -623,8 +623,13 @@ function formatCardDate(iso: string): string {
 // down a score. Rows that disagree on keys fall back to the labelled-field
 // list, since there is no honest header for a ragged set. Both paths stay
 // keyed on the data, not on the card's category.
+/* Entry values are participant-chosen text — an X handle is whatever its owner
+   typed. This renders into innerHTML on a page that also holds a wallet
+   connection and a mint button, so it is escaped rather than trusted. Column
+   keys are escaped for the same reason: they come from a board file, which
+   comes from an export, which comes from a Ledger the collection does not own. */
 function renderEntryValue(v: string | number): string {
-  return String(v);
+  return esc(v);
 }
 
 function renderEntriesTable(entries: Array<Record<string, string | number>>): string {
@@ -641,7 +646,7 @@ function renderEntriesTable(entries: Array<Record<string, string | number>>): st
       <ul class="textcard-entries">
         ${entries.map((entry) => `
           <li class="textcard-entry">
-            ${Object.entries(entry).map(([k, v]) => `<span class="textcard-entry-field">${k}: ${renderEntryValue(v)}</span>`).join(" ")}
+            ${Object.entries(entry).map(([k, v]) => `<span class="textcard-entry-field">${esc(k)}: ${renderEntryValue(v)}</span>`).join(" ")}
           </li>
         `).join("")}
       </ul>
@@ -652,7 +657,7 @@ function renderEntriesTable(entries: Array<Record<string, string | number>>): st
     <div class="textcard-table-wrap">
       <table class="textcard-table">
         <thead>
-          <tr>${columns.map((col) => `<th>${col}</th>`).join("")}</tr>
+          <tr>${columns.map((col) => `<th>${esc(col)}</th>`).join("")}</tr>
         </thead>
         <tbody>
           ${entries.map((entry) => `
@@ -678,7 +683,7 @@ function renderTextCardContent(c: TextCard): string {
   return `
     <div class="textcard-stats">
       ${Object.entries(c.content as Record<string, string | number>).map(([k, v]) => `
-        <div class="textcard-stat"><span class="textcard-stat-label">${k}</span><span class="textcard-stat-value">${v}</span></div>
+        <div class="textcard-stat"><span class="textcard-stat-label">${esc(k)}</span><span class="textcard-stat-value">${esc(v)}</span></div>
       `).join("")}
     </div>
   `;
@@ -919,6 +924,14 @@ function renderMethodologySources(m: Methodology): string {
       <ul class="method-list">
         ${all.map((f) => `<li><span class="method-version">${esc(f)}</span></li>`).join("")}
       </ul>
+      ${/* The page tells a reader to check a total against its breakdown. That
+            is only true if the breakdown is reachable — every board, every
+            entry and every prediction is published here in full, and without
+            this link it was served but discoverable from nowhere. */ ""}
+      <p class="method-body">
+        Every board is published in full, including the entries no card shows, at
+        <a class="method-link" href="/standings.json">/standings.json</a>.
+      </p>
     </div>
   `;
 }

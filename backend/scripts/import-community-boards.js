@@ -686,7 +686,7 @@ function buildBoard(sort, exportInfo, ranked, omitted, previousRanks, seenEver, 
     rulesetVersion: versionInfo.version,
     rulesetSource: versionInfo.stamped ? "export" : "config-fallback",
     rulesetChanged: versionInfo.changed
-      ? { from: versionInfo.previousVersion, to: versionInfo.version, kind: versionInfo.kind, movementSuppressed: versionInfo.suppressMovement }
+      ? { from: versionInfo.previousVersion, to: versionInfo.version, kind: versionInfo.kind, movementSuppressed: versionInfo.suppressMovement, suppressedBy: versionInfo.suppressedBy || null }
       : null,
     promptVersion: config.promptVersion || null,
     generatedAt: new Date(`${exportInfo.date}T00:00:00.000Z`).toISOString(),

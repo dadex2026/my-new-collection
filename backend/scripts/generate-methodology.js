@@ -221,7 +221,7 @@ function describeBoards(boards) {
     movementShown: Array.isArray(b.entries) && b.entries.some((e) => e.movement),
     movementSuppressedReason:
       b.rulesetChanged && b.rulesetChanged.movementSuppressed
-        ? `Scoring changed from ${b.rulesetChanged.from} to ${b.rulesetChanged.to}, so positions either side were produced under different rules.`
+        ? `${b.rulesetChanged.suppressedBy || b.rulesetChanged.to} changed the scoring rules between ${b.rulesetChanged.from} and ${b.rulesetChanged.to}, so positions either side were produced under different rules.`
         : null,
   }));
 }
