@@ -62,6 +62,34 @@ const KINDS = {
   "export-only": { suppressesMovement: false },
 };
 
+/* Same rule as the community importer: a boundary that skips a version can hide
+   a rule change between its endpoints, so suppression asks about the interval
+   rather than the arriving version alone. */
+function orderedVersions(rulesets) {
+  return Object.keys(rulesets).sort((a, b) => {
+    const fa = String(rulesets[a].effectiveFrom || "");
+    const fb = String(rulesets[b].effectiveFrom || "");
+    return fa < fb ? -1 : fa > fb ? 1 : a.localeCompare(b);
+  });
+}
+
+function versionsCrossed(rulesets, fromVersion, toVersion) {
+  const order = orderedVersions(rulesets);
+  const i = order.indexOf(fromVersion);
+  const j = order.indexOf(toVersion);
+  if (i === -1 || j === -1 || j <= i) return [toVersion];
+  return order.slice(i + 1, j + 1);
+}
+
+function suppressingVersion(rulesets, fromVersion, toVersion) {
+  return (
+    versionsCrossed(rulesets, fromVersion, toVersion).find(
+      (v) => rulesets[v] && KINDS[rulesets[v].kind] && KINDS[rulesets[v].kind].suppressesMovement
+    ) || null
+  );
+}
+
+
 // ---- Logging --------------------------------------------------------------
 function ensureLogsDir() {
   if (!fs.existsSync(LOGS_DIR)) fs.mkdirSync(LOGS_DIR, { recursive: true });
@@ -225,7 +253,7 @@ function buildBoard(decl, exportInfo, rows, previous, seenEver, config, versionI
     .sort((a, b) => a.rank - b.rank);
 
   const boundaryNote = versionInfo.suppressMovement
-    ? ` Movement is not shown for this round: scoring changed from ${versionInfo.previousVersion} to ${versionInfo.version}, so positions either side were produced under different rules.`
+    ? ` Movement is not shown for this round: ${versionInfo.suppressedBy} changed the scoring rules between ${versionInfo.previousVersion} and ${versionInfo.version}, so positions either side were produced under different rules.`
     : "";
 
   return {
@@ -341,8 +369,9 @@ function main() {
       const { version, stamped } = versionOfRound(rows, header, config, exportInfo.fileName, rulesets);
       const changed = previousVersion !== null && previousVersion !== version;
       const kind = changed ? rulesets[version].kind : null;
-      const suppressMovement = changed && KINDS[kind] && KINDS[kind].suppressesMovement;
-      const versionInfo = { version, stamped, changed, previousVersion, kind, suppressMovement };
+      const suppressedBy = changed ? suppressingVersion(rulesets, previousVersion, version) : null;
+      const suppressMovement = Boolean(suppressedBy);
+      const versionInfo = { version, stamped, changed, previousVersion, kind, suppressMovement, suppressedBy };
 
       const isLast = i === exports_.length - 1;
       if (isLast) {

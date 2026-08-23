@@ -93,6 +93,40 @@ const KINDS = {
   "bug-fix": { suppressesMovement: false, meaning: "Restores what the stated rules always meant. History recomputes and republishes as a correction." },
   "export-only": { suppressesMovement: false, meaning: "Changed what the export carries, not how anything is scored." },
 };
+
+/* A round can skip a version. If one round was produced by v1.2 and the next by
+   v1.4, the boundary spans v1.3 — and if v1.3 was a rule-change, movement across
+   that boundary measures the rule change even though neither endpoint is one.
+   Suppression therefore asks about the whole interval, not just the version that
+   arrived. Ordered by effective date so "between" means what a reader means by
+   it, with the id as a tiebreak so the order is total. */
+function orderedVersions(rulesets) {
+  return Object.keys(rulesets).sort((a, b) => {
+    const fa = String(rulesets[a].effectiveFrom || "");
+    const fb = String(rulesets[b].effectiveFrom || "");
+    return fa < fb ? -1 : fa > fb ? 1 : a.localeCompare(b);
+  });
+}
+
+function versionsCrossed(rulesets, fromVersion, toVersion) {
+  const order = orderedVersions(rulesets);
+  const i = order.indexOf(fromVersion);
+  const j = order.indexOf(toVersion);
+  if (i === -1 || j === -1 || j <= i) return [toVersion];
+  return order.slice(i + 1, j + 1);
+}
+
+/* Returns the first version in the interval that suppresses movement, or null.
+   Naming it lets the published board say which rule change is responsible
+   rather than only naming the two endpoints, one of which may be innocent. */
+function suppressingVersion(rulesets, fromVersion, toVersion) {
+  return (
+    versionsCrossed(rulesets, fromVersion, toVersion).find(
+      (v) => rulesets[v] && KINDS[rulesets[v].kind] && KINDS[rulesets[v].kind].suppressesMovement
+    ) || null
+  );
+}
+
 const LOGS_DIR = path.join(BACKEND_DIR, "logs");
 
 // ---- Expected export shape ------------------------------------------------
@@ -638,7 +672,7 @@ function buildBoard(sort, exportInfo, ranked, omitted, previousRanks, seenEver, 
     : ["rank", "name", "score", "entries", "provisional", "movement"];
 
   const boundaryNote = versionInfo.suppressMovement
-    ? ` Movement is not shown for this round: scoring changed from ${versionInfo.previousVersion} to ${versionInfo.version}, so positions either side were produced under different rules.`
+    ? ` Movement is not shown for this round: ${versionInfo.suppressedBy} changed the scoring rules between ${versionInfo.previousVersion} and ${versionInfo.version}, so positions either side were produced under different rules.`
     : "";
 
   return {
@@ -724,9 +758,10 @@ function main() {
     const { version, stamped } = versionOfRound(rows, header, config, exportInfo.fileName, rulesets);
     const changed = previousVersion !== null && previousVersion !== version;
     const kind = changed ? rulesets[version].kind : null;
-    const suppressMovement = changed && KINDS[kind].suppressesMovement;
+    const suppressedBy = changed ? suppressingVersion(rulesets, previousVersion, version) : null;
+    const suppressMovement = Boolean(suppressedBy);
 
-    const versionInfo = { version, stamped, changed, previousVersion, kind, suppressMovement };
+    const versionInfo = { version, stamped, changed, previousVersion, kind, suppressMovement, suppressedBy };
 
     const isLast = i === exports_.length - 1;
     const roundIndex = i + 1;
