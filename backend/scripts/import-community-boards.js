@@ -623,6 +623,14 @@ function orderForSort(rows, sort) {
   return { ranked, omitted };
 }
 
+/* The identity a participant is matched on between rounds. X handles are
+   case-insensitive, so @PopCritic and @popcritic are one account — keying on
+   the raw string would make them two competitors, each with half a history.
+   The display name keeps its original casing; only the key is normalised. */
+function handleKey(v) {
+  return String(v == null ? "" : v).trim().toLowerCase();
+}
+
 // ---- Movement -------------------------------------------------------------
 // Derived by comparing this round's ranking to the previous round's, both
 // computed in the same replay. A handle absent from the previous round is
@@ -638,13 +646,43 @@ function movementFor(handle, rank, previousRanks, seenEver) {
   return prev > rank ? { state: "up", delta: prev - rank } : { state: "down", delta: rank - prev };
 }
 
+/* A rename is indistinguishable from a departure plus an arrival: the export
+   carries no identifier, so nothing here can tell them apart. What it can do is
+   say that both happened in the same round — the moment an operator can still
+   recognise @old as @new, before the reset is buried in history.
+
+   Silence is what made this a bug rather than a limitation. A standing that
+   resets because someone renamed looks exactly like a standing that legitimately
+   restarted, and no arrow, count or total anywhere says which it was. */
+function reportChurn(previousKeys, keysThisRound, displayByKey, roundIndex) {
+  if (!previousKeys) return;
+  const left = [...previousKeys].filter((k) => !keysThisRound.has(k));
+  const arrived = [...keysThisRound].filter((k) => !previousKeys.has(k));
+  if (!left.length || !arrived.length) return;
+
+  const name = (k) => displayByKey.get(k) || k;
+  // Named while the list is short enough to read; on a large board the counts
+  // are the signal and a wall of handles would bury it.
+  const list = (ks) => (ks.length <= 10 ? ` (${ks.map(name).join(", ")})` : "");
+
+  log({
+    status: "warning",
+    message:
+      `Round ${roundIndex}: ${left.length} participant(s) left the board${list(left)} and ` +
+      `${arrived.length} arrived${list(arrived)}. If any of those is one person under a new handle, ` +
+      `their movement has reset — the export cannot tell a rename from a departure.`,
+    left: left.map(name),
+    arrived: arrived.map(name),
+  });
+}
+
 // ---- Board construction ---------------------------------------------------
 function buildBoard(sort, exportInfo, ranked, omitted, previousRanks, seenEver, config, roundIndex, versionInfo) {
   const entries = ranked.map(({ row, rank }) => {
     const handle = String(row.Handle).trim();
     const entry = {
       rank,
-      entityId: handle.toLowerCase(),
+      entityId: handleKey(handle),
       name: handle,
       score: num(row[sort.column]),
       entries: num(row.Resolved),
@@ -662,7 +700,7 @@ function buildBoard(sort, exportInfo, ranked, omitted, previousRanks, seenEver, 
     // spanning two rulesets measures the rule change as much as the
     // participant, and a blank cell with an explanation on the board is more
     // honest than an arrow nobody can interpret.
-    const movement = versionInfo.suppressMovement ? null : movementFor(handle, rank, previousRanks, seenEver);
+    const movement = versionInfo.suppressMovement ? null : movementFor(handleKey(handle), rank, previousRanks, seenEver);
     if (movement) entry.movement = movement;
     return entry;
   });
@@ -737,6 +775,8 @@ function main() {
   // but the earlier rounds have to be computed to know where each handle stood.
   const previousBySort = new Map();
   const seenEver = new Set();
+  const displayByKey = new Map();
+  let previousKeys = null;
   let previousVersion = null;
   let finalBoards = [];
 
@@ -773,7 +813,7 @@ function main() {
       const withRanks = assignCompetitionRanks(ranked, (r) => num(r[sort.column]));
 
       const rankMap = new Map();
-      withRanks.forEach(({ row, rank }) => rankMap.set(String(row.Handle).trim(), rank));
+      withRanks.forEach(({ row, rank }) => rankMap.set(handleKey(row.Handle), rank));
       ranksThisRound.set(sort.key, rankMap);
 
       if (isLast) {
@@ -785,7 +825,16 @@ function main() {
 
     // `seenEver` is updated only after the round is built, so a handle first
     // appearing in this round reads as `new` rather than `returning`.
-    rows.forEach((r) => seenEver.add(String(r.Handle).trim()));
+    const keysThisRound = new Set();
+    rows.forEach((r) => {
+      const k = handleKey(r.Handle);
+      keysThisRound.add(k);
+      displayByKey.set(k, String(r.Handle).trim());
+    });
+    reportChurn(previousKeys, keysThisRound, displayByKey, roundIndex);
+    previousKeys = keysThisRound;
+
+    rows.forEach((r) => seenEver.add(handleKey(r.Handle)));
     SORTS.forEach((sort) => previousBySort.set(sort.key, ranksThisRound.get(sort.key)));
     previousVersion = version;
 
