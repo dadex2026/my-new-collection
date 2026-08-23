@@ -120,7 +120,10 @@ The reliable way to do this:
    template's pre-that-feature baseline in exactly the ways that feature
    added, and a later feature (e.g. Text Cards) needs to layer on top of
    that, not replace it.
-5. Newer template features also arrive as **whole directories that an older
+5. Delete `docs/open-items.md` if it came across. That file is the template's
+   own maintenance backlog, not collection content — the same rule as the
+   example standings board below.
+6. Newer template features also arrive as **whole directories that an older
    collection simply doesn't have** — currently `backend/standings/`,
    `backend/methodology/`, and the scripts that serve them
    (`import-ranked-boards.js`, `import-community-boards.js`,
