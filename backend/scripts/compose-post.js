@@ -36,6 +36,13 @@
  *   A template hard-coding {entry[0].score} is correct for one board and wrong
  *   for another, and must fail loudly rather than render a blank.
  *
+ * IT COUNTS THE WAY X COUNTS.
+ *   Weighted length, not characters: every URL is 23 regardless of its real
+ *   length because t.co rewrites it, and emoji and CJK weigh 2 where Latin
+ *   weighs 1. Counting code points instead refuses posts that would fit
+ *   (common — most templates carry a link) and accepts emoji-heavy posts that
+ *   would not. See weightedLength().
+ *
  * IT REFUSES RATHER THAN TRUNCATES.
  *   Over budget, the post is still printed so it can be edited, but no file is
  *   written and the exit code is non-zero. A silently truncated field list is
@@ -358,15 +365,53 @@ function render(template, fields, siteUrl) {
   return template.body.replace(PLACEHOLDER, (_, raw) => String(available[raw.trim()]));
 }
 
+// ---- Weighted length ------------------------------------------------------
+// X does not count characters. It computes a *weighted* length, and counting
+// code points instead is wrong in both directions:
+//
+//   - Every URL counts as 23 whatever its real length, because t.co rewrites
+//     it. Counting the real length over-counts, so a post that would fit gets
+//     refused — and a budget check that rejects valid posts is one people
+//     learn to override, at which point it has stopped being a check.
+//   - Emoji and CJK weigh 2, most Latin text weighs 1. Counting code points
+//     under-counts those, so a post can pass here and be rejected by X.
+//
+// The ranges below are X's published weight-1 set; everything outside them
+// weighs 2. Text is NFC-normalised first, as twitter-text does.
+const URL_WEIGHT = 23;
+const URL_PATTERN = /https?:\/\/\S+/gi;
+const WEIGHT_ONE_RANGES = [[0, 4351], [8192, 8205], [8208, 8223], [8242, 8247]];
+
+function codePointWeight(cp) {
+  for (const [lo, hi] of WEIGHT_ONE_RANGES) {
+    if (cp >= lo && cp <= hi) return 1;
+  }
+  return 2;
+}
+
+// Known limitation: `\S+` claims trailing punctuation as part of a URL, where
+// X's own extractor is stricter. Composed posts put links on their own line or
+// at the end of one, so this has not mattered — but a link followed by a comma
+// mid-sentence would be counted one or two units short.
+function weightedLength(text) {
+  let total = 0;
+  const withoutUrls = text.normalize("NFC").replace(URL_PATTERN, () => {
+    total += URL_WEIGHT;
+    return "";
+  });
+  for (const ch of withoutUrls) total += codePointWeight(ch.codePointAt(0));
+  return total;
+}
+
 // ---- Budget report --------------------------------------------------------
 function report(text, limit, label) {
-  const total = [...text].length; // code points, closer to how X counts than .length
+  const total = weightedLength(text);
   const lines = text.split("\n");
   const width = String(total).length;
 
   process.stderr.write(`\n  ${label}\n`);
   lines.forEach((line) => {
-    const n = [...line].length;
+    const n = weightedLength(line);
     const preview = line.length > 58 ? `${line.slice(0, 55)}…` : line;
     process.stderr.write(`  ${String(n).padStart(width)}  ${preview || "·"}\n`);
   });

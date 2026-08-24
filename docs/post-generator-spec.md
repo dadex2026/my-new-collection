@@ -150,6 +150,31 @@ Report, never truncate. Print the total, the limit, and a per-line breakdown
 so an over-budget post shows *which* line to cut. A silently truncated field
 list is worse than a long one, because people act on only what they can see.
 
+**Count the way X counts — weighted length, not characters.** The first
+implementation counted code points, which is wrong in both directions:
+
+- **Every URL counts as 23**, whatever its real length, because `t.co` rewrites
+  it. Counting the real length over-counts, so a post that would fit gets
+  refused. This is the common case — most templates carry a link — and it is
+  the damaging direction, because a budget check that rejects valid posts is
+  one people learn to override, at which point it has stopped being a check.
+  Note it can also *under*-count: a URL shorter than 23 characters, such as a
+  bare `https://example.com`, costs more once wrapped than it looks.
+- **Emoji and CJK weigh 2**, most Latin weighs 1. X's weight-1 set is code
+  points in `0–4351`, `8192–8205`, `8208–8223` and `8242–8247`; everything else
+  weighs 2. Counting code points scores an emoji as 1, so an emoji-heavy post
+  can pass here and be rejected by X.
+
+Text is NFC-normalised first, as `twitter-text` does. Worth knowing the
+weighting reaches further than it first appears: an em dash (`—`, U+2014) falls
+inside a weight-1 range and costs 1, while a right arrow (`→`, U+2192) does not
+and costs 2.
+
+Known limitation: the URL pattern is `https?:\/\/\S+`, which claims trailing
+punctuation where X's own extractor is stricter. Composed posts put links at
+the end of a line, so this has not mattered — but a link followed by a comma
+mid-sentence would be counted a unit or two short.
+
 Budget is a setting, not a constant — 280 free, ~25,000 Premium.
 
 **Resolved: it's a flag, not a setting.** `--limit <chars>`, defaulting to 280.
@@ -186,17 +211,20 @@ All three live in `backend/post-templates/`, alongside `backend/standings/`
 and `backend/methodology/` rather than at the repo root, since they are
 backend data like everything else the scripts read.
 
-| File | Source | Renders at | Notes |
+| File | Source | Weighted | Notes |
 |---|---|---|---|
-| `mint-live.txt` | `master.csv` | 168 chars | Uses `{itemExternalUrl}`, no config key. |
-| `campaign-launch.txt` | `campaigns.csv` | 184 chars | Built from the `*Text` columns — the strongest case for the whole idea. |
-| `ranking-highlight.txt` | `standings.json` | 190 chars | Carries `{methodologyUrl}`. Cites `{entry[0..2].score}` — correct for a board that publishes one. |
-| `ranking-highlight-noscore.txt` | `standings.json` | 200 chars | Names only. For boards ranked on a value they don't publish as `score` — a games board ranked by final value, for instance. |
-| `announcement.txt` | `textcards.csv` | 156 chars | Opens a contest or anything else. Deliberately not a board — before a contest runs there are no entries and nothing to rank. |
-| `contest-result.txt` | `standings.json` | 231 chars | Closes one. Reads `{entry[n].Pick}` and `{entry[n].Called}` from each entry's `fields`, so it needs a board that carries them. |
+| `mint-live.txt` | `master.csv` | 162 | Uses `{itemExternalUrl}`, no config key. |
+| `campaign-launch.txt` | `campaigns.csv` | 189 | Built from the `*Text` columns — the strongest case for the whole idea. |
+| `ranking-highlight.txt` | `standings.json` | 182 | Carries `{methodologyUrl}`. Cites `{entry[0..2].score}` — correct for a board that publishes one. |
+| `ranking-highlight-noscore.txt` | `standings.json` | 167 | Names only. For boards ranked on a value they don't publish as `score` — a games board ranked by final value, for instance. |
+| `announcement.txt` | `textcards.csv` | 146 | Opens a contest or anything else. Deliberately not a board — before a contest runs there are no entries and nothing to rank. |
+| `contest-result.txt` | `standings.json` | — | Closes one. Reads `{entry[n].Pick}` and `{entry[n].Called}` from each entry's `fields`, so the example board can't render it; measured at 203 against a hand-built contest board. |
 
-Character counts are from real runs against the template's sample rows, all
-within the 280 default.
+Weighted lengths, measured against the template's own sample rows with no
+`--site` override, all inside the 280 default. They are lower than the raw
+character counts an earlier revision of this table recorded, because a URL now
+costs 23 rather than its real length — except `campaign-launch`, which rose,
+since its `https://example.com` is shorter than 23 and costs more once wrapped.
 
 A template declares its own source in a directive on the first line —
 `#source: campaigns`. Self-describing beats a manifest: the template and its
