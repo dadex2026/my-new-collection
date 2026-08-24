@@ -131,6 +131,100 @@ community importer reads either:
 Mapping is additive — original headers stay on the row — and a collection whose
 source already uses the logical names needs no entry at all.
 
+## Running a contest
+
+A contest is a board. There is no separate contests file and nothing to
+register it in — **one JSON file in this folder is one contest**, and dropping
+it here is the whole act of creating it.
+
+The filename is yours; `boardId` is the identity. The card it produces is
+`STANDINGS-` plus the boardId uppercased, so `nfl-w14-total-contest.json`
+becomes `STANDINGS-NFL-W14-TOTAL-CONTEST`.
+
+**For a new contest, the decision that matters is whether to reuse the
+boardId.**
+
+- **A new `boardId`** — a new board, a new card, its own history. Everyone
+  shows as `new`, because there is no earlier position to move from. Right for
+  a one-off, or for contests that don't compare to each other.
+- **The same `boardId`, entries replaced each round** — one board that updates,
+  one card, and movement arrows work from the second round on because
+  positions are compared against the previous run. Right for a weekly contest
+  with recurring participants.
+
+Reusing the id is usually what you want for anything recurring; a folder of
+`week-1`, `week-2`, `week-3` boards produces a wall of cards, none of which
+can show movement.
+
+Removing a contest's file marks its card `ARCHIVED` on the next run rather
+than deleting it, so a finished contest stays readable.
+
+Fields that earn their keep in a contest specifically:
+
+| Field | Why |
+|---|---|
+| `eligibility.minEntries` | The provisional threshold defaults to 3 via `import-config.json`'s `minPicks`. A single-round contest wants `1`, or the whole field is provisional and sinks. |
+| `eligibility.note` | This publishes. Put the tiebreak here — competition ranking will happily show three people at rank 1 and will not choose between them. |
+| `entries[].fields` | Where contest detail lives: what someone picked, what they called, what the result was. `columns` controls the card; `fields` carries everything else through to `standings.json` and to posts. |
+| `capture.complete` | Set `false` if any entry went uncaptured, and the run is refused — which is correct, since a missed entry is indistinguishable from someone who didn't play. |
+
+### Writing the entries
+
+Two things are your job before the file is valid, and only one of them is
+checked.
+
+**Rank order is enforced.** The generator refuses a board whose ranks go
+backwards — *"entries are not in rank order (rank 1 follows rank 2)"* — because
+that almost always means the list was re-sorted by score after ranking, which
+quietly breaks the movement column. It does **not** sort for you, and it does
+**not** check that your ranking is *correct*: nothing verifies rank 1 is
+actually the best entry. The check catches a shuffled file, not a wrong one.
+
+**Ties are yours to decide, and the decision is visible.** Ranking is
+competition-style, so two entries sharing a position both take the lower
+number and the next entry skips one: 1, 1, 3. Nothing will break that tie for
+you. So before writing the file, decide which you are publishing:
+
+- **A tie you accept** — give both entries the same `rank`. The card shows
+  1, 1, 3, and `cardLimit` extends through the whole tie group rather than
+  cutting it. Correct when the prize splits or there is no prize.
+- **A tie you broke** — apply your declared tiebreak, give distinct ranks, and
+  put the evidence in `fields` (the deciding timestamp, say). Correct when one
+  prize has to go to one person.
+
+What you must not do is leave a tie in the data while writing copy that names
+a single winner. `contest-result.txt` renders `{entry[n].rank}` rather than
+hardcoded positions precisely so a post cannot claim a sole winner the board
+does not support — an unbroken tie posts as *1., 1., 3.*
+
+**Score direction is a trap in closest-call contests.** Ranking is by error,
+where lower is better, and a board cannot express direction — a `score` column
+reading 1, 5, 8 looks like the winner scored worst. Don't force one. Put the
+real quantities in `fields` under names that say what they are:
+
+```json
+"columns": ["rank", "name", "Called", "Off by", "movement"],
+"entries": [
+  { "rank": 1, "name": "@gridiron_gwen",
+    "fields": { "Pick": "Dolphins at Chargers", "Called": "70", "Off by": "1" } }
+]
+```
+
+and put the answer in `subtitle` — *"Actual highest total: 71 — Dolphins at
+Chargers"* — so a reader can check the arithmetic.
+
+Then publish and post:
+
+```powershell
+node backend/scripts/generate-standings-cards.js
+node backend/scripts/generate-methodology.js
+node backend/scripts/compose-post.js contest-result --id <boardId>
+```
+
+The announcement that *opens* a contest is not a board — there are no entries
+yet, so there is nothing to rank. That is a row in `backend/textcards.csv`,
+posted with the `announcement` template. See `docs/post-generator-spec.md`.
+
 ## Delete the example
 
 `EXAMPLE-participants-accuracy.json` exists to prove the pipeline end to end.

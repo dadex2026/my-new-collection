@@ -87,6 +87,13 @@ Consequences for the engine:
 - Entries also carry `entityId` and `previousRank`, which are not in `columns`.
   Available fields come from the entry object itself, not from `columns` —
   `columns` governs what the *card* displays, which is a narrower thing.
+- **An entry's extra columns live in a nested `fields` object** and must be
+  flattened, exactly as `projectEntry()` spreads them onto a card row. This is
+  how a ranked export carries `Winner`, `Spread`, `Total` past the label and
+  score. Missing it makes a Sports board's most post-worthy values invisible to
+  every template — which is precisely what the first implementation did, until
+  a real ledger board was run through it. Flatten last, so an extra column
+  never shadows `rank` or `name`.
 
 ### Entry addressing
 
@@ -183,7 +190,10 @@ backend data like everything else the scripts read.
 |---|---|---|---|
 | `mint-live.txt` | `master.csv` | 168 chars | Uses `{itemExternalUrl}`, no config key. |
 | `campaign-launch.txt` | `campaigns.csv` | 184 chars | Built from the `*Text` columns — the strongest case for the whole idea. |
-| `ranking-highlight.txt` | `standings.json` | 190 chars | Carries `{methodologyUrl}`. Cites `{entry[0..2].score}`, which is board-dependent — a board without a score column needs its own variant. |
+| `ranking-highlight.txt` | `standings.json` | 190 chars | Carries `{methodologyUrl}`. Cites `{entry[0..2].score}` — correct for a board that publishes one. |
+| `ranking-highlight-noscore.txt` | `standings.json` | 200 chars | Names only. For boards ranked on a value they don't publish as `score` — a games board ranked by final value, for instance. |
+| `announcement.txt` | `textcards.csv` | 156 chars | Opens a contest or anything else. Deliberately not a board — before a contest runs there are no entries and nothing to rank. |
+| `contest-result.txt` | `standings.json` | 231 chars | Closes one. Reads `{entry[n].Pick}` and `{entry[n].Called}` from each entry's `fields`, so it needs a board that carries them. |
 
 Character counts are from real runs against the template's sample rows, all
 within the 280 default.
@@ -226,11 +236,13 @@ written.
 - **Document it in `new-collection-deployment-guide.md`** — one subsection per
   source, next to the generator each pairs with. Not yet written.
 - **The Python twin**, per the section below.
-- **A no-score board variant** of `ranking-highlight.txt`. The shipped one
-  cites `{entry[0].score}`, which is correct for the example board and wrong
-  for any board whose `columns` omit score. The engine fails loudly on that,
-  which is the intended behaviour, but a second template would save the next
-  person writing one.
+- **Real ledger exports.** The per-board schema handling has been exercised
+  against two hand-built boards modelled on Entertainment Ledger (handles by
+  points, with `score`/`rate`/`entries`) and Sports Ledger (games by final
+  value, with `Winner`/`Spread` in `fields` and no `score`). Both composed
+  correctly, and the mismatch case failed loudly as intended. But those boards
+  were written to match the documented shape — they are not real exports, so
+  they prove the engine against the spec rather than against the Ledger apps.
 
 ## The Python twin
 
@@ -250,9 +262,8 @@ publish the wrong contest. Generate → read → paste → post.
 
 Whether `collectionExternalUrl` holds the real site URL in a live collection
 (placeholder in the template's sample row). How the frontend renders campaign
-text end to end. Behaviour against a board whose `columns` omit `score`, or
-against more than one board — there is only the example board to test with,
-so the per-board schema handling is exercised but not stressed. Any claim
+text end to end. Behaviour against a genuine Ledger export, as opposed to a
+board hand-built to the documented shape. Any claim
 about the ranker projects — the counts in the original brief that referenced
 an Index Portfolio contest post and a `rankings.csv` came from outside this
 repo and are not reproduced here.

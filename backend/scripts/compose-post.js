@@ -175,14 +175,31 @@ function boardFields(board) {
   return fields;
 }
 
+// An entry's extra columns live in a `fields` object — that is how a ranked
+// export carries Winner, Spread, Total and anything else past the label and
+// score (see backend/standings/README.md). projectEntry() spreads them onto
+// the card row, so a post must see them too, or a Sports board's most
+// post-worthy values would be invisible to every template.
 function entryFields(entry) {
   const fields = {};
-  Object.entries(entry).forEach(([key, value]) => {
+  const take = ([key, value]) => {
     if (value === null || value === undefined) return;
     if (key === "movement") { fields.movement = formatMovement(value); return; }
     if (typeof value === "object") return;
     fields[key] = value;
+  };
+
+  Object.entries(entry).forEach(([key, value]) => {
+    if (key === "fields") return; // flattened below, not nested
+    take([key, value]);
   });
+
+  // Flattened last so an extra column never silently shadows rank or name.
+  Object.entries(entry.fields || {}).forEach(([key, value]) => {
+    if (key in fields) return;
+    take([key, value]);
+  });
+
   return fields;
 }
 
