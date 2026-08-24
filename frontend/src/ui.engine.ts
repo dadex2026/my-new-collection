@@ -733,9 +733,22 @@ function buildTextCard(c: TextCard): string {
       <div class="textcard-meta">
         <span class="textcard-date">${formatCardDate(c.publishedDate)}</span>
         ${showUpdated ? `<span class="textcard-updated">Updated ${formatCardDate(c.updatedDate)}</span>` : ""}
+        ${renderTextCardPostLink(c)}
       </div>
     </div>
   `;
+}
+
+// Link back to where this card was announced, if it was. Sits in the meta row
+// beside the date rather than in the body — it is provenance, not content.
+// Escaped here as well as validated in the generator, since this is an href
+// built by interpolation. Opens in a new tab with noopener: the destination is
+// another site, and nothing there should reach back into this page.
+function renderTextCardPostLink(c: TextCard): string {
+  const rel = c.relationships as { postUrl?: unknown };
+  const url = typeof rel?.postUrl === "string" ? rel.postUrl : "";
+  if (!url) return "";
+  return `<a class="textcard-post-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Discussion &rarr;</a>`;
 }
 
 // Visibility rule: status ACTIVE, publishedDate has passed, and (no

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-24T00:45:08.900Z",
+  "generatedAt": "2026-08-24T04:00:41.876Z",
   "cards": [
     {
       "textCardId": "ANALYSIS-003",
@@ -85,7 +85,9 @@
         "image": "https://placehold.co/800x450?text=Genesis+Live",
         "alt": "Placeholder banner reading Genesis Live"
       },
-      "relationships": {}
+      "relationships": {
+        "postUrl": "https://x.com/your_handle/status/1234567890123456789"
+      }
     },
     {
       "textCardId": "NEWS-005",

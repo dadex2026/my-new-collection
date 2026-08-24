@@ -755,6 +755,22 @@
       color: #555;
     }
 
+    /* Link out to where the card was announced. Pushed to the right of the
+       meta row so the date stays the leftmost thing on every card whether or
+       not an announcement exists. Purple to match the other actions, but at
+       meta size — it is a footnote, not a call to action. */
+    .textcard-post-link {
+      margin-left: auto;
+      color: #8b6fd4;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .textcard-post-link:hover {
+      color: #b9a3f0;
+      text-decoration: underline;
+    }
+
     /* Top section nav + search. Sticky so it stays reachable on a long page
        — the whole reason for it existing is getting back to a section (or
        re-searching) without scrolling up. Links are plain #anchor jumps into

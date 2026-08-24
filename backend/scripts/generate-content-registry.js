@@ -204,6 +204,29 @@ function normalizeImage(row, textCardId) {
   return { image, alt };
 }
 
+// The link back to wherever this card was announced — the X post composed by
+// compose-post.js, usually. Pasted in after posting, which closes the loop:
+// the card knows where its discussion is, and a reader can join it rather than
+// hunting a timeline. Optional; a card with no announcement just omits it.
+//
+// https only. An announcement lives on someone else's host, so a relative path
+// is a mistake and http:// is a downgrade — and this ends up in an href built
+// by string interpolation, same as the image URL.
+function normalizePostUrl(row, textCardId) {
+  const postUrl = (row.postUrl || "").trim();
+  if (!postUrl) return {};
+
+  if (!/^https:\/\//i.test(postUrl)) {
+    fail(
+      "bad_post_url",
+      `Card ${textCardId}: postUrl "${postUrl}" must start with https://. It links to a post on another site.`,
+      1
+    );
+  }
+
+  return { postUrl };
+}
+
 function validateAndNormalizeRow(row, seenIds) {
   const required = ["textCardId", "category", "headline", "content", "publishedDate", "status"];
   for (const field of required) {
@@ -255,7 +278,9 @@ function validateAndNormalizeRow(row, seenIds) {
     priority: toInt(row.priority, 0),
     author: row.author || null,
     media: normalizeImage(row, textCardId),
-    relationships: {},
+    // `relationships` is this card's provenance and outward links — the same
+    // bag a standings card uses for boardId, seasonId and entry counts.
+    relationships: normalizePostUrl(row, textCardId),
   };
 }
 
