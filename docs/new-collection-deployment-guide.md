@@ -48,6 +48,17 @@ doing anything else with git or Netlify.
 
 ## Step 1 — Copy the template and name the collection
 
+> **Every command in Steps 1–10 runs in the *new collection's* folder, never in
+> `TEMPLATE-OPEN-EDITION` itself.** Step 1 is the exception that creates that
+> folder — the `Copy-Item` below runs from anywhere, and everything after it
+> runs inside the copy.
+>
+> This matters most for the `Remove-Item` block. Run it in the template by
+> mistake and you delete `backend/.env`, `backend/.env.admin` and
+> `frontend/.env` — gitignored files holding a treasury address, a deployer key
+> and RPC settings, which are in no commit and cannot be restored with
+> `git checkout`.
+
 ### Copy with `.git`, not without
 
 Copy the whole `TEMPLATE-OPEN-EDITION` folder, keeping `.git`. That is the
@@ -68,12 +79,14 @@ In PowerShell:
 ```powershell
 Copy-Item -Recurse C:\Users\User\Desktop\TEMPLATE-OPEN-EDITION `
                    C:\Users\User\Desktop\my-collection
+cd C:\Users\User\Desktop\my-collection
 ```
 
 ### Delete what should not have come along
 
-A folder copy carries things a `git clone` would not. Before anything else,
-from inside the new folder:
+A folder copy carries things a `git clone` would not. **Confirm you are in the
+new folder first** — `pwd` should show `my-collection`, not
+`TEMPLATE-OPEN-EDITION`:
 
 ```powershell
 Remove-Item -Recurse -Force node_modules,backend\node_modules,frontend\node_modules,dist -EA SilentlyContinue

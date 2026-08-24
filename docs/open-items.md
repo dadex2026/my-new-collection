@@ -11,7 +11,9 @@ Its second job is to stop a stale claim being repeated. Several entries below
 correct something an earlier handoff — or an earlier revision of this file —
 asserted confidently and wrongly. Re-verify before quoting any of it.
 
-**Anchored at:** `template-open-edition` @ `6def775`.
+**Anchored at:** `template-open-edition` @ `d36b6f1`. The anchor names the last
+commit whose code was checked, which is never the commit containing this file —
+a doc cannot cite itself.
 
 **When forking this template into a new collection: delete this file.** It
 tracks template maintenance, not collection content. Same rule as
