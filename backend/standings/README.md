@@ -117,6 +117,83 @@ final value, an artist by total points. **`consensus`** is reserved for ranking
 those same subjects by what participants collectively predicted, which no source
 produces yet.
 
+### A worked import, start to finish
+
+Four files, then one command. This example was run end to end; the numbers
+below are what it actually produced.
+
+**1 — `_input/import-config.json`.** Three values ship as placeholders and all
+three matter:
+
+```json
+"collectionTitle": "Sports Ledger",
+"seasonId": "2026-NFL",
+"rulesetPrefix": "nfl-ledger",
+```
+
+**2 — `_input/rulesets.json`.** Delete the `_example` block and declare the
+version the exports carry:
+
+```json
+"rulesets": {
+  "nfl-ledger-v1.0": {
+    "kind": "baseline",
+    "effectiveFrom": "2026-08-01",
+    "note": "First imported version."
+  }
+}
+```
+
+Skip this and the import stops with *ruleset not declared in rulesets.json —
+tried "nfl-ledger-v1.0"*. That refusal is the point: an unfamiliar build becomes
+a decision rather than something stamped with a stale value.
+
+**3 — `_input/boards.json`.** Seven fields are required: `boardId`, `title`,
+`track`, `entityType`, `filePrefix`, `labelColumn`, `scoreColumn`. Optional:
+`blurb`, `idColumn`, `fields`, `columns`, `seasonId`. (The example above shows
+all of them together, which does not distinguish the two.)
+
+**4 — `_input/boards/nfl-ranked-2026-08-23.csv`.** One file per round:
+
+```
+Position,GameId,Matchup,Date,Winner,Spread,Total,FinalValue,AppVersion
+1,g-1305,Bills at Chiefs,2026-08-23,Chiefs,-1.5,48.5,71,v1.0
+```
+
+Three requirements the prose above implies without stating:
+
+- **A column named literally `Position`.** Not configurable. Rows lacking it
+  are dropped.
+- **A `YYYY-MM-DD` in the filename.** No date is a hard error — the round is
+  read from the name rather than file mtime, so a copied or restored export
+  keeps its place in the replay.
+- **`AppVersion`**, if the export stamps its build. It is joined to
+  `rulesetPrefix`, so `v1.0` resolves to `nfl-ledger-v1.0`. Without the column
+  the importer falls back to `config.rulesetVersion`, which must also be
+  declared.
+
+Then:
+
+```powershell
+node backend/scripts/import-ranked-boards.js
+node backend/scripts/generate-standings-cards.js
+node backend/scripts/generate-methodology.js
+```
+
+Two dated exports produced `nfl-games.json` — *3 entries from 2 rounds* — with
+movement `up 1`, `up 1`, and `new` for the game that had not appeared before.
+
+**Movement needs two rounds.** A single export marks everything `new`, which is
+correct and looks empty. Arrows appear from the second round on.
+
+**Set `idColumn` whenever a label can change.** Matching defaults to
+`labelColumn`, so a rename or relocation reads as one entity leaving and another
+arriving — resetting a standing with no error and no trace.
+
+**The board file is output, not input.** Every run overwrites it, so anything
+hand-added is lost on the next import. Even the subtitle is generated
+(`blurb` + `Round N · date`) — edit the declaration, not the board.
+
 ## When the source uses different column names
 
 The two Ledgers agree on board shape but not on labels. Sports writes

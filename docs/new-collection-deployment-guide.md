@@ -6,6 +6,30 @@ it live on its own Netlify site. It was written from the process used to
 stand up `my-new-collection`, and applies to any future collection started
 the same way (a folder copy of the template, customized with real config).
 
+## Where things are documented
+
+This file is the front door, not the whole manual. It covers standing a
+collection up and the day-to-day content loop; two other files carry detail
+that would swamp it. If you are looking for something and it is not below,
+it is in one of these.
+
+| File | Covers | Reach for it when |
+|---|---|---|
+| **`docs/new-collection-deployment-guide.md`** (this file) | Repo split, display name, RPC proxy, Netlify, env vars, live verification. Then the ongoing loops: Text Cards, Rankings, Methodology. | Standing up a collection, or publishing a news/update/announcement card. |
+| **`backend/standings/README.md`** | Board file format field by field, the two importers, `_input/` layout, **running a contest**, rank order, ties, score direction. | Anything ranked — leaderboards, standings, contests. |
+| **`docs/post-generator-spec.md`** | The `compose-post.js` contract: sources, placeholder resolution, the refusal rules, weighted character counting, the six templates. | Writing or debugging a post template. |
+| **`docs/netlify-connection.md`** | Logging into and confirming the Netlify project. | Deploy access questions. |
+| **`docs/open-items.md`** | Backlog, plus a **verified state** table of facts checked against the code. | Picking up work, or before trusting a claim in an inherited handoff. |
+
+Two of those are easy to miss and worth naming outright. **Contests are not
+documented here** — the whole workflow, from board file to results post, lives
+in `backend/standings/README.md`. And **`docs/open-items.md` records several
+claims that earlier handoffs got confidently wrong**; check it before acting on
+anything a previous session asserted.
+
+Delete `docs/open-items.md` when forking — it tracks template maintenance, not
+collection content.
+
 ## Why this needs a deliberate process, not just "copy and deploy"
 
 A collection folder that started life as a copy of the template usually still
