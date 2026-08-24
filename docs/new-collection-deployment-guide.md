@@ -15,7 +15,7 @@ it is in one of these.
 
 | File | Covers | Reach for it when |
 |---|---|---|
-| **`docs/new-collection-deployment-guide.md`** (this file) | Repo split, display name, RPC proxy, Netlify, env vars, live verification. Then the ongoing loops: Text Cards, Rankings, Methodology. | Standing up a collection, or publishing a news/update/announcement card. |
+| **`docs/new-collection-deployment-guide.md`** (this file) | Copying and naming the collection, repo split, display name, RPC proxy, Netlify, env vars, live verification. Then the ongoing loops: Text Cards, Rankings, Methodology. | Standing up a collection, or publishing a news/update/announcement card. |
 | **`backend/standings/README.md`** | Board file format field by field, the two importers, `_input/` layout, **running a contest**, rank order, ties, score direction. | Anything ranked — leaderboards, standings, contests. |
 | **`docs/post-generator-spec.md`** | The `compose-post.js` contract: sources, placeholder resolution, the refusal rules, weighted character counting, the six templates. | Writing or debugging a post template. |
 | **`docs/netlify-connection.md`** | Logging into and confirming the Netlify project. | Deploy access questions. |
@@ -46,7 +46,108 @@ not a repo of its own. If that's left as-is:
 So step one, always, is separating the collection into its own repo before
 doing anything else with git or Netlify.
 
-## Step 1 — Check whether the collection folder is already a separate repo
+## Step 1 — Copy the template and name the collection
+
+### Copy with `.git`, not without
+
+Copy the whole `TEMPLATE-OPEN-EDITION` folder, keeping `.git`. That is the
+choice this guide assumes, and it is worth understanding why before you make
+it, because it is hard to reverse:
+
+- **With `.git`** — the copy shares history with the template. `origin` still
+  points at the template's repo, which Steps 2–4 exist to fix. In exchange,
+  Step 5 can diff any file against the **fork point** to tell customization
+  apart from drift. That comparison is the only reliable way to pull in later
+  template features without clobbering your own config.
+- **Without `.git`** — a clean slate and `git init`. Simpler on day one, and
+  Step 5 becomes impossible: with no shared ancestor there is nothing to diff
+  against, so every future template upgrade is a manual read of both files.
+
+In PowerShell:
+
+```powershell
+Copy-Item -Recurse C:\Users\User\Desktop\TEMPLATE-OPEN-EDITION `
+                   C:\Users\User\Desktop\my-collection
+```
+
+### Delete what should not have come along
+
+A folder copy carries things a `git clone` would not. Before anything else,
+from inside the new folder:
+
+```powershell
+Remove-Item -Recurse -Force node_modules,backend\node_modules,frontend\node_modules,dist -EA SilentlyContinue
+Remove-Item -Force backend\.env,backend\.env.admin,frontend\.env -EA SilentlyContinue
+Remove-Item -Recurse -Force backend\logs,.netlify -EA SilentlyContinue
+Remove-Item -Force backend\deploy-state.json,backend\registry.json -EA SilentlyContinue
+```
+
+`node_modules` matters more than it looks: the template's copy was built
+against this machine's Node, and reinstalling per project is cheaper than
+debugging a stale native binary later. The `.env` files hold live secrets that
+belong to the template, not to you.
+
+### `deployment.json` is the trap
+
+**This file is tracked, and it names an on-chain asset that is not yours.**
+
+```json
+{
+  "assetAddress": "GSy11Cj6N8TtA5EeWYs7pUtAx3weXtxdBH6GLQJCyrK6",
+  "treasury": "7XJJvj5N4aBMNyX9g5NZqSEzi9vY6vYxWydezMZvC4n9",
+  ...
+}
+```
+
+Left in place, the new collection appears to already have a deployed collection
+asset — the template's. Nothing errors; it simply points at the wrong thing.
+Delete `assetAddress` and `createdAt`, set `treasury` to your own wallet, and
+keep `rpc` pointing at the proxy (Step 7).
+
+### Where the name actually lives
+
+There is no single rename. The collection's identity appears in seven places,
+and the first four are files:
+
+| Where | Field | Ships as |
+|---|---|---|
+| `template-version.json` | `collectionName` | `Template Open Edition` |
+| `backend/config.json` | `collectionSlug` | `your-collection-slug` |
+| `backend/master.csv` | `collectionSlug`, `collectionName` | `sample-collection`, `Sample Collection` |
+| `backend/standings/_input/import-config.json` | `collectionTitle`, `seasonId`, `rulesetPrefix` | `CHANGE ME` (only if you publish rankings) |
+
+The remaining three are the folder name, the GitHub repo (Step 4) and the
+Netlify site (Step 8).
+
+**`collectionName` is the one with a deadline.** It is also written on-chain by
+`scripts/deployCoreAsset.ts`, and an on-chain asset name cannot be changed
+after minting. Step 6 covers it in full — but set it now, while you are already
+editing identity, rather than discovering it after a mint.
+
+Verify with:
+
+```powershell
+git grep -n "Template Open Edition"
+git grep -n "sample-collection"
+git grep -n "CHANGE ME"
+```
+
+### Replace the sample content
+
+Five generated artifacts are tracked and will otherwise ship as your site's
+data: `frontend/public/` holds `registry.json`, `campaigns.json`,
+`content-registry.json`, `standings.json` and `methodology.json`. Don't delete
+them — replace the *sources* and re-run the generators:
+
+- `backend/master.csv` — the `sample-collection` row
+- `backend/campaigns.csv` — the `sample-campaign-001` row
+- `backend/textcards.csv` — six sample cards
+- `backend/standings/EXAMPLE-participants-accuracy.json` — delete it
+- `docs/open-items.md` — delete it; it tracks template maintenance
+
+Then continue to Step 2.
+
+## Step 2 — Check whether the collection folder is already a separate repo
 
 From inside the collection's folder in PowerShell:
 
@@ -56,10 +157,10 @@ git remote -v
 
 If this shows the template's own repo URL (e.g.
 `https://github.com/<org>/template-open-edition.git`) rather than a repo
-named for this collection, proceed to Step 2. If it already points at a
-dedicated repo for this collection, skip to Step 4.
+named for this collection, proceed to Step 3. If it already points at a
+dedicated repo for this collection, skip to Step 5.
 
-## Step 2 — Checkpoint the collection's current state
+## Step 3 — Checkpoint the collection's current state
 
 Before touching the remote, commit whatever customization already exists
 locally (config, CSVs, any partially-integrated features) so nothing is at
@@ -85,7 +186,7 @@ Remove-Item .git\index.lock -Force
 
 and retry the add/commit.
 
-## Step 3 — Create a dedicated GitHub repo and repoint origin
+## Step 4 — Create a dedicated GitHub repo and repoint origin
 
 1. Go to `github.com/new`, name the repo after this collection, and leave it
    **fully empty** — no README, `.gitignore`, or license template, since
@@ -102,7 +203,7 @@ commits it shares with the template up to the fork point) into its own,
 independent repo. From this point on, `git push` from this folder only ever
 affects this collection's own repo.
 
-## Step 4 — Pull in newer template features, without losing customization
+## Step 5 — Pull in newer template features, without losing customization
 
 If the template has gained features since this collection's copy was made
 (new content systems, security hardening, new minting logic, etc.), those
@@ -157,7 +258,7 @@ The reliable way to do this:
    diff won't surface them, so check for missing directories explicitly
    rather than relying on the diff loop above.
 
-## Step 5 — Set the collection's display name (do this before minting)
+## Step 6 — Set the collection's display name (do this before minting)
 
 `template-version.json` carries the collection's human-readable name:
 
@@ -189,7 +290,7 @@ git grep -n "Template Open Edition"
 
 The only hit should be `template-version.json` itself.
 
-## Step 6 — Point the RPC at the proxy, not at a keyed endpoint
+## Step 7 — Point the RPC at the proxy, not at a keyed endpoint
 
 **Never commit a keyed RPC URL.** A URL of the form
 `https://mainnet.helius-rpc.com/?api-key=<key>` is a live credential, and a
@@ -244,7 +345,7 @@ reads an RPC endpoint:
 - `deployment.json` → `rpc`
 - `backend/config.json` → `rpc`
 - `frontend/.env` → `VITE_SOLANA_RPC_URL` (and the matching Netlify
-  environment variable — see Step 8)
+  environment variable — see Step 9)
 - `backend/.env` → `SOLANA_RPC_URL`, `VITE_SOLANA_RPC_URL`
 
 ### Rotating a leaked key
@@ -264,7 +365,7 @@ reads an RPC endpoint:
    after it's removed from the working tree — which is exactly why step 1 is
    deletion at the provider, not a rewrite.
 
-## Step 7 — Create a dedicated Netlify site
+## Step 8 — Create a dedicated Netlify site
 
 Netlify terminology: the dashboard's top-level entity is now called a
 **Project** (previously "Site") — look for **"Add new project"**, not "Add
@@ -285,7 +386,7 @@ new site."
    - Build command: `npm run build`
    - Publish directory: `../dist`
 4. **Before the first successful full deploy**, add environment variables
-   (see Step 8 — this is the step most likely to be missed).
+   (see Step 9 — this is the step most likely to be missed).
 5. Deploy.
 
 ### Renaming the site
@@ -301,7 +402,7 @@ Newer Netlify projects can default to restricted visibility. Check:
 **Production visibility** and **Deploy Preview visibility** to **Public** if
 you want the site reachable without a Netlify login.
 
-## Step 8 — Environment variables (the step most likely to break a first deploy)
+## Step 9 — Environment variables (the step most likely to break a first deploy)
 
 `.env` files are gitignored by design (they hold live secrets like RPC API
 keys) — which means **none of a collection's local `.env` values are
@@ -310,7 +411,7 @@ automatically present on Netlify.** They must be added manually:
 **Project configuration → Environment variables**, matching whatever keys
 exist in `frontend/.env` locally, at minimum:
 
-- `VITE_SOLANA_RPC_URL` — the **Worker proxy URL** from Step 6, never a keyed
+- `VITE_SOLANA_RPC_URL` — the **Worker proxy URL** from Step 7, never a keyed
   Helius URL. Vite inlines this into the public bundle at build time.
 - `VITE_REGISTRY_URL` — set this to `/registry.json`. Unlike
   `VITE_CAMPAIGNS_URL` and `VITE_CONTENT_REGISTRY_URL`, this one has **no
@@ -326,7 +427,7 @@ them into the bundle at build time, not read at runtime) — after adding or
 changing one, trigger a fresh deploy: **Deploys tab → Trigger deploy →
 Deploy site.**
 
-## Step 9 — Verify the live deploy
+## Step 10 — Verify the live deploy
 
 Don't just eyeball the homepage — check the actual data endpoints directly,
 since a broken fetch can fail silently behind a normal-looking page:
@@ -344,12 +445,12 @@ A 404 on `campaigns.json`, `content-registry.json`, `standings.json` or
 cards, or published boards yet (all are handled as an expected empty state,
 not an error, in the frontend code). A 404 on `registry.json`, or a request
 to a literal `/undefined` URL, means something is actually broken — almost
-always the missing `VITE_REGISTRY_URL` environment variable from Step 8.
+always the missing `VITE_REGISTRY_URL` environment variable from Step 9.
 
 Also check the browser console (F12 → Console) on the live site for any
 `Failed to load resource` lines and cross-reference them against the
 environment variables above. A CORS error naming the Worker URL points at
-`CORS_ALLOW_ORIGIN` (Step 6), not at Netlify.
+`CORS_ALLOW_ORIGIN` (Step 7), not at Netlify.
 
 ## Ongoing content workflow — Text Cards
 
