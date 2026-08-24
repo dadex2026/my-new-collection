@@ -329,29 +329,96 @@ environment variables above. A CORS error naming the Worker URL points at
 
 ## Ongoing content workflow — Text Cards
 
-Once the site is live, publishing new simple content (News/Update/
-Announcement/Analysis cards) is a repeatable loop, not a one-time setup:
+Once the site is live, publishing simple content (News/Update/Announcement/
+Analysis cards) is a repeatable loop, not a one-time setup. The whole lifecycle
+is four steps: **write the row, compose the post, publish the card, link the
+post back.**
 
-1. Add a row to `backend/textcards.csv`.
-2. Run the generator:
-   ```powershell
-   node backend/scripts/generate-content-registry.js
-   ```
-   This writes `backend/content-registry.json` and copies it to
-   `frontend/public/content-registry.json` automatically.
-3. Commit and push:
-   ```powershell
-   git add -A
-   git commit -m "Add <description of new card(s)>"
-   git push origin main
-   ```
-4. Netlify auto-rebuilds on push; hard-refresh the live site once the build
-   finishes to see the new content.
+### Step A — Write the row
 
-Simple cards (NEWS/UPDATE/ANNOUNCEMENT/ANALYSIS) are ordered for display by
-`featured` (true first), then `priority` (descending), then `publishedDate`
-(most recent first) — see `frontend/src/ui.engine.ts`'s
+Append to `backend/textcards.csv`. Sixteen columns, in this order:
+
+```
+textCardId,category,headline,subheadline,content,publishedDate,updatedDate,
+status,expiresAt,tags,featured,priority,author,image,imageAlt,postUrl
+```
+
+| Column | Required | Notes |
+|---|---|---|
+| `textCardId` | yes | Unique, and **never reused** once assigned. Duplicates are a hard error. |
+| `category` | yes | `NEWS`, `UPDATE`, `ANNOUNCEMENT` or `ANALYSIS`. The structured categories are refused here — see below. |
+| `headline` | yes | |
+| `subheadline` | no | |
+| `content` | yes | The body prose. |
+| `publishedDate` | yes | ISO 8601. A future date means the card is written now and appears later. |
+| `updatedDate` | no | Defaults to `publishedDate`. When it differs, the card shows *Updated …*. |
+| `status` | yes | `DRAFT`, `SCHEDULED`, `ACTIVE`, `INACTIVE`, `EXPIRED`, `ARCHIVED`. Only `ACTIVE` renders. |
+| `expiresAt` | no | ISO 8601. Hides the card afterwards — it enforces nothing else. |
+| `tags` | no | Pipe-delimited (`a\|b\|c`), not comma — same convention as `master.csv`'s `attributes`. |
+| `featured` | no | `TRUE`/`FALSE`. Sorts first. |
+| `priority` | no | Integer, descending. Breaks ties among featured. |
+| `author` | no | |
+| `image` | no | `http(s)://` or a site-relative `/path`. Any other scheme is refused. |
+| `imageAlt` | **yes, if `image` is set** | Refused without it. An image with no alt text is invisible to a screen reader, and backfilling alt across a grown archive is far harder than writing one line now. |
+| `postUrl` | no | Where this card was announced. `https://` only. Added in Step D. |
+
+Optional columns still need their commas, so a minimal row ends in a run of
+them. Two things that will bite:
+
+- **A comma anywhere in your text requires the whole field in double quotes.**
+  That is why `tags` uses a pipe separator instead.
+- **Structured categories** — `RANKING`, `LEADERBOARD`, `SCOREBOARD`,
+  `STANDINGS`, `STATS` — are rejected from this CSV, with an error saying why:
+  their content is an entries array, not prose. Those come from board files.
+  See the Rankings section below.
+
+Display order is `featured` (true first), then `priority` (descending), then
+`publishedDate` (most recent first) — see `frontend/src/ui.engine.ts`'s
 `getVisibleTextCards()` for the exact sort/filter logic.
+
+### Step B — Compose the post
+
+```powershell
+node backend/scripts/compose-post.js announcement --id ANNOUNCEMENT-012
+```
+
+**This reads `textcards.csv` directly, not the registry** — so it works before
+the generator has run, and iterating on wording touches no published file. Add
+`--site https://your-site.netlify.app` while `collectionExternalUrl` in
+`master.csv` is still the template's placeholder.
+
+The post prints to stdout and a character report to stderr, so
+`… > post.txt` gives a clean file with the budget breakdown still on screen.
+Over budget, it prints the post, names the line to cut, and writes nothing.
+
+`compose-post.js` refuses rather than guessing — unknown placeholder, empty
+field, unmatched `--id` — and always names the valid options. It never posts;
+you paste. See `docs/post-generator-spec.md` for the full contract and the
+other five templates.
+
+### Step C — Publish the card
+
+```powershell
+node backend/scripts/generate-content-registry.js
+git add backend/textcards.csv backend/content-registry.json frontend/public/content-registry.json
+git commit -m "Add <description of new card(s)>"
+git push origin main
+```
+
+The generator writes `backend/content-registry.json` and copies it to
+`frontend/public/content-registry.json` automatically. Netlify rebuilds on
+push; hard-refresh the live site once the build finishes, or you will be served
+the cached bundle and conclude nothing happened.
+
+### Step D — Link the post back
+
+Post to X yourself, copy the tweet URL, and paste it into that row's `postUrl`.
+Re-run the generator and push again.
+
+The card now renders a *Discussion →* link in its meta row, so a reader can
+join the conversation instead of hunting your timeline — and months later you
+can find the thread without searching. This second push is the step most likely
+to be skipped, and it is the entire reason the column exists.
 
 ### Who owns which card in `content-registry.json`
 
