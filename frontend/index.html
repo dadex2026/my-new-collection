@@ -509,6 +509,26 @@
       grid-column: 1 / -1;
     }
 
+    /* Optional card image. A fixed 16:9 box with object-fit: cover keeps a
+       row of cards level whatever the source dimensions — without it, one
+       portrait image makes its card taller than its neighbours and the grid
+       row goes ragged. Matches .drop img / .campaign img styling otherwise.
+       On a .textcard-wide card the box is shorter, since a full-row image at
+       16:9 would push the table it belongs to off the screen. */
+    .textcard-image {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      background: #2a2a2a;
+      display: block;
+    }
+
+    .textcard-wide .textcard-image {
+      aspect-ratio: 32 / 9;
+    }
+
     .textcard-category {
       font-size: 11px;
       text-transform: uppercase;

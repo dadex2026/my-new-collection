@@ -702,6 +702,19 @@ function renderTruncationNote(c: TextCard): string {
   return `<div class="textcard-truncation">Showing top ${shown} of ${total}</div>`;
 }
 
+// Optional card image, above the headline so the card reads picture-then-text
+// like the drop and campaign cards already do. Both attributes are escaped:
+// the generator restricts the URL to http(s) and site-relative paths, but this
+// is an attribute built by string interpolation, so it gets escaped here too
+// rather than relying on the producer alone. A card with no image renders
+// exactly as before — `media` is `{}` on every generated persistent card.
+function renderTextCardImage(c: TextCard): string {
+  const image = typeof c.media?.image === "string" ? c.media.image : "";
+  if (!image) return "";
+  const alt = typeof c.media?.alt === "string" ? c.media.alt : "";
+  return `<img class="textcard-image" src="${esc(image)}" alt="${esc(alt)}" loading="lazy" />`;
+}
+
 // A persistent card carries a table — rank / name / score / movement, ten-plus
 // rows after tie extension — where a simple card carries a few lines of prose.
 // At a third of the grid width that table can only scroll sideways, so
@@ -711,6 +724,7 @@ function buildTextCard(c: TextCard): string {
   const wide = c.persistent ? " textcard-wide" : "";
   return `
     <div class="textcard${wide}" id="textcard-${c.textCardId}">
+      ${renderTextCardImage(c)}
       <div class="textcard-category">${c.category}${c.persistent ? " · Persistent" : ""}</div>
       <div class="textcard-headline">${c.headline}</div>
       ${c.subheadline ? `<div class="textcard-subheadline">${c.subheadline}</div>` : ""}

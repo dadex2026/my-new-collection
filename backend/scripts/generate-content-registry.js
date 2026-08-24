@@ -157,6 +157,53 @@ function splitTags(value) {
   return value ? value.split("|").map((t) => t.trim()).filter(Boolean) : [];
 }
 
+// A card image is editorial, not an asset. An NFT image must be permanent
+// because on-chain metadata points at it forever, which is why master.csv's
+// images go through prepare-images.js and upload-images.js to Arweave. A news
+// card's image has no such obligation — if a 2026 announcement's image dies in
+// 2030, the card gets edited. So this takes a URL and buys no permanence.
+//
+// Only http(s) and site-relative paths. Rejecting everything else keeps
+// javascript:, data: and other scheme tricks out of a src attribute that is
+// built by string interpolation on the frontend.
+function normalizeImage(row, textCardId) {
+  const image = (row.image || "").trim();
+  const alt = (row.imageAlt || "").trim();
+
+  if (!image) {
+    if (alt) {
+      fail(
+        "alt_without_image",
+        `Card ${textCardId}: has imageAlt but no image. Either add the image or drop the alt text.`,
+        1
+      );
+    }
+    return {};
+  }
+
+  const allowed = /^(https?:\/\/|\/)/i.test(image);
+  if (!allowed) {
+    fail(
+      "bad_image_url",
+      `Card ${textCardId}: image "${image}" must start with http://, https:// or / (site-relative).`,
+      1
+    );
+  }
+
+  // Required, not encouraged. An image with no alt text is invisible to anyone
+  // using a screen reader, and retrofitting alt text across a grown archive is
+  // far harder than writing one line now.
+  if (!alt) {
+    fail(
+      "missing_alt",
+      `Card ${textCardId}: image needs imageAlt. Describe what the image shows — it is what a screen reader announces.`,
+      1
+    );
+  }
+
+  return { image, alt };
+}
+
 function validateAndNormalizeRow(row, seenIds) {
   const required = ["textCardId", "category", "headline", "content", "publishedDate", "status"];
   for (const field of required) {
@@ -207,7 +254,7 @@ function validateAndNormalizeRow(row, seenIds) {
     featured: toBool(row.featured),
     priority: toInt(row.priority, 0),
     author: row.author || null,
-    media: {},
+    media: normalizeImage(row, textCardId),
     relationships: {},
   };
 }

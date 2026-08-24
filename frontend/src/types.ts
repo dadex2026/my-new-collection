@@ -126,7 +126,10 @@ export type TextCard = {
   featured: boolean;
   priority: number;
   author: string | null;
-  media: Record<string, unknown>;
+  // `{}` on a card with no image, and on every generated persistent card.
+  // Kept open beyond image/alt so a later media kind doesn't require a type
+  // change in lockstep with the generator.
+  media: { image?: string; alt?: string } & Record<string, unknown>;
   relationships: Record<string, unknown>;
 };
 
