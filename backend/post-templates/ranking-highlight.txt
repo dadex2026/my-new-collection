@@ -1,0 +1,9 @@
+#source: standings
+{title} — {throughRound}
+
+1. {entry[0].name} ({entry[0].score})
+2. {entry[1].name} ({entry[1].score})
+3. {entry[2].name} ({entry[2].score})
+
+{entryCount} ranked · ruleset {rulesetVersion}
+How this is produced → {methodologyUrl}

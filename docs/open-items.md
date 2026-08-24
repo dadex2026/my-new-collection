@@ -29,6 +29,10 @@ these correct claims that earlier handoffs got wrong.
 | `standings.json` in the frontend | **Never loaded.** Zero references in `frontend/src` or `index.html`. Anything sourced from it needs a new fetch, types, and probably a new `VITE_*` var. |
 | `frontend/src/styles.css` | **Dead.** Not imported anywhere. All real styling is the inline `<style>` block in `index.html`. |
 | Persistent card width | Cards with `persistent: true` get `.textcard-wide` (`grid-column: 1 / -1`) and span the full row — `4d71e86`. Keyed on `persistent`, the same field the RANKINGS tab filters on, so generated and hand-authored cards behave alike. Side effect: the ALL tab is now mixed-width and a wide card ends its row early. |
+| `rankings.csv` | **Does not exist and should not.** The template has exactly three CSVs: `campaigns.csv`, `master.csv`, `textcards.csv`. Rankings are generated, not authored — they enter via `backend/standings/*.json` and are published to `frontend/public/standings.json`. A handoff brief proposed sourcing ranking posts from a `rankings.csv`; that file was from another project. |
+| `backend/scripts/` inventory | **19 scripts** as of the post generator. A handoff brief counted four. The ones it missed included the entire standings system. Count before trusting an inherited inventory. |
+| Post generator | **Built.** `compose-post.js` + `backend/post-templates/*.txt`. Sourcing rule: authored content from CSV, generated content from the published artifact. Budget is `--limit` (default 280), not a config key. `{siteUrl}` derives from `master.csv`'s `collectionExternalUrl`; `{methodologyUrl}` appends `/#methodology`. Contract in `docs/post-generator-spec.md`. |
+| `standings.json` entry shape | Entries are **raw** board entries — `movement` is `{state, delta}`, not the formatted string a card carries, and they include `entityId` and `previousRank` which are not in `columns`. `compose-post.js` mirrors `formatMovement()` to match the site; keep the two in step. |
 | `backend/standings/_input/` | Holds `import-config.json` and `rulesets.json` only. No `boards.json`, no `boards/` directory — those are created when the first ranked board is declared. |
 
 ---
@@ -52,21 +56,22 @@ these correct claims that earlier handoffs got wrong.
 | 8 | Retrofit standings + nav/search | my-new-collection | Both were built in the template only and do not propagate automatically. Retrofit into a live deployment, not an inherited upgrade. |
 | 9 | Realign the fork | TEMPLATE-TEST-LEDGER | Now behind on `ui.engine.ts`, `index.html`, `vite.config.ts`, plus `generate-methodology.js` and `import-ranked-boards.js` from `c484644`, and the full-width card change from `4d71e86`. |
 | 10 | `IntersectionObserver` for nav active state | template | `.section-nav-link.active` is styled and now visually distinct (lighter purple + pale ring), but nothing sets the class. |
-| 11 | `test-collection-01` — regenerate or retire | test-collection-01 | Predates the `collectionName` change, so it no longer matches the template. Decide which. |
+| 11 | Document the post generator in the deployment guide | template | The engine ships (see verified state); the guide has no section for it yet. One subsection per source, next to the generator each pairs with. Also wanted: a no-score variant of `ranking-highlight.txt`, and the Python twin per `docs/post-generator-spec.md`. |
+| 12 | `test-collection-01` — regenerate or retire | test-collection-01 | Predates the `collectionName` change, so it no longer matches the template. Decide which. |
 
 ## Holding — deliberately
 
 | # | Item | Unblocked by |
 |---|---|---|
-| 12 | Group RANKINGS by `track` | Real Sports data. The right grouping (by track, by entity type, by sport) depends on what Sports actually produces. **Implementation trap:** the tab filters on `persistent === true`, so hand-authored cards carry no `track` and need a defined bucket or they vanish. |
-| 13 | Board index | Genuinely large board counts. When built, source it from `content-registry.json` — `relationships` already carries everything needed and rank-1 is `content.entries[0]` — **not** from `standings.json`, which the frontend has no loader for. |
-| 14 | Search over structured ranking entries | Nothing blocking; a deliberate v1 cut. Search currently matches prose fields only, not a card's Handle/Points/Rank rows. |
+| 13 | Group RANKINGS by `track` | Real Sports data. The right grouping (by track, by entity type, by sport) depends on what Sports actually produces. **Implementation trap:** the tab filters on `persistent === true`, so hand-authored cards carry no `track` and need a defined bucket or they vanish. |
+| 14 | Board index | Genuinely large board counts. When built, source it from `content-registry.json` — `relationships` already carries everything needed and rank-1 is `content.entries[0]` — **not** from `standings.json`, which the frontend has no loader for. |
+| 15 | Search over structured ranking entries | Nothing blocking; a deliberate v1 cut. Search currently matches prose fields only, not a card's Handle/Points/Rank rows. |
 
 ## Blocked on information
 
 | # | Item |
 |---|---|
-| 15 | Two Sports-specific facts that shape the standings process — referenced in a session handoff that was truncated before stating them. They may move items 12 and 13. |
+| 16 | Two Sports-specific facts that shape the standings process — referenced in a session handoff that was truncated before stating them. They may move items 13 and 14. |
 
 ---
 
