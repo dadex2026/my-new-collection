@@ -400,12 +400,42 @@ The second is more deliberate; the first is fewer steps.
    already looking.
 6. Retire the announcement card, if you left `expiresAt` empty.
 
-**Make the cut auditable.** Nothing validates entry timestamps, and the board
-format has no per-entry timestamp field — so if a late entry is disputed, the
-published data cannot settle it. If lateness is ever likely to be contested,
-carry the entry's posted time in `fields` (`"Posted": "2026-08-31T11:58Z"`) and
-state the cut-off in `eligibility.note`. Both publish, and a reader can then
-check the boundary rather than take it on trust.
+**Lateness on a Ledger board is a scoring verdict, not a capture filter.** The
+human decides what is captured; the Ledger decides what is late, from
+timestamps. It compares absolute instants when both sides carry times, falls
+back to calendar dates when they do not, and returns `unknown` rather than
+guessing when a same-day comparison has a missing time — scoring the prediction
+normally and flagging it instead of silently picking a side.
+
+**And that verdict reaches published data.** `attachEvidence()` hangs an
+`evidence` object off every entry on a community board, and it lands in
+`frontend/public/standings.json`:
+
+```json
+{ "date": "2026-08-14 11:30 -05:00",
+  "url": "https://x.com/popcritic/status/1003",
+  "late": false, "pending": false, "counts": true,
+  "settledBy": "register", "excludedReason": null }
+```
+
+Per-prediction timestamp, `late` and `counts` flags, an `excludedReason`, and a
+link to the source post — plus per-entry totals for `counting`, `excluded`,
+`pending` and `late`. So a disputed late entry **is** settleable from published
+data: you point at the prediction's own timestamp and the announcement it was
+measured against, not at your capture process.
+
+**The real gap is reachability, not missing data.** A card shows rank, name,
+score and movement. Nothing surfaces the evidence, so a reader looking only at
+the card sees a rank with no way to check timing — the same problem as
+`standings.json` being published and unlinked, one level down. Don't add a
+duplicate timestamp field alongside one that is already there; the fix is to
+surface what exists.
+
+**Two cases where the evidence genuinely is absent:** boards from
+`import-ranked-boards.js`, and hand-written one-off contests. Neither carries an
+`evidence` object. There, if lateness could be contested, put the posted time in
+`fields` (`"Posted": "2026-08-31T11:58Z"`) and state the cut-off in
+`eligibility.note` — both publish, and cost nothing either way.
 
 ### The whole round, as a run-sheet
 
