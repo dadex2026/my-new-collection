@@ -356,6 +356,57 @@ The announcement that *opens* a contest is not a board — there are no entries
 yet, so there is nothing to rank. That is a row in `backend/textcards.csv`,
 posted with the `announcement` template. See `docs/post-generator-spec.md`.
 
+### Closing a contest
+
+Nothing in this project closes one. "Closed" is three separate things that do
+not line up on their own.
+
+**Entries stop when you stop reading.** The deadline is a promise made in the
+announcement's `content` — *"before Sunday 12:00 ET"* — enforced by nobody. A
+reply posted at 12:01 is excluded because you closed your capture, not because
+anything rejected it. On X itself the only real close is changing who can reply
+on the post, which is a manual action in X's own interface.
+
+**`capture.complete` is your assertion that you got everyone.** Set it `false`
+and the generator refuses to publish a final standing, which is correct — a
+reply you missed is indistinguishable from someone who did not play.
+
+**`expiresAt` does not mean closed. It only hides the card.** This is the trap.
+`isTextCardVisible()` drops any card whose `expiresAt` has passed, whether or
+not you have scored anything. Set `expiresAt` to the entry deadline, publish
+results on Monday, and there is a window where the announcement card has
+vanished and the standings card does not exist yet — the contest is invisible
+on the site precisely while people are waiting for results.
+
+Two ways to avoid it:
+
+- **Set `expiresAt` past the results date**, not to the deadline. The
+  announcement stays up through scoring and goes when it is genuinely stale.
+- **Leave `expiresAt` empty** and retire the card by hand once results are
+  live, flipping `status` to `INACTIVE`.
+
+The second is more deliberate; the first is fewer steps.
+
+**The closing sequence in practice**
+
+1. At the stated time, capture the replies — copy them somewhere before
+   anything can change.
+2. Optionally restrict replies on the X post so late entries stop accumulating.
+3. Score the round.
+4. Publish: import → `generate-standings-cards.js` → `generate-methodology.js`
+   → push.
+5. `compose-post.js contest-result`, read it, post it — **as a reply to the
+   announcement thread**, not standalone. It closes the loop where people are
+   already looking.
+6. Retire the announcement card, if you left `expiresAt` empty.
+
+**Make the cut auditable.** Nothing validates entry timestamps, and the board
+format has no per-entry timestamp field — so if a late entry is disputed, the
+published data cannot settle it. If lateness is ever likely to be contested,
+carry the entry's posted time in `fields` (`"Posted": "2026-08-31T11:58Z"`) and
+state the cut-off in `eligibility.note`. Both publish, and a reader can then
+check the boundary rather than take it on trust.
+
 ### The whole round, as a run-sheet
 
 Two halves, with the contest itself running between them. Nothing here is
