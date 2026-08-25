@@ -446,30 +446,49 @@ round's rules — which is why `publish-round.js` now runs it rather than leavin
 to be remembered.
 
 ```text
-OPENING
-  backend/textcards.csv               add the announcement row
-        │
+═══ ONCE PER BOARD ═══════════════════════════════════════════════
+                                                ▲ = human judgment
+  _input/import-config.json     collectionTitle, seasonId, rulesetPrefix
+  _input/rulesets.json          declare the version the exports carry
+  _input/boards.json            declare the board (7 required fields)
+                                └─ never again for this contest series
+
+
+═══ OPENING ══════════════════════════════════════════════════════
+
+  backend/textcards.csv               add the ANNOUNCEMENT row
+        │                             rules in `content`
+        │                             expiresAt PAST the results date
         ▼
   compose-post.js announcement        --id <textCardId>
+        │                             reads the CSV, not the registry
+        ▼
+▲ you read it, you paste it to X      the script never posts
         │
         ▼
-  you paste it to X                   the script never posts
-        │
+  set-post-url.js <cardId> <url> ─┬─→ writes postUrl into textcards.csv
+        │                         └─→ runs generate-content-registry.js
         ▼
-  set-post-url.js <id> <url> ─┬─→ writes postUrl into textcards.csv
-        │                     └─→ runs generate-content-registry.js
-        ▼
-  git push ─→ Netlify                 card live, with its Discussion link
+▲ git push ─→ Netlify                 card live, with Discussion → link
 
-CLOSING
-  Ledger computes the round           the only place scoring happens
-        │
+
+═══ THE CONTEST RUNS ═════════════════════════════════════════════
+        nothing happens in the project; replies accumulate on X
+
+
+═══ CLOSING ══════════════════════════════════════════════════════
+
+▲ capture the replies                 THE LOCK — nothing enforces
+        │                             the deadline but you
+        ▼
+▲ Ledger computes the round           the only place scoring happens
+        │                             lateness decided here, from timestamps
         ▼
   CSV export
         │
         ▼
-  _input/boards/<prefix>-YYYY-MM-DD.csv     you move the file by hand
-        │
+▲ _input/boards/<prefix>-YYYY-MM-DD.csv    you move the file by hand
+        │                                  the date places it in the replay
         ▼
   publish-round.js ─┬─→ import-ranked-boards.js    ranks copied,
         │           │                              movement replayed
@@ -484,14 +503,27 @@ CLOSING
         │                                           rulesets, sources
         │      stops at the first failure; every log line still prints
         ▼
-  git push ─→ Netlify                 standings card live
+▲ git push ─→ Netlify                 standings card live
         │
         ▼
-  compose-post.js contest-result      reads standings.json, not the card
-        │
+  compose-post.js contest-result      --id <boardId>
+        │                             reads standings.json, not the card
         ▼
-  you paste it to X
+▲ you read it, you paste it to X      as a reply to the announcement thread
+
+
+═══ ONE-OFF VARIANT ══════════════════════════════════════════════
+
+  hand-write backend/standings/<boardId>.json
+        │      no declaration, no export, no _input/ scaffolding
+        ▼
+  publish-round.js --from standings
 ```
+
+**Six steps carry a `▲`, and none of them collapse into a command.** Reading
+each post before sending, the capture decision, scoring, and both pushes. The
+capture step is the one that looks automatable and is not — it is where a person
+decides what counts, and `capture.complete: true` is that assertion.
 
 **Checklist for a round**
 
