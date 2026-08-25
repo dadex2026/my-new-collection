@@ -41,6 +41,7 @@ these correct claims that earlier handoffs got wrong.
 | Post generator | **Built.** `compose-post.js` + `backend/post-templates/*.txt`, six templates. Sourcing rule: authored content from CSV, generated content from the published artifact. Budget is `--limit` (default 280), not a config key. `{siteUrl}` derives from `master.csv`'s `collectionExternalUrl`; `{methodologyUrl}` appends `/#methodology`. Contract in `docs/post-generator-spec.md`. |
 | Character counting | **Weighted, matching X** — URLs cost 23 regardless of length, emoji and CJK cost 2. Shipped counting code points, which over-counted every post carrying a link and under-counted emoji; caught in review by the parallel session, fixed. Don't "simplify" it back to `[...text].length`. |
 | `standings.json` entry shape | Entries are **raw** board entries — `movement` is `{state, delta}`, not the formatted string a card carries; they include `entityId` and `previousRank` which are not in `columns`; and a ranked export's extra columns (`Winner`, `Spread`, `Total`) sit in a nested `fields` object that has to be flattened. `compose-post.js` mirrors `formatMovement()` to match the site; keep the two in step. |
+| Contest reward mechanism | **Current mechanism: ordinary holder campaigns** — hold this, buy that at a discount, using `campaigns.csv` and `deploy-campaign.js` exactly as they stand. Two alternatives were worked through and are **not being built now**: an `allowList` merkle guard (needs a two-transaction claim in the frontend) and a winner-badge collection (needs no new code, but adds a mint per winner and a collection-scoping decision). The `allowList` route stays open for later — see the holding table. |
 | `backend/standings/_input/` | Holds `import-config.json` and `rulesets.json` only. No `boards.json`, no `boards/` directory — those are created when the first ranked board is declared. |
 
 ---
@@ -50,7 +51,7 @@ these correct claims that earlier handoffs got wrong.
 | # | Item | Repo | Notes |
 |---|---|---|---|
 | 1 | `project-files.txt` — regenerate or delete | template | UTF-16 PowerShell dump, 45 lines. Lists `backend/deploy.js`, `mint.js`, `server.js`, `state.json`, `registry-manager.js`, `frontend/src/ui.ts`, `render.ts` — none of which exist. Missing all of `backend/scripts/`, `backend/standings/`, `backend/methodology/`, `docs/`. |
-| 2 | `backend/scripts/get-holders.js` — 0 bytes | both | Every sibling script is 7–33 KB. Fill or delete. Needed before any real holder snapshot. |
+| 2 | `backend/scripts/get-holders.js` — 0 bytes | both | Every sibling script is 7–33 KB. Fill or delete. Produces a holder snapshot — **one reward input among several, not a blocker.** An earlier revision of this file called it the thing standing between a contest and paying its winners; that was wrong. Rewards are expected to be opt-in discounted mints and similar, for which rewards are ordinary holder campaigns — see the verified-state table. |
 | 3 | `scripts/audit-production.ps1` — 0 bytes | template | Dated June 28; likely forgotten rather than deferred. |
 | 4 | `frontend/src/styles.css` — delete | template | Dead file, see verified state. Leaving it invites someone to edit it and wonder why nothing changes. |
 | 5 | `scripts/utils/` — empty directory | template | Cosmetic. |
@@ -76,11 +77,13 @@ these correct claims that earlier handoffs got wrong.
 | 15 | Board index | Genuinely large board counts. When built, source it from `content-registry.json` — `relationships` already carries everything needed and rank-1 is `content.entries[0]` — **not** from `standings.json`, which the frontend has no loader for. |
 | 16 | Search over structured ranking entries | Nothing blocking; a deliberate v1 cut. Search currently matches prose fields only, not a card's Handle/Points/Rank rows. |
 
+| 17 | `allowList` guard for reward claims | A reward that has to be gated on something with no on-chain representation, or holder campaigns proving too coarse. Kept open deliberately, not rejected. Shape if built: merkle root of eligible wallets as a guard on a campaign candy machine, stacking with `assetGate` since guards are conjunctive. Backend cost is small — read a list, compute a root, set the guard in `deploy-campaign.js`. The cost is frontend: `allowList` needs a `route` pre-validation call before `mintV1`, making a claim two transactions with a partial-failure state to design around. |
+
 ## Blocked on information
 
 | # | Item |
 |---|---|
-| 17 | Two Sports-specific facts that shape the standings process — referenced in a session handoff that was truncated before stating them. They may move items 14 and 15. |
+| 18 | Two Sports-specific facts that shape the standings process — referenced in a session handoff that was truncated before stating them. They may move items 14 and 15. |
 
 ---
 
