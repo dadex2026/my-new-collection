@@ -356,6 +356,85 @@ The announcement that *opens* a contest is not a board — there are no entries
 yet, so there is nothing to rank. That is a row in `backend/textcards.csv`,
 posted with the `announcement` template. See `docs/post-generator-spec.md`.
 
+### The whole round, as a run-sheet
+
+Two halves, with the contest itself running between them. Nothing here is
+optional — the step most often skipped is `generate-methodology.js`, and
+skipping it leaves the site describing the previous round's rules.
+
+```text
+OPENING
+  backend/textcards.csv               add the announcement row
+        │
+        ▼
+  compose-post.js announcement        --id <textCardId>
+        │
+        ▼
+  you paste it to X                   the script never posts
+        │
+        ▼
+  postUrl ─→ textcards.csv            paste the tweet URL back
+        │
+        ▼
+  generate-content-registry.js
+        │
+        ▼
+  git push ─→ Netlify                 card live, with its Discussion link
+
+CLOSING
+  Ledger computes the round           the only place scoring happens
+        │
+        ▼
+  CSV export
+        │
+        ▼
+  _input/boards/<prefix>-YYYY-MM-DD.csv     you move the file by hand
+        │
+        ▼
+  import-ranked-boards.js             ranks copied, movement replayed
+        │
+        ▼
+  backend/standings/<boardId>.json
+        │
+        ▼
+  generate-standings-cards.js ─┬─→ backend/content-registry.json
+        │                      ├─→ frontend/public/content-registry.json
+        │                      └─→ frontend/public/standings.json
+        ▼
+  generate-methodology.js             re-derives boards, rulesets, sources
+        │
+        ▼
+  git push ─→ Netlify                 standings card live
+        │
+        ▼
+  compose-post.js contest-result      reads standings.json, not the card
+        │
+        ▼
+  you paste it to X
+```
+
+**Checklist for a round**
+
+- [ ] Ruleset version the export carries is declared in `_input/rulesets.json`
+- [ ] Export filename contains its `YYYY-MM-DD`
+- [ ] `import-ranked-boards.js` — check the log line reports the expected round count
+- [ ] Movement looks right: round 1 all `new`, later rounds show arrows
+- [ ] `generate-standings-cards.js`
+- [ ] `generate-methodology.js` ← the one that gets skipped
+- [ ] `git add backend/standings backend/content-registry.json frontend/public`
+- [ ] Push, and confirm Netlify finished before checking the live site
+- [ ] `compose-post.js contest-result` — read it before pasting
+- [ ] Paste to X
+
+**Where the boundary actually sits.** The Ledger is the only place a *score* is
+computed, and nothing on this side ever recalculates one. Two ordering values
+are derived here, both positional and neither able to change what anyone
+scored: **movement**, replayed from the dated exports, and **competition ranks**
+where the export did not supply them — `import-community-boards.js` assigns
+1, 2, 2, 4 for the three sorts whose order the file's `Position` column does not
+already fix. "The project never re-derives positions" is the wrong summary;
+"the project never computes a score" is the right one.
+
 ## Delete the example
 
 `EXAMPLE-participants-accuracy.json` exists to prove the pipeline end to end.
