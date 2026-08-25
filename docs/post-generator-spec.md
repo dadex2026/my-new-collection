@@ -280,6 +280,21 @@ written down, which is what this file is for. Implement the Python side
 against this spec, not against the JavaScript, so neither is the other's
 source of truth.
 
+## The companion: `set-post-url.js`
+
+`compose-post.js` produces the text; `set-post-url.js` closes the loop
+afterwards. Given a card id and the URL of the post you just published, it
+writes `postUrl` into that `textcards.csv` row and re-runs
+`generate-content-registry.js`, so the card gains its *Discussion →* link.
+
+It shares this script's refusal style — `https://` only, unknown card id names
+the ids that exist — and both now share one RFC4180 parser in
+`backend/scripts/lib/csv.js` rather than carrying a copy each.
+
+It rewrites a single line rather than reserialising the file, so rows it did not
+match keep their exact bytes, and it refuses a row wrapping onto a second line
+instead of half-rewriting it.
+
 ## Deliberately not automated
 
 The generator produces text. It does not post. Reading a timeline is one

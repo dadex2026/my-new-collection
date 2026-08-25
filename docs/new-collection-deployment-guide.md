@@ -550,8 +550,18 @@ the cached bundle and conclude nothing happened.
 
 ### Step D — Link the post back
 
-Post to X yourself, copy the tweet URL, and paste it into that row's `postUrl`.
-Re-run the generator and push again.
+Post to X yourself, copy the tweet URL, and hand both to:
+
+```powershell
+node backend/scripts/set-post-url.js ANNOUNCEMENT-012 https://x.com/you/status/123
+```
+
+It writes `postUrl` into that row and re-runs `generate-content-registry.js`.
+Then push again. (`--no-generate` skips the second half if you would rather
+regenerate later.)
+
+It refuses a non-`https://` URL and an unknown card id before touching the file,
+and rewrites only the one line it matched — every other row stays byte-identical.
 
 The card now renders a *Discussion →* link in its meta row, so a reader can
 join the conversation instead of hunting your timeline — and months later you

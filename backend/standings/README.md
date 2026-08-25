@@ -175,10 +175,13 @@ Three requirements the prose above implies without stating:
 Then:
 
 ```powershell
-node backend/scripts/import-ranked-boards.js
-node backend/scripts/generate-standings-cards.js
-node backend/scripts/generate-methodology.js
+node backend/scripts/publish-round.js
 ```
+
+`publish-round.js` runs `import-ranked-boards.js`, then
+`generate-standings-cards.js`, then `generate-methodology.js` — the order they
+must run in, stopping at the first failure. Every step's log still prints.
+Run them individually if you want to inspect the board between steps.
 
 Two dated exports produced `nfl-games.json` — *3 entries from 2 rounds* — with
 movement `up 1`, `up 1`, and `new` for the game that had not appeared before.
@@ -347,8 +350,7 @@ Chargers"* — so a reader can check the arithmetic.
 Then publish and post:
 
 ```powershell
-node backend/scripts/generate-standings-cards.js
-node backend/scripts/generate-methodology.js
+node backend/scripts/publish-round.js --from standings
 node backend/scripts/compose-post.js contest-result --id <boardId>
 ```
 
@@ -393,8 +395,7 @@ The second is more deliberate; the first is fewer steps.
    anything can change.
 2. Optionally restrict replies on the X post so late entries stop accumulating.
 3. Score the round.
-4. Publish: import → `generate-standings-cards.js` → `generate-methodology.js`
-   → push.
+4. Publish: `publish-round.js`, then push.
 5. `compose-post.js contest-result`, read it, post it — **as a reply to the
    announcement thread**, not standalone. It closes the loop where people are
    already looking.
@@ -439,9 +440,10 @@ surface what exists.
 
 ### The whole round, as a run-sheet
 
-Two halves, with the contest itself running between them. Nothing here is
-optional — the step most often skipped is `generate-methodology.js`, and
-skipping it leaves the site describing the previous round's rules.
+Two halves, with the contest itself running between them. `generate-methodology.js`
+used to be the step most often skipped — leaving the site describing the previous
+round's rules — which is why `publish-round.js` now runs it rather than leaving it
+to be remembered.
 
 ```text
 OPENING
@@ -454,11 +456,8 @@ OPENING
   you paste it to X                   the script never posts
         │
         ▼
-  postUrl ─→ textcards.csv            paste the tweet URL back
-        │
-        ▼
-  generate-content-registry.js
-        │
+  set-post-url.js <id> <url> ─┬─→ writes postUrl into textcards.csv
+        │                     └─→ runs generate-content-registry.js
         ▼
   git push ─→ Netlify                 card live, with its Discussion link
 
@@ -472,18 +471,18 @@ CLOSING
   _input/boards/<prefix>-YYYY-MM-DD.csv     you move the file by hand
         │
         ▼
-  import-ranked-boards.js             ranks copied, movement replayed
-        │
-        ▼
-  backend/standings/<boardId>.json
-        │
-        ▼
-  generate-standings-cards.js ─┬─→ backend/content-registry.json
-        │                      ├─→ frontend/public/content-registry.json
-        │                      └─→ frontend/public/standings.json
-        ▼
-  generate-methodology.js             re-derives boards, rulesets, sources
-        │
+  publish-round.js ─┬─→ import-ranked-boards.js    ranks copied,
+        │           │                              movement replayed
+        │           │      ↓ backend/standings/<boardId>.json
+        │           │
+        │           ├─→ generate-standings-cards.js
+        │           │      ↓ backend/content-registry.json
+        │           │      ↓ frontend/public/content-registry.json
+        │           │      ↓ frontend/public/standings.json
+        │           │
+        │           └─→ generate-methodology.js     re-derives boards,
+        │                                           rulesets, sources
+        │      stops at the first failure; every log line still prints
         ▼
   git push ─→ Netlify                 standings card live
         │
@@ -498,10 +497,9 @@ CLOSING
 
 - [ ] Ruleset version the export carries is declared in `_input/rulesets.json`
 - [ ] Export filename contains its `YYYY-MM-DD`
-- [ ] `import-ranked-boards.js` — check the log line reports the expected round count
+- [ ] `publish-round.js` — all three steps report success
+- [ ] Import log reports the expected round count
 - [ ] Movement looks right: round 1 all `new`, later rounds show arrows
-- [ ] `generate-standings-cards.js`
-- [ ] `generate-methodology.js` ← the one that gets skipped
 - [ ] `git add backend/standings backend/content-registry.json frontend/public`
 - [ ] Push, and confirm Netlify finished before checking the live site
 - [ ] `compose-post.js contest-result` — read it before pasting

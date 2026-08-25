@@ -67,6 +67,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { parseCsvRecords } = require("./lib/csv");
 
 // ---- Paths ----------------------------------------------------------------
 const BACKEND_DIR = path.join(__dirname, "..");
@@ -99,46 +100,12 @@ function readFileOrFail(file, what) {
 }
 
 // ---- CSV ------------------------------------------------------------------
-// Minimal RFC4180: quoted fields, embedded commas, doubled quotes, CRLF.
-// Written out rather than pulled in as a dependency — the backend has no CSV
-// library and one script does not justify adding one.
-function parseCsv(text) {
-  const rows = [];
-  let row = [];
-  let field = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-
-    if (inQuotes) {
-      if (ch === '"') {
-        if (text[i + 1] === '"') { field += '"'; i++; }
-        else inQuotes = false;
-      } else field += ch;
-      continue;
-    }
-
-    if (ch === '"') { inQuotes = true; continue; }
-    if (ch === ",") { row.push(field); field = ""; continue; }
-    if (ch === "\r") continue;
-    if (ch === "\n") { row.push(field); rows.push(row); row = []; field = ""; continue; }
-    field += ch;
-  }
-  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
-
-  return rows.filter((r) => r.some((c) => c.trim() !== ""));
-}
-
+// Parser lives in ./lib/csv.js, shared with set-post-url.js. Two copies of a
+// quoting implementation is where they start to disagree.
 function loadCsvRecords(file) {
-  const rows = parseCsv(readFileOrFail(file, "Source file"));
-  if (!rows.length) fail(`No rows in ${path.basename(file)}`);
-  const header = rows[0].map((h) => h.trim());
-  return rows.slice(1).map((cells) => {
-    const record = {};
-    header.forEach((key, i) => { record[key] = (cells[i] ?? "").trim(); });
-    return record;
-  });
+  const { records } = parseCsvRecords(readFileOrFail(file, "Source file"));
+  if (!records.length) fail(`No rows in ${path.basename(file)}`);
+  return records;
 }
 
 // ---- Standings ------------------------------------------------------------
