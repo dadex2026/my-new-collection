@@ -210,28 +210,78 @@ source already uses the logical names needs no entry at all.
 
 ## Running a contest
 
-A contest is a board. There is no separate contests file and nothing to
-register it in — **one JSON file in this folder is one contest**, and dropping
-it here is the whole act of creating it.
+A contest is a board, and the first decision is **whether it recurs** — because
+that decides which of the two paths above produces the board file, and it is
+awkward to change later.
+
+### Recurring: declare it once, drop a file each round
+
+**This is the default.** A weekly contest goes through `import-ranked-boards.js`
+like any other repeating board. Declare it once in `_input/boards.json`:
+
+```json
+{ "boardId": "weekly-total-contest",
+  "title": "Highest Total Contest",
+  "blurb": "Closest call on the week's highest-scoring game.",
+  "track": "prediction", "entityType": "participant",
+  "filePrefix": "contest-ranked",
+  "idColumn": "Handle", "labelColumn": "Handle", "scoreColumn": "OffBy",
+  "fields": ["Called", "Pick", "OffBy"],
+  "columns": ["rank", "name", "Called", "OffBy", "movement"] }
+```
+
+Then each round is one dated export in `_input/boards/`:
+
+```
+Position,Handle,Called,Pick,OffBy,AppVersion
+1,@overunder_owen,58,Jets at Patriots,2,v1.0
+2,@gridiron_gwen,54,Jets at Patriots,6,v1.0
+3,@newcomer_nate,49,Bears at Vikings,11,v1.0
+```
+
+**Movement is the reason.** Replaying the dated exports produces `▲ 1`,
+`▼ 1`, `new` without you stating any of it. Hand-writing means looking up every
+entrant's previous rank and typing `previousRank` and `movement` yourself, every
+round — tolerable for three entrants, miserable for thirty, and a fresh
+opportunity to be wrong each time.
+
+Two contest-specific notes on the declaration:
+
+- **`scoreColumn` is required, but a closest-call contest has no score** —
+  lower is better. Point it at `OffBy` to satisfy the requirement, then leave
+  `score` out of `columns` and list `OffBy` in `fields`. The card then shows a
+  column headed **OffBy** rather than a misleading **score**.
+- **`idColumn`** should be the handle, not a display name, so a participant who
+  changes their display label keeps their movement chain.
+
+### One-off: write the board by hand
+
+For a contest that genuinely does not repeat, the scaffolding above is more work
+than the result. Write a board file directly in this folder — see *A worked
+import* above for the required fields, and *Writing the entries* below for rank
+order and ties.
 
 The filename is yours; `boardId` is the identity. The card it produces is
 `STANDINGS-` plus the boardId uppercased, so `nfl-w14-total-contest.json`
 becomes `STANDINGS-NFL-W14-TOTAL-CONTEST`.
 
-**For a new contest, the decision that matters is whether to reuse the
-boardId.**
+Everything shows as `new`, which is correct — there is no earlier round.
 
-- **A new `boardId`** — a new board, a new card, its own history. Everyone
-  shows as `new`, because there is no earlier position to move from. Right for
-  a one-off, or for contests that don't compare to each other.
-- **The same `boardId`, entries replaced each round** — one board that updates,
-  one card, and movement arrows work from the second round on because
-  positions are compared against the previous run. Right for a weekly contest
-  with recurring participants.
+### Don't hand-write round 1 and import from round 2
 
-Reusing the id is usually what you want for anything recurring; a folder of
-`week-1`, `week-2`, `week-3` boards produces a wall of cards, none of which
-can show movement.
+The seam does not join. `import-ranked-boards.js` replays only across exports it
+can see, so if round 1 was a hand-written board and round 2 arrives as an export,
+round 2 shows **every** entrant as `new` — as though the contest had never run.
+
+If a contest might recur, start it on the import path even for the first round.
+If you have already hand-written round 1, either back-fill it as a dated export
+so the replay has both, or accept one round of missing arrows and let it correct
+itself from round 3.
+
+### Whichever path
+
+Reuse the `boardId` across rounds. A folder of `week-1`, `week-2`, `week-3`
+boards produces a wall of cards, none of which can show movement.
 
 Removing a contest's file marks its card `ARCHIVED` on the next run rather
 than deleting it, so a finished contest stays readable.
@@ -246,6 +296,10 @@ Fields that earn their keep in a contest specifically:
 | `capture.complete` | Set `false` if any entry went uncaptured, and the run is refused — which is correct, since a missed entry is indistinguishable from someone who didn't play. |
 
 ### Writing the entries
+
+Applies to a hand-written board. On the import path the exports carry rank and
+the importer handles ordering — but the tie decision below is still yours,
+because it is made in the source when you score the round.
 
 Two things are your job before the file is valid, and only one of them is
 checked.
