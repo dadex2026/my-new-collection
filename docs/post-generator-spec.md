@@ -328,8 +328,11 @@ written.
 
 ## Still to do
 
-- **Document it in `new-collection-deployment-guide.md`** — one subsection per
-  source, next to the generator each pairs with. Not yet written.
+- **The two remaining sources in `new-collection-deployment-guide.md`.** The
+  text-card path is written — Step B of the card lifecycle. Composing from
+  `master.csv` and `campaigns.csv` has no walkthrough there. Probably a pointer
+  to *Using a template* above rather than two more walkthroughs: the same
+  explanation in two files is how drift starts.
 - **The Python twin**, per the section below.
 - **Real ledger exports.** The per-board schema handling has been exercised
   against two hand-built boards modelled on Entertainment Ledger (handles by
@@ -368,12 +371,33 @@ The generator produces text. It does not post. Reading a timeline is one
 thing; publishing under your name is another, and an unattended poster can
 publish the wrong contest. Generate → read → paste → post.
 
+## Checked since
+
+**`collectionExternalUrl` in a live collection: empty.** Not a placeholder —
+blank, on every row, along with `itemExternalUrl` (verified against
+`my-new-collection`). Two consequences for any real collection:
+
+- `{siteUrl}` is *computed* from the first `master.csv` row, and the engine only
+  offers it when it resolves to something. Blank means `{siteUrl}` is not an
+  empty field, it is an **unknown placeholder** — so `campaign-launch` and
+  `announcement` fail outright.
+- `{itemExternalUrl}` is a real column holding an empty value, so `mint-live`
+  fails the empty-field rule instead.
+
+So `--site` is not a convenience for the template's sample data. **Until those
+columns are populated it is mandatory**, and the better fix is to fill
+`collectionExternalUrl` in `master.csv` when standing a collection up — it is
+listed in Step 1 of the deployment guide for exactly this reason.
+
+**The campaign text path, end to end.** `generate-campaigns-registry.js` copies
+the `*Text` columns untransformed (`eligibilityText: r.eligibilityText || ""`),
+and `ui.engine.ts` interpolates them straight into the DOM (lines 534–547). The
+CSV cell is the rendered string byte for byte, which is what makes a campaign
+post incapable of paraphrasing the site.
+
 ## Not checked
 
-Whether `collectionExternalUrl` holds the real site URL in a live collection
-(placeholder in the template's sample row). How the frontend renders campaign
-text end to end. Behaviour against a genuine Ledger export, as opposed to a
-board hand-built to the documented shape. Any claim
-about the ranker projects — the counts in the original brief that referenced
-an Index Portfolio contest post and a `rankings.csv` came from outside this
-repo and are not reproduced here.
+Behaviour against a genuine Ledger export, as opposed to a board hand-built to
+the documented shape. Any claim about the ranker projects — the counts in the
+original brief that referenced an Index Portfolio contest post and a
+`rankings.csv` came from outside this repo and are not reproduced here.
