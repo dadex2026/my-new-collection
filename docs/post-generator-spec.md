@@ -33,12 +33,17 @@ This is the correction that matters most, and it generalises beyond posts.
 > **Authored content is sourced from its CSV. Generated content is sourced
 > from its published artifact.**
 
-| Content | Authored or generated | Source of truth for a post |
-|---|---|---|
-| Mint / drop | authored | `backend/master.csv` |
-| Campaign | authored | `backend/campaigns.csv` |
-| Text card (news, update) | authored | `backend/textcards.csv` |
-| **Standings / rankings** | **generated** | **`frontend/public/standings.json`** |
+| Content | Authored or generated | Source of truth for a post | `--id` matches |
+|---|---|---|---|
+| Mint / drop | authored | `backend/master.csv` | `dropItemId` |
+| Campaign | authored | `backend/campaigns.csv` | `campaignId` |
+| Text card (news, update) | authored | `backend/textcards.csv` | `textCardId` |
+| **Standings / rankings** | **generated** | **`frontend/public/standings.json`** | `boardId` |
+
+**`--id` matches a different column for each source.** There is no universal
+`id` field, so `--id SAMPLE-001` means `dropItemId` for a mint post and nothing
+at all for a campaign. Get it wrong and the error lists the ids that source
+actually holds.
 
 There is no `rankings.csv` and there should not be one. Rankings enter the
 system through `backend/standings/*.json`, are projected by
@@ -202,6 +207,68 @@ collection needs a real value there — but that's a data problem in one CSV
 cell, not an engine problem.
 
 ---
+
+## Using a template
+
+```powershell
+node backend/scripts/compose-post.js <template> --id <recordId>
+```
+
+The template name is the `.txt` filename without its extension. Its first line
+declares the source, so the script knows which file to read and which column
+`--id` addresses.
+
+### Placeholders stay; the data changes
+
+`{collectionName}` is a blank in a form, not scaffolding to fill in by hand.
+The script substitutes it at run time from the record you named. Replacing it
+with literal text — `Sample Collection` — makes the template produce that one
+post forever, for every drop you ever announce.
+
+What you own is the wording *between* placeholders:
+
+```
+{collectionName} — {itemName} is live.
+```
+
+The em dash and `is live.` are yours. The two names come from the row. One
+template file, run against two records, produces two different posts with no
+editing in between — that is the entire point of the braces.
+
+So: **to change a value, edit the CSV. To change the wording, edit the
+template.** Literal text belongs in a template only when it is true of every
+post from it — a standing hashtag, a fixed call to action.
+
+### Finding out what a record offers
+
+Write a placeholder that does not exist and read the error:
+
+```powershell
+node backend/scripts/compose-post.js campaign-launch --id sample-campaign-001
+```
+
+with `{whatCanIUse}` in the template lists all 23 fields available for that
+record, including the two computed ones. Faster than reading a CSV header, and
+on a standings board it lists *that board's* entry fields rather than a generic
+set — which matters, because boards declare their own columns.
+
+### Which sample data exercises which template
+
+The template ships sample rows for `master.csv`, `campaigns.csv` and
+`textcards.csv`, so five of the six templates run on a fresh copy:
+
+| Template | Runs against the shipped samples? |
+|---|---|
+| `mint-live` | yes — `--id SAMPLE-001` |
+| `campaign-launch` | yes — `--id sample-campaign-001` |
+| `announcement` | yes — any of six `textcards.csv` rows |
+| `ranking-highlight` | yes, with `--allow-example` |
+| `ranking-highlight-noscore` | yes, with `--allow-example` |
+| `contest-result` | **no** — needs `Called` and `Pick`, which the example board does not publish |
+
+`contest-result` is therefore the one template you cannot sanity-check before
+real contest data exists. Build a throwaway contest board once, rather than
+debugging it on the night a real contest closes.
 
 ## Templates that ship
 
