@@ -187,17 +187,22 @@ quietly inherits the first's assumptions.
 
 ### A completed header
 
-Prompt **E1**, filled. The header is everything down to `TIEBREAK`; from
-`Give me the opening runbook` onward the real block is appended unchanged:
+Prompt **E1**, filled. The header is everything down to
+`ANNOUNCEMENT CARD ID`; from `Give me the opening runbook` onward the real
+block is appended unchanged:
 
 ```
 I want to start a new X/Twitter contest for a collection.
 
 COLLECTION:        my-new-collection
+COLLECTION TITLE:  My New Collection
 SCORING DASHBOARD: Sports Ledger (v3.5)
 CONTEST NAME:      Highest Total Contest
 BOARD ID:          weekly-total-contest
 SEASON ID:         2026-NFL
+RULESET PREFIX:    nfl-ledger
+EXPORT FILE PREFIX:contest-ranked
+EXPORT HEADER ROW: Position,Handle,Called,Pick,OffBy,AppVersion
 THE QUESTION:      Which of this week's NFL games posts the highest combined
                    score, and what is that total?
 CONTEST TYPE:      call the number / closest call
@@ -207,12 +212,23 @@ RESULTS DATE:      Tuesday 2 Sep 2026
 RECURS?:           yes — weekly
 MIN PICKS:         1
 TIEBREAK:          earliest reply timestamp
+ANNOUNCEMENT CARD ID: ANNOUNCEMENT-001
 ```
 
-Read against the rules above: the collection is the folder name; the dashboard
-carries its build; `<GAME>` and `<TOTAL>` stayed as literal brackets because
-they are the reply format, not blanks; and every field is answered rather than
-left hopeful.
+Read against the rules above: the collection is the folder name and
+`COLLECTION TITLE` the display name, because `import-config.json` needs the
+second and ships it as `CHANGE ME`; the dashboard carries its build, which is
+what `RULESET PREFIX` joins to; `<GAME>` and `<TOTAL>` stayed as literal
+brackets because they are the reply format, not blanks; and every field is
+answered rather than left hopeful.
+
+`EXPORT HEADER ROW` is the one that looks optional and is not. The declaration
+names a label column, a score column and an id column, and nothing checks they
+exist until the first round imports — weeks of replies later. Paste a real
+export's first line, or write `UNKNOWN — tell me what to check`.
+
+A full worked run from this header, output and all, is in
+`docs/worked-run-e1.md`.
 
 ### What must already exist
 
@@ -239,7 +255,7 @@ in the prompt's own header, ten lines further down.
 | **D1** Declare board | The source dashboard **and its build stamp** · one sample export, to read its column labels |
 | **D2** Publish round | **The dated export file** · its ruleset declared in `rulesets.json` |
 | **D3** Community board | The Ledger export · its column labels, for `columnMap` |
-| **E1** Open a contest | *Nothing* — the one phase with no artifact |
+| **E1** Open a contest | One sample export from the scoring dashboard, to read its column labels for `EXPORT HEADER ROW` — only when declaring a new series. An existing series needs nothing; it is otherwise the one phase with no artifact |
 | **E2** Index contest | Enough recorded history to resolve the window — check `leaderboard.py --dry-run` first |
 | **E3** Capture a thread | **The captured replies *and* quote posts** · the extraction prompt from the **scoring dashboard's** `prompts/` — never the collection's, which has none |
 | **E4** Score and publish | The scored export, or a settled `leaderboard.py` run |
@@ -269,6 +285,10 @@ past the results date with the reason stated; a disposition table that names
 the file and the position inside it for every block it hands you, and
 distinguishes *edited* from *created*; and the exact refusal text for a ruleset that is not
 declared. An answer with no refusals section did not read the files.
+
+That paragraph is a description; `docs/worked-run-e1.md` is the thing itself —
+E1 run end to end, so a real answer can be held next to a known-good one rather
+than against prose.
 
 ---
 
@@ -1195,18 +1215,30 @@ should become.
 I want to start a new X/Twitter contest for a collection.
 
 COLLECTION:        <target from the registry>
+COLLECTION TITLE:  <as it should read in board titles and on the methodology
+                    page — import-config.json ships this as "CHANGE ME">
 SCORING DASHBOARD: <target from the registry — where the round gets scored>
 CONTEST NAME:      <___>
 BOARD ID:          <___>
 SEASON ID:         <___ — only if this is a new contest series>
+RULESET PREFIX:    <___ — only if new. Joins the dashboard's build stamp into
+                    a ruleset id: nfl-ledger + v3.5 = nfl-ledger-v3.5>
+EXPORT FILE PREFIX:<___ — only if new. What each round's export filename starts
+                    with, before the YYYY-MM-DD>
+EXPORT HEADER ROW: <paste a sample export's first line, verbatim — only if new.
+                    The declaration's label, score and id columns must name
+                    columns that actually exist>
 THE QUESTION:      <what entrants are calling>
 CONTEST TYPE:      <pick the winner | call the number / closest call>
 ENTRY FORMAT:      <the exact reply format entrants must use>
 ENTRY DEADLINE:    <date, time, timezone>
 RESULTS DATE:      <___>
 RECURS?:           <yes — weekly/monthly | no, genuinely one-off>
-MIN PICKS:         <1 | 3 — see below if this recurs>
+MIN PICKS:         <1 | 3 — community boards only; inert on this path, see below>
 TIEBREAK:          <___>
+ANNOUNCEMENT CARD ID: <the textCardId for the opening card. Permanent and never
+                    reused — compose-post.js and set-post-url.js both address
+                    the card by it>
 
 Give me the opening runbook — everything up to the point where replies start
 accumulating.
@@ -1266,6 +1298,10 @@ should become.
 ```
 
 **Reference:** `backend/standings/README.md` "Running a contest" · `backend/textcards.csv` · `backend/post-templates/announcement.txt` · `contest-result.txt`
+
+**A full worked run of this prompt** — filled header and all five parts of the
+output — is in `docs/worked-run-e1.md`. Compare a real answer against it; it is
+the concrete form of *What a good run gives back* above.
 
 ---
 
@@ -2618,6 +2654,7 @@ The related documents, in the order you usually need them:
 | `backend/standings/README.md` | Board format, the two importers, **running a contest**, ties, score direction |
 | `docs/post-generator-spec.md` | The `compose-post.js` contract: sources, placeholders, refusals, character budget |
 | `docs/netlify-connection.md` | Deploy access |
+| `docs/worked-run-e1.md` | One complete E1 run — filled header and all five parts of the output. The concrete form of *What a good run gives back*; compare a real answer against it. **Not a source of truth** — where it and the scripts disagree, the scripts win |
 | `docs/open-items.md` | Backlog, plus a verified-state table. **Delete when forking** |
 | `Dashboards\README.md` | The dashboard conventions and the AI/tool boundary |
 | `Dashboards\new-dashboard-build-guide.md` | Building a new dashboard: kind and shape, the non-negotiables, ranking and snapshot timing, re-run semantics, build order. **Prompt G5 drives it** |
