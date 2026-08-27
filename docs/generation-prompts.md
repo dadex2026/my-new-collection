@@ -1224,16 +1224,22 @@ Cover:
       changes their display label keeps their movement chain.
   - Note that _input/boards.json and _input/boards/ do NOT exist in a fresh
     checkout — say so, and tell me to create both.
-  - eligibility.minEntries — a single-round contest wants 1, or the whole
-    field is provisional and sinks. And eligibility.note, which publishes:
-    put the tiebreak there, because competition ranking will happily show
-    three people at rank 1 and will not choose between them.
-  - minPicks in _input/import-config.json, which is a different threshold and
-    defaults to 3. On a RECURRING contest that means every entrant is
-    provisional for the first two rounds and sinks below the field on the
-    skill-ordered board — right for a season leaderboard, wrong for a contest
-    meant to be won in week one. Tell me which value my answer implies, and
-    if I keep 3, that the announcement has to say so.
+  - eligibility.minEntries and eligibility.note. Tell me plainly that on the
+    import path BOTH ARE DISCARDED — import-ranked-boards.js writes
+    eligibility: null unconditionally, so a tiebreak declared there never
+    reaches the board and never publishes. It has to go in the announcement
+    content instead, which is the only channel that survives. Set them anyway
+    if this contest might later be written by hand (E5), where they do publish.
+  - minPicks in _input/import-config.json is NOT read by
+    import-ranked-boards.js. It is a community-importer threshold, and a
+    ranked board is the latest round rather than a cumulative season table, so
+    there is no per-handle count of settled predictions for it to act on. Tell
+    me what my MIN PICKS answer does and does not change here, and do not build
+    a runbook step on it.
+  - Do not tell me to set capture.complete on this path either: the ranked
+    importer forces it true, and publish-round.js runs the import and the card
+    generator back to back with no seam to change it in. It is authorable on a
+    hand-written board (E5) and set from the export on a community board (D3).
 
  THE OPENING:
   - The ANNOUNCEMENT row in backend/textcards.csv. The rules go in `content`.

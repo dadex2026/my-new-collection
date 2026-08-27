@@ -293,10 +293,33 @@ Fields that earn their keep in a contest specifically:
 
 | Field | Why |
 |---|---|
-| `eligibility.minEntries` | The provisional threshold defaults to 3 via `import-config.json`'s `minPicks`. A single-round contest wants `1`, or the whole field is provisional and sinks. |
-| `eligibility.note` | This publishes. Put the tiebreak here — competition ranking will happily show three people at rank 1 and will not choose between them. |
+| `eligibility.minEntries` | **Hand-written boards only.** `import-ranked-boards.js` hardcodes `eligibility: null`, so nothing you declare in `boards.json` reaches an imported board. `import-config.json`'s `minPicks` is a *community-importer* threshold and is never read by the ranked importer either — see *What the ranked importer does not carry* below. |
+| `eligibility.note` | Publishes from a hand-written or community board; **discarded on the ranked import path**. Put the tiebreak here *and* in the announcement `content`, because competition ranking will happily show three people at rank 1 and will not choose between them — and on the import path the announcement is the only place the tiebreak survives. |
 | `entries[].fields` | Where contest detail lives: what someone picked, what they called, what the result was. `columns` controls the card; `fields` carries everything else through to `standings.json` and to posts. |
-| `capture.complete` | Set `false` if any entry went uncaptured, and the run is refused — which is correct, since a missed entry is indistinguishable from someone who didn't play. |
+| `capture.complete` | **Hand-written and community boards.** Set `false` if any entry went uncaptured and `generate-standings-cards.js` refuses the run — correct, since a missed entry is indistinguishable from someone who didn't play. The ranked importer writes `complete: true` unconditionally; see below. |
+
+### What the ranked importer does not carry
+
+`import-ranked-boards.js` builds each board from the declaration plus the dated
+export, and three things you might reasonably expect to survive that trip do
+not. Checked against the importer, not inferred:
+
+| Declared | What actually reaches the board |
+|---|---|
+| `eligibility` (any shape) | **Dropped.** The importer writes `eligibility: null` unconditionally. A declared `minEntries` or `note` never publishes. |
+| `minPicks` in `import-config.json` | **Never read.** The ranked importer reads only `seasonId`, `cardLimit`, `rulesetPrefix` and `rulesetVersion`. `minPicks` is a community-importer threshold. |
+| `capture.complete` | **Forced to `true`**, with `method: "ledger-export"`. Not authorable from the declaration. |
+
+The `minPicks` one has a second half worth stating plainly: **a ranked board is
+the latest round, not a cumulative season table.** Every export is replayed to
+compute movement, but the entries written are the last export's rows. There is
+no accumulating count of settled predictions per handle for a provisional
+threshold to act on — which is why the concept belongs to the community
+importer, whose exports carry exactly that count.
+
+The practical consequence for a contest: anything you want a reader to know
+that is not a column in the export has to live in the announcement `content` or
+in `entries[].fields`. Those are the two channels that survive.
 
 ### Writing the entries
 
@@ -371,7 +394,11 @@ on the post, which is a manual action in X's own interface.
 
 **`capture.complete` is your assertion that you got everyone.** Set it `false`
 and the generator refuses to publish a final standing, which is correct — a
-reply you missed is indistinguishable from someone who did not play.
+reply you missed is indistinguishable from someone who did not play. This is
+authorable on a hand-written board and set from the export on a community
+board. It is **not** authorable on the ranked import path: that importer writes
+`complete: true` unconditionally, and `publish-round.js` runs the import and the
+card generator back to back, so there is no seam to change it in.
 
 **`expiresAt` does not mean closed. It only hides the card.** This is the trap.
 `isTextCardVisible()` drops any card whose `expiresAt` has passed, whether or
@@ -436,7 +463,11 @@ surface what exists.
 `import-ranked-boards.js`, and hand-written one-off contests. Neither carries an
 `evidence` object. There, if lateness could be contested, put the posted time in
 `fields` (`"Posted": "2026-08-31T11:58Z"`) and state the cut-off in
-`eligibility.note` — both publish, and cost nothing either way.
+`eligibility.note`. Note the asymmetry: on a board from
+`import-ranked-boards.js` the `fields` entry **publishes** and `eligibility.note`
+**does not**, because that importer discards eligibility. On a hand-written
+board both publish. Either way `fields` is the one that always survives, so put
+the posted time there.
 
 ### The whole round, as a run-sheet
 

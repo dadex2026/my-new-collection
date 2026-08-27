@@ -11,7 +11,7 @@ Its second job is to stop a stale claim being repeated. Several entries below
 correct something an earlier handoff — or an earlier revision of this file —
 asserted confidently and wrongly. Re-verify before quoting any of it.
 
-**Anchored at:** `template-open-edition` @ `d36b6f1`. The anchor names the last
+**Anchored at:** `template-open-edition` @ `453cb51`. The anchor names the last
 commit whose code was checked, which is never the commit containing this file —
 a doc cannot cite itself.
 
@@ -67,6 +67,9 @@ these correct claims that earlier handoffs got wrong.
 | `Downloads\_superseded\docs-unfiled\DATA_FLOWS.md` | **Unique — no copy anywhere on Desktop.** A finished Index Portfolio document (map, per-pipeline prompt→CSV→output samples, settings, commands, "two things not built"). Worth filing into `Dashboards\Index Portfolio\`. |
 | Three locked files in Downloads | `campaigns_2.csv`, `textcards_2.csv`, `community-leaderboard-2026-08-20.csv` — copied to `_superseded\data\`, originals could not be unlinked (Windows lock). Safe to delete manually. |
 | A `.reg` file in Downloads | `01_OnlyFans_Full_DB_drive.google.com<~120 spaces>%r%r…(23).reg`, 1.2 MB. Filename padded to disguise the extension. **Not opened. Not a project file. Scan or delete.** |
+| `eligibility` on the ranked import path | **Discarded.** `import-ranked-boards.js` writes `eligibility: null` unconditionally — a `minEntries` or `note` declared in `boards.json` never reaches the board and never publishes. `import-community-boards.js` builds a real eligibility object; the ranked importer does not. E1 said the note "publishes: put the tiebreak there", and `standings/README.md` said the same in two places. **All three corrected**; the tiebreak now goes in the announcement `content`. One-line fix below (#19). |
+| `minPicks` on the ranked import path | **Never read.** `import-ranked-boards.js` reads exactly four config keys — `seasonId`, `cardLimit`, `rulesetPrefix`, `rulesetVersion`. `minPicks` is a community-importer threshold. E1 carried a paragraph on what it does to a recurring contest; that paragraph described the wrong importer and is **corrected**. Underlying reason: **a ranked board is the latest round, not a cumulative season table** — entries come from the last export's rows, with earlier exports replayed only for movement. There is no per-handle count of settled predictions for a provisional threshold to act on. |
+| `capture.complete` on the ranked import path | **Forced `true`**, with `method: "ledger-export"`. Not authorable from the declaration, and `publish-round.js` runs import → cards back to back so there is no seam to change it in. The refusal itself is real and lives in `generate-standings-cards.js` (`--allow-incomplete` publishes INACTIVE) — it just cannot be reached from this path. E1 and `standings/README.md` **corrected**; **E3 and E6 still carry the unqualified claim** and should be fixed when #20 is decided. |
 
 ---
 
@@ -80,6 +83,7 @@ these correct claims that earlier handoffs got wrong.
 | 4 | `frontend/src/styles.css` — delete | template | Dead file, see verified state. Leaving it invites someone to edit it and wonder why nothing changes. |
 | 5 | `scripts/utils/` — empty directory | template | Cosmetic. |
 | 6 | `backend/_to_delete/` — two staging CSVs | my-new-collection | Needs a manual `rm`; the device bridge cannot delete files on Windows. |
+| 19 | Carry `eligibility` through the ranked importer | template | One line in `import-ranked-boards.js`: `eligibility: null` → `eligibility: decl.eligibility \|\| null`. Restores what `boards.json` declares and what E1 and the README originally promised. Small, but it is the importer — wants a round re-imported to confirm nothing downstream depends on the null, which **A4 on a real collection unblocks**. Docs now describe current behaviour, so this is an improvement, not a correction. |
 
 ## Open — real work, clear scope
 
@@ -92,6 +96,7 @@ these correct claims that earlier handoffs got wrong.
 | 11 | `IntersectionObserver` for nav active state | template | `.section-nav-link.active` is styled and now visually distinct (lighter purple + pale ring), but nothing sets the class. |
 | 12 | Document the remaining post sources in the deployment guide | template | The Text Cards section now covers the full card lifecycle — column reference, compose step, `postUrl` round-trip. Still undocumented there: composing from `master.csv` (mint) and `campaigns.csv`, which have no equivalent walkthrough. Also outstanding: the Python twin per `docs/post-generator-spec.md`, and a run against a genuine Ledger export rather than a board hand-built to the documented shape. |
 | 13 | `test-collection-01` — regenerate or retire | test-collection-01 | Predates the `collectionName` change, so it no longer matches the template. Decide which. |
+| 20 | Make an incomplete capture expressible on the ranked path | template | Today `import-ranked-boards.js` forces `capture.complete: true`, so a contest round known to be missing entrants publishes as final. **Not a one-line fix:** a declaration-level `capture.complete: false` would stick every round until someone remembered to clear it, which is a worse trap than the present gap. Likely shape is a per-export marker — a sidecar or a column — so the assertion travels with the round it describes. Decide the shape first. When it lands, fix E3 and E6, which still state the claim unqualified. |
 
 ## Holding — deliberately
 
