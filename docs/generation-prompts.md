@@ -396,8 +396,8 @@ Copies of `TEMPLATE-OPEN-EDITION`. Same layout, same scripts, own data.
 | Target | Folder | Repo/site | Notes |
 |---|---|---|---|
 | **TEMPLATE-OPEN-EDITION** | `Desktop\TEMPLATE-OPEN-EDITION` | template | The source. Never run collection commands here. |
-| **my-new-collection** | `Desktop\my-new-collection` | own Netlify project | **The template test rig.** Where a template change is exercised before it reaches a live collection — so A4 run against it is the rehearsal, not the upgrade. Deployed to **mainnet** carrying four `Mechanics Test` drops with permanent on-chain names; it is not a launch candidate and its `TEST-` content is fixtures, not debris. The deployment guide was written from it. |
-| **TEMPLATE-TEST-LEDGER** | `Desktop\TEMPLATE-TEST-LEDGER` | test | Ledger-integration test copy. |
+| **my-new-collection** | `Desktop\my-new-collection` | own Netlify project | **The mainnet reference.** Not a rig and not a launch candidate — its four drops carry permanent on-chain `Mechanics Test` names. Kept live deliberately as the one place with real deployed candy machines, real Arweave URIs and a working claim UI to check behaviour against when devnet is not enough. The deployment guide was written from it. |
+| **TEMPLATE-TEST-LEDGER** | `Desktop\TEMPLATE-TEST-LEDGER` | **local only — no git remote** | **The test rig.** Where template updates are exercised before they reach live collection projects. Devnet, placeholder config, never deployed, so nothing here costs SOL or is publicly visible — and its name cannot be mistaken for production, which is why it holds this role rather than `my-new-collection`. Carries real standings coverage: four community boards, two dated rounds, a ruleset boundary with movement suppressed, and a captured `backend/baseline/`. Branch is `master`. |
 | **test-collection-01** | `Desktop\test-collection-01` | test | Scratch. |
 | *(add new rows here)* | | | |
 
