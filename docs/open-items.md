@@ -48,6 +48,28 @@ these correct claims that earlier handoffs got wrong.
 
 ---
 
+### Session 2026-08-27 — checked directly, this session
+
+| Claim | Status |
+|---|---|
+| `docs/generation-prompts.md` | **Exists**, 2,625 lines. 32 prompts in eight families (A collections, B campaigns, C content, D rankings, E contests, F posts, G dashboards, H maintenance), plus front matter: three-kinds-of-prompt, five-part output contract, filling rules, *What must already exist*, *What the output is*, and a worked-headers appendix. Every prompt's closing line spells the contract out in full, because a pasted block travels without this file's definitions. |
+| Output contract | **Five parts**, not four: runbook, disposition table, refusals, verification, **Missing inputs**. Part 5 makes the model report any value it needed and was not given — nine header fields have been added that way. Do not "simplify" it back to a file manifest. |
+| `Dashboards/new-dashboard-build-guide.md` | **Exists**, 26 KB. Architecture recommendations distilled from all five tools; driven by prompt **G5**. `Dashboards/README.md` and `new-collection-deployment-guide.md` both point at the library. |
+| `my-new-collection` — standings pipeline | **Absent.** No `backend/standings/`, no `backend/methodology/`, no `backend/post-templates/`. Missing `compose-post.js`, `set-post-url.js`, `publish-round.js`, `import-ranked-boards.js`, `import-community-boards.js`, `generate-standings-cards.js`, `generate-methodology.js`. **No contest or post prompt can run against it until A4 copies these across.** |
+| `my-new-collection/backend/textcards.csv` | **13 columns**, not 16 — missing `image`, `imageAlt`, `postUrl`. `set-post-url.js` has nothing to write into. |
+| `my-new-collection/backend/master.csv` | **21 columns**, not the template's 16 — adds `collectionAddress`, `network`, `candyMachineAddress`, `candyGuardAddress`, `treasury`. Holds **three** `collectionSlug` values (`test-mech-a`, `test-mech-b`, `test-mech`) across four rows. `collectionExternalUrl` and `sellerFeeBasisPoints` empty on all four, so every `compose-post.js` run needs `--site`. |
+| `my-new-collection/backend/config.json` | `"collectionSlug": "test-mech-b"` against `"network": "mainnet"`. Either a leftover or a live mainnet collection named for a test — unresolved. |
+| `preflight.js` vs `my-new-collection` | **Fails checks 1 and 2** — slug prefix `test-` and all four `dropItemId`s prefixed `TEST-` are reserved test prefixes. |
+| `backend/scripts/get-holders.js` and `scripts/audit-production.ps1` | **Empty files, 0 bytes.** No runbook step may depend on either. |
+| Index Portfolio history | **One recorded close per index** (21–22 Aug), across all six registry entries. **Nothing can resolve at any window length** until `daily_update.py` has run enough days to price both ends. `IDX_30D_0923` is written and carries a `post_url` but cannot settle. |
+| Index Portfolio `TECH_CONST_0923` | Title `US Tech 10 — Best Constituent, September` — `title_short` cuts at the em dash to **`US Tech 10`**, indistinguishable from the index contest in any generated post. Rename before a launch post. |
+| Downloads folder | **Cleaned.** 3.8 GB → 44 MB; 3.76 GB of re-downloadable installers deleted. 123 project files moved to `Downloads\_superseded\` in six folders (`docs-duplicates`, `docs-unfiled`, `source`, `data`, `images`, `archives`). Personal and financial files untouched by request. |
+| `Downloads\_superseded\docs-unfiled\DATA_FLOWS.md` | **Unique — no copy anywhere on Desktop.** A finished Index Portfolio document (map, per-pipeline prompt→CSV→output samples, settings, commands, "two things not built"). Worth filing into `Dashboards\Index Portfolio\`. |
+| Three locked files in Downloads | `campaigns_2.csv`, `textcards_2.csv`, `community-leaderboard-2026-08-20.csv` — copied to `_superseded\data\`, originals could not be unlinked (Windows lock). Safe to delete manually. |
+| A `.reg` file in Downloads | `01_OnlyFans_Full_DB_drive.google.com<~120 spaces>%r%r…(23).reg`, 1.2 MB. Filename padded to disguise the extension. **Not opened. Not a project file. Scan or delete.** |
+
+---
+
 ## Open — cheap, no design decisions
 
 | # | Item | Repo | Notes |

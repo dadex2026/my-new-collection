@@ -16,6 +16,7 @@ it is in one of these.
 | File | Covers | Reach for it when |
 |---|---|---|
 | **`docs/new-collection-deployment-guide.md`** (this file) | Copying and naming the collection, repo split, display name, RPC proxy, Netlify, env vars, live verification. Then the ongoing loops: Text Cards, Rankings, Methodology. | Standing up a collection, or publishing a news/update/announcement card. |
+| **`docs/generation-prompts.md`** | The AI prompt library — one block per thing that can be created (collection, drop, campaign, text card, board, contest, dashboard, post), plus the registry of every collection and dashboard. | Starting anything new, or when you want a step-by-step runbook rather than a reference. |
 | **`backend/standings/README.md`** | Board file format field by field, the two importers, `_input/` layout, **running a contest**, rank order, ties, score direction. | Anything ranked — leaderboards, standings, contests. |
 | **`docs/post-generator-spec.md`** | The `compose-post.js` contract: sources, placeholder resolution, the refusal rules, weighted character counting, the six templates. | Writing or debugging a post template. |
 | **`docs/netlify-connection.md`** | Logging into and confirming the Netlify project. | Deploy access questions. |
