@@ -594,6 +594,14 @@ Every card keeps a permanent `textCardId` that is never reused once assigned,
 even if the card is later retired — set `status` to
 `INACTIVE`/`EXPIRED`/`ARCHIVED` instead of deleting the entry.
 
+**Deleting the CSV row does not retire the card.** `generate-content-registry.js`
+seeds its map from the existing `content-registry.json` and then overlays the CSV
+rows, so it only ever adds or updates — an entry it no longer sees in the CSV is
+carried through untouched and stays live. `status` is the only thing that hides a
+card: `isTextCardVisible()` returns false for anything not `ACTIVE`. To remove a
+card from the registry outright you have to edit the JSON by hand, which is why
+the convention is to retire rather than delete.
+
 ## Ongoing content workflow — Rankings and standings
 
 Ranked boards are a separate pipeline with its own source of truth. The full

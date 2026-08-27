@@ -396,7 +396,7 @@ Copies of `TEMPLATE-OPEN-EDITION`. Same layout, same scripts, own data.
 | Target | Folder | Repo/site | Notes |
 |---|---|---|---|
 | **TEMPLATE-OPEN-EDITION** | `Desktop\TEMPLATE-OPEN-EDITION` | template | The source. Never run collection commands here. |
-| **my-new-collection** | `Desktop\my-new-collection` | own Netlify project | First real stand-up; the guide was written from it. |
+| **my-new-collection** | `Desktop\my-new-collection` | own Netlify project | **The template test rig.** Where a template change is exercised before it reaches a live collection — so A4 run against it is the rehearsal, not the upgrade. Deployed to **mainnet** carrying four `Mechanics Test` drops with permanent on-chain names; it is not a launch candidate and its `TEST-` content is fixtures, not debris. The deployment guide was written from it. |
 | **TEMPLATE-TEST-LEDGER** | `Desktop\TEMPLATE-TEST-LEDGER` | test | Ledger-integration test copy. |
 | **test-collection-01** | `Desktop\test-collection-01` | test | Scratch. |
 | *(add new rows here)* | | | |
@@ -971,8 +971,12 @@ Also state:
  - Which categories are refused from this CSV (RANKING, LEADERBOARD,
    SCOREBOARD, STANDINGS, STATS) and where those come from instead.
  - The display order: featured, then priority descending, then publishedDate.
- - That a retired card gets status INACTIVE/EXPIRED/ARCHIVED, never deletion,
-   because textCardId is permanent.
+ - That a retired card gets status INACTIVE/EXPIRED/ARCHIVED, never deletion.
+   Say plainly that this is mechanism, not etiquette: generate-content-registry.js
+   seeds its map from the EXISTING registry and then overlays the CSV rows, so it
+   only ever adds or updates. Removing a row from textcards.csv therefore leaves
+   the card in content-registry.json and live on the site. Only status hides it —
+   isTextCardVisible() drops anything whose status is not ACTIVE.
 
 Return it in the five-part output contract: numbered runbook; disposition
 table (every file, its path, created/edited/generated, and where each piece
