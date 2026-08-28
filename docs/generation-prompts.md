@@ -2483,6 +2483,9 @@ change a document, change it there — and if a mirror exists, say so rather tha
 editing both, because two copies kept in step by hand is the failure this
 paragraph exists to prevent.
 
+A prompt fault found by `docs/prompt-eval-protocol.md` arrives here as a Missing
+input or a cover item, and is registered the same way as any other.
+
 If I am registering a BATCH — several documents at once, or a run that reported
 many Missing inputs — register the set as a set: one row in the closing table
 naming the collection, and one pointer from each prompt the set serves. A row
@@ -3055,6 +3058,7 @@ The related documents, in the order you usually need them:
 | `docs/netlify-connection.md` | Deploy access |
 | `docs/worked-run-e1.md` | One complete E1 run — filled header and all five parts of the output. The concrete form of *What a good run gives back*; compare a real answer against it. **Not a source of truth** — where it and the scripts disagree, the scripts win |
 | `docs/worked-run-*.md` | **One complete run per prompt** — filled header and all five parts of the output, built against real files rather than examples. 23 of the 28 prompts have one (A3 and the four that predate this set aside): `worked-run-a1/a2/a4/a5/a6/a7`, `b1/b2`, `c1/c2`, `d1/d2/d3`, `e2/e3/e3-index/e4/e5/e6`, `f1/f2`, `g1/g2/g3/g4/g5`. Each names the project it was run against and ends with an **Appendix** of findings about its own prompt. **Not a source of truth** — where one and the scripts disagree, the scripts win |
+| `docs/prompt-eval-protocol.md` | How to test whether a prompt actually produces its worked run: paste it cold, score seven things, and classify each divergence as a prompt fault, an answer fault or a stale worked run. The worked runs say what a good answer looks like; this says how to find out whether the prompt yields one |
 | `docs/open-items.md` | Backlog, plus a verified-state table. **Delete when forking** |
 | `Dashboards\README.md` | The dashboard conventions and the AI/tool boundary |
 | `Dashboards\new-dashboard-build-guide.md` | Building a new dashboard: kind and shape, the non-negotiables, ranking and snapshot timing, re-run semantics, build order. **Prompt G5 drives it** |
