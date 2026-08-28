@@ -3,5 +3,7 @@
   "network": "devnet",
   "rpc": "https://api.devnet.solana.com",
   "treasury": "YOUR_TREASURY_ADDRESS",
-  "price": 0.01
+  "price": 0.01,
+  "symbol": "",
+  "externalUrl": ""
 }

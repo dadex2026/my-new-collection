@@ -35,11 +35,23 @@ Appendix C — reference documents (none of which you need to finish a launch)
 None of these is a preflight check. That is exactly why they get missed. Settle all four
 in writing before you copy anything.
 
-### 1. `collectionName`
+### 1. `collectionName` — and it does not live where older docs said
 
-Written on chain by `scripts/deployCoreAsset.ts` and **not renameable, ever**. If it is
-absent the code falls back to `templateName` — which is how a collection ends up minted
-as "TEMPLATE-OPEN-EDITION", permanently.
+**The on-chain name comes from `master.csv`'s `collectionName` column, first matching
+row** — `deploy-collection.js:349`, `name: firstRow.collectionName || collectionSlug`. Not
+renameable, ever. If rows disagree, the first row's value is the one minted and the others
+are silently ignored.
+
+> **Correction, 2026-08-28.** Every earlier version of this guide said the on-chain name
+> came from `template-version.json` via `scripts/deployCoreAsset.ts`, falling back to
+> `templateName`. That is wrong. `template-version.json`'s `collectionName` is read by
+> exactly two things — `frontend/vite.config.ts`, which sets the site title and `<h1>`,
+> and `deployCoreAsset.ts`, **which nothing invokes**: no npm script, no code reference,
+> no root `package.json`. Set `template-version.json` for the website. Set `master.csv`
+> for the chain. They should agree, and only one of them is permanent.
+
+`collectionImage` on that same first row becomes the collection's permanent on-chain
+`uri` (`deploy-collection.js:350`), defaulting to an empty string if blank.
 
 ### 2. The royalty rate
 
@@ -178,12 +190,14 @@ From here, `git push` only ever affects this collection.
 There is no single rename. The collection's identity lives in **seven** places; four are
 files:
 
-| Where | Field | Ships as |
-|---|---|---|
-| `template-version.json` | `collectionName` | `Template Open Edition` |
-| `backend/config.json` | `collectionSlug` | `your-collection-slug` |
-| `backend/master.csv` | `collectionSlug`, `collectionName` | `sample-collection`, `Sample Collection` |
-| `backend/standings/_input/import-config.json` | `collectionTitle`, `seasonId`, `rulesetPrefix` | `CHANGE ME` (only if you publish rankings) |
+| Where | Field | Ships as | Permanent? |
+|---|---|---|---|
+| **`backend/master.csv`** | **`collectionName`** (first row) | `Sample Collection` | **Yes — minted on chain** |
+| **`backend/master.csv`** | **`collectionImage`** (first row) | a `placehold.co` URL | **Yes — the collection's on-chain `uri`** |
+| `backend/master.csv` | `collectionSlug` | `sample-collection` | No, but it is the fallback name |
+| `backend/config.json` | `collectionSlug` | `your-collection-slug` | No |
+| `template-version.json` | `collectionName` | `Template Open Edition` | No — website title and `<h1>` only |
+| `backend/standings/_input/import-config.json` | `collectionTitle`, `seasonId`, `rulesetPrefix` | `CHANGE ME` | No (only if you publish rankings) |
 
 The other three are the folder name, the GitHub repo (Stage 2) and the Netlify site
 (Stage 8).
@@ -332,7 +346,7 @@ That check runs only when the file is present. Its silence is not a pass.
 | Flag | What it does | When it is legitimate |
 |---|---|---|
 | `--slug <name>` | Check a slug other than `config.json`'s | Multi-collection repos |
-| `--allow-warnings` | Downgrades **six** checks to warnings — see Appendix A | A deliberate test deployment. **On mainnet this is the flag that mints test data.** |
+| `--allow-warnings` | Downgrades the **seven** reserved-prefix and placeholder checks — see Appendix A | A deliberate test deployment. **On mainnet this is the flag that mints test data.** |
 | `--force` | Overrides `not_already_deployed` | An intentional re-deploy. Nothing else. |
 
 Preflight writes `force` and `allowWarnings` into `backend/logs/preflight.log` at start,
@@ -752,6 +766,9 @@ nothing that implies otherwise.
 
 # Appendix A — The sixteen preflight checks
 
+Twenty-one as of 2026-08-28 — sixteen, plus the five added when the permanent-value
+surface was enumerated (see below).
+
 | Group | Check | Notes |
 |---|---|---|
 | Project Structure | `config_exists` | |
@@ -769,7 +786,26 @@ nothing that implies otherwise.
 | | `no_placeholder_images` | Downgradable. **Placeholder art about to be minted permanently** |
 | | `no_placeholder_uris` | Downgradable |
 | Campaign Validation | `no_reserved_campaign_ids` | Downgradable; **runs only if `campaigns.csv` exists** |
+| **Permanent Values** | `no_placeholder_collection_name` | Downgradable. The name minted on chain. Word-boundary match, so "Contest Winners" passes and "Mechanics Test B" does not |
+| | `no_placeholder_collection_image` | Downgradable. Becomes the collection's permanent `uri` |
+| | `prices_parse` | **Never downgradable.** `Number(price) \|\| 0` means a typo mints free, forever |
+| | `item_names_fit_on_chain` | **Never downgradable.** `hiddenSettings.name` is `.slice(0, 32)` — over-length names are silently truncated |
+| | `max_supply_parses` | **Never downgradable.** `parseMaxSupply` falls back to unlimited, so a typo makes an unbounded open edition |
 | Deployment State | `not_already_deployed` | Network-aware; overridden by `--force` |
+
+### Why these five exist
+
+Until 2026-08-28 preflight checked `itemImage` and `uri` and **nothing else that becomes
+permanent**. A project could pass every check, with no flags, and still mint under the
+name "Sample Collection", at a price of zero, with unlimited supply, and a `placehold.co`
+URL as the collection's on-chain metadata — none of it intended, none of it reversible.
+
+That is not hypothetical. All four collections deployed to mainnet in August carry a
+`placehold.co` URL as their permanent on-chain `uri`, and were named "Mechanics Test A"
+through "D". The new checks, run against that same `master.csv`, refuse it on both counts.
+
+The lesson generalises: the question to ask of this pipeline is not *"does it run?"* — it
+demonstrably runs — but *"is every value it makes permanent one somebody chose?"*
 
 **`--allow-warnings` downgrades five checks.** Until 2026-08-28 it downgraded six: the
 sixth was `deployer_not_treasury`, an *Environment* check, which made the long-standing
