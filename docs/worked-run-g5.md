@@ -33,6 +33,24 @@ RE-RUN SEMANTICS:  rebuild
 DOWNSTREAM:        a collection's standings
 ```
 
+**Notes on the filled values:**
+
+- **`RE-RUN SEMANTICS: rebuild` against `KIND: Ledger` is deliberate.** The kinds' own
+  conventions run the other way — Part 7 of the guide says *"Sports Ledger appends.
+  Re-pasting adds rows"* — and the two are not in conflict here: rows still append to
+  the store, while every derived output is recomputed from them. It is written this way
+  because Part 7's instruction is to **choose it and write it down**, which makes this
+  the first field the answer has to stop on. Step 1 does. Do not "correct" it to
+  `append`; that removes the probe.
+- **`JOINS?: yes` against a single paste target is also deliberate.** Horse and Jockey
+  are columns of the same Meetings row, so Part 5's better answer — *design the join
+  away with a per-row outcome field* — is available, and the run is scored on whether
+  the answer reaches that call **before** building a matcher. A fixture with two paste
+  targets would make the join unavoidable and test less.
+- **No separator is declared**, though step 2's field contract table requires one for
+  every paste target. That is a finding against the prompt rather than an omission
+  here — see the appendix.
+
 ---
 
 ## PART 1 — RUNBOOK

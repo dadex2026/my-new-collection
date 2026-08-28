@@ -8,8 +8,8 @@ header, and all five parts of the output contract.
 and `backend/textcards.csv` are authoritative.
 
 Column names, flags, exit codes, statuses, error text and existing card ids were read
-from disk. The display order in §H is the one C1 states; `frontend/src/ui.engine.ts`
-was not readable in this session, so treat that one item as unverified.
+from disk. The display order in §H is the one C1 states, and it has since been
+**verified against `frontend/src/ui.engine.ts`** — see that section.
 
 **Built on `TEMPLATE-OPEN-EDITION`**, which carries the current 16-column
 `textcards.csv` and the `sample-campaign-001` row this card announces. The registry
@@ -263,8 +263,19 @@ row does not free the id; it only makes the card's history unreadable.
 `featured: TRUE, priority: 10`, and every existing template row is `FALSE, 0`, so it
 leads the grid until another featured card outranks it.
 
-*Unverified in this session — `frontend/src/ui.engine.ts` was not readable. Confirm
-there before relying on the priority tie-break.*
+**Verified** in `frontend/src/ui.engine.ts`, `getVisibleTextCards()` (lines 785-789),
+which sorts the filtered cards:
+
+```ts
+if (a.featured !== b.featured) return a.featured ? -1 : 1;
+if (a.priority !== b.priority) return b.priority - a.priority;
+return Date.parse(b.publishedDate) - Date.parse(a.publishedDate);
+```
+
+So all three keys descend: featured before unfeatured, higher priority first, newest
+`publishedDate` first. The sort runs **after** `isTextCardVisible`, the tab filter and
+the search filter — display order never resurrects a card that `status` or `expiresAt`
+has already hidden.
 
 ---
 

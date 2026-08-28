@@ -35,7 +35,9 @@ TRACK:             subject
 ENTITY TYPE:       game
 SEASON ID:         2026
 EXPORT FILE PREFIX:nfl-ranked
-ID COLUMN:         none — the Games export carries no stable id (see below)
+LABEL COLUMN:      Matchup
+SCORE COLUMN:      FinalValue
+ID COLUMN:         none — this export has no stable id column
 EXPORT HEADER ROW: Position,Date,Matchup,Winner,WinScore,Spread,Total,FinalValue,AppVersion
 
 Give me the runbook for adding this to the import path.
@@ -53,11 +55,16 @@ Give me the runbook for adding this to the import path.
   WinScore, Spread, Total, FinalValue` — plus `AppVersion`, which the Ledger stamps.
   Paste your own export's real first line rather than copying this.
 - **SEASON ID `2026`** matches what `import-config.json` already ships.
-- **EXPORT FILE PREFIX is `nfl-ranked`, not `nfl-games`.** D1's gloss calls the
-  prefix "conventionally the same as BOARD ID", but the only worked example in
-  `backend/standings/README.md` pairs `boardId: nfl-games` with
-  `filePrefix: nfl-ranked` — the board is named for what it ranks, the prefix for
-  what the source exports. Say which you are using; do not assume they match.
+- **EXPORT FILE PREFIX is `nfl-ranked`, not `nfl-games`.** D1's gloss used to call the
+  prefix "conventionally the same as BOARD ID"; **it now says the opposite** — *"often
+  NOT the same as BOARD ID: the board is named for what it ranks, the prefix for what
+  the source exports"*, citing the same `backend/standings/README.md` example that
+  pairs `boardId: nfl-games` with `filePrefix: nfl-ranked`. Say which you are using; do
+  not assume they match.
+- **LABEL COLUMN is `Matchup` and SCORE COLUMN is `FinalValue`.** Both are required
+  fields of the board declaration, and both are now collected by D1's header rather
+  than inferred from the export header row. A game has no name of its own, so the
+  matchup is the label; `FinalValue` is the number the TITLE says the board ranks by.
 - **ID COLUMN is `none` here, and that is a decision rather than a default** — the
   Sports Ledger's Games export has no stable id column. See the warning below.
 
@@ -294,12 +301,16 @@ declares a board no importer fills.
 
 | Field | Why it is needed |
 |---|---|
-| `LABEL COLUMN` | Required. Guessable from the export header only by inference — I chose `Matchup`. |
-| `SCORE COLUMN` | Required. I chose `FinalValue`. |
 | `COLLECTION TITLE` | `import-config.json`'s `collectionTitle` must be set before the first import. D1 collects the collection slug, not its display title — E1 collects both. |
 | `RULESET PREFIX` | Free choice, not derivable from the header. I used `nfl-ledger`. |
 | `RULESET KIND` / `EFFECTIVE FROM` | `baseline` is right for the first declaration, but the field is a real decision on every later one. |
 | `BLURB`, `FIELDS`, `COLUMNS` | Optional display fields; I filled them from `README.md`'s example so the board renders sensibly. |
+
+**No longer missing:** `LABEL COLUMN` and `SCORE COLUMN` were listed here until
+2026-08-28, when D1's header began collecting both. The SAMPLE HEADER above supplies
+them. **A correct answer to this prompt will not report them as gaps** — an evaluation
+scoring check 6 against an older copy of this table would book a correct answer as a
+divergence.
 
 ---
 
@@ -311,8 +322,8 @@ Not applied.
 
 | Where | Finding |
 |---|---|
-| D1 header | **Partly closed while this fixture was being written** — `EXPORT FILE PREFIX` and `ID COLUMN` were added to D1's header by another hand. Still missing: `labelColumn` and `scoreColumn`, both required fields of the file D1 exists to produce, still inferred by the model from the export header row. |
-| D1's new `EXPORT FILE PREFIX` gloss | Says the prefix is "conventionally the same as BOARD ID". The only worked example in `backend/standings/README.md` has them **different** — `nfl-games` / `nfl-ranked` — and D1's own worked header in the appendix now uses `nfl-games` for both, so the document contradicts its reference doc. Settle which is the convention. |
+| D1 header | **Closed.** `EXPORT FILE PREFIX` and `ID COLUMN` were added to D1's header by another hand while this fixture was being written; `LABEL COLUMN` and `SCORE COLUMN` — both required fields of the file D1 exists to produce, and both previously inferred by the model from the export header row — are now collected too. Verified in `generation-prompts.md` §D1. The SAMPLE HEADER above was refilled to match on 2026-08-28; a fixture that predates a header change tests the old prompt. |
+| D1's `EXPORT FILE PREFIX` gloss | **Closed — the finding was acted on and this row now records the fix.** The gloss said the prefix was "conventionally the same as BOARD ID", contradicting `backend/standings/README.md`, whose only worked example pairs `boardId: nfl-games` with `filePrefix: nfl-ranked`. Current text says *"often NOT the same as BOARD ID"* and cites that pairing; the worked header in the prompt's appendix uses `nfl-ranked` for the prefix, not `nfl-games`. Verified 2026-08-28. |
 | D1 header | Collects no `COLLECTION TITLE`, though item 1 requires setting `collectionTitle` before the first import. E1 already carries such a field, so the shape exists. |
 | D1 header | Collects no `RULESET PREFIX`. It is a free choice, not derivable from `SOURCE DASHBOARD`, and item 2's refusal is unavoidable without it. |
 | D1 item 2 | Says "declare the version the exports will carry" — worth adding that the id is `rulesetPrefix` joined to the stamp, and that `kind` is the consequential part, since it decides whether movement across the boundary is suppressed, retained, or history recomputed. |

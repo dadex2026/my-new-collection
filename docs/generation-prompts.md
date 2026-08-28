@@ -194,12 +194,12 @@ block is appended unchanged:
 ```
 I want to start a new X/Twitter contest for a collection.
 
-COLLECTION:        my-new-collection
-COLLECTION TITLE:  My New Collection
+COLLECTION:        TEMPLATE-OPEN-EDITION
+COLLECTION TITLE:  Sample Collection
 SCORING DASHBOARD: Sports Ledger (v3.5)
 CONTEST NAME:      Highest Total Contest
 BOARD ID:          weekly-total-contest
-SEASON ID:         2026-NFL
+SEASON ID:         2026
 RULESET PREFIX:    nfl-ledger
 EXPORT FILE PREFIX:contest-ranked
 EXPORT HEADER ROW: Position,Handle,Called,Pick,OffBy,AppVersion
@@ -2598,14 +2598,17 @@ paid and permanent.*
 ### A4 — Template merge
 
 ```
-COLLECTION:       my-new-collection
+COLLECTION:       TEMPLATE-TEST-LEDGER
 FEATURES WANTED:  everything since the fork
 ```
 
 *`FEATURES WANTED` accepts "everything since the fork", and that is usually
 the right answer — but say it deliberately. Whole directories the collection
 never had (`backend/standings/`, `backend/methodology/`) will not appear in a
-file-by-file diff, so the prompt has to be told to look for them.*
+file-by-file diff, so the prompt has to be told to look for them. The rig shares
+no commit with the template, so `git merge-base` cannot answer here — use the
+unrelated-histories substitute recorded in `docs/open-items.md`, and read a zero
+line count as "unchanged since the fork" rather than "identical to the template".*
 
 ---
 
@@ -2657,31 +2660,33 @@ fine in incognito is a known non-issue, not a finding.*
 ### B1 — Campaign
 
 ```
-COLLECTION:              my-new-collection
-CAMPAIGN ID:             holder-reward-001
-TITLE / HEADLINE:        Genesis Holders Claim Week One Free
-WHO QUALIFIES:           OE-001
-WHAT THEY RECEIVE:       OE-002
+COLLECTION:              TEMPLATE-OPEN-EDITION
+CAMPAIGN ID:             sample-campaign-002
+TITLE / HEADLINE:        Sample Holders Claim Week One Free
+WHO QUALIFIES:           SAMPLE-001
+WHAT THEY RECEIVE:       SAMPLE-001
 PRICE:                   0
-ALLOCATION:              132
+ALLOCATION:              10
 CLAIM LIMIT PER WALLET:  1
-NETWORK:                 mainnet
+NETWORK:                 devnet
 ```
 
 *`WHO QUALIFIES` and `WHAT THEY RECEIVE` are independent by design — a
 campaign is not required to reward the same collection that establishes
 eligibility. `ALLOCATION` funds a separate candy machine and does not consume
-the target drop's public supply.*
+the target drop's public supply. The template ships one drop item, so this
+fixture names `SAMPLE-001` on both sides — the independence is the point, not
+the values.*
 
 ---
 
 ### B2 — Airdrop
 
 ```
-COLLECTION:   my-new-collection
-DROP ITEM ID: OE-002
+COLLECTION:   TEMPLATE-OPEN-EDITION
+DROP ITEM ID: SAMPLE-001
 RECIPIENTS:   backend/recipients.csv, 48 wallets exported from get-holders
-NETWORK:      mainnet
+NETWORK:      devnet
 ```
 
 *`RECIPIENTS` must already be a written file — `recipients.csv` does not exist
@@ -2693,15 +2698,15 @@ the list has to come from somewhere else until it is written.*
 ### C1 — Text card
 
 ```
-COLLECTION:   my-new-collection
+COLLECTION:   TEMPLATE-OPEN-EDITION
 CATEGORY:     ANNOUNCEMENT
 HEADLINE:     Holder Claim Window Opens Friday
 SUBHEADLINE:  none
-CONTENT:      Genesis holders can claim Week One free from Friday 29 Aug.
-              One per wallet, 132 available, first come first served.
+CONTENT:      SAMPLE-001 holders can claim their reward free from Friday
+              29 Aug. One per wallet, ten available, first come first served.
 IMAGE:        /media/holder-claim-window.png
 IMAGE ALT:    Banner reading "Holder Claim Window Opens Friday" over the
-              Week One artwork, with 132 available beneath it
+              Week One artwork, with ten available beneath it
 FEATURED:     TRUE
 EXPIRES:      2026-09-06T23:59:59Z
 ```
@@ -2720,7 +2725,7 @@ content stops being true, not to the deadline it describes.*
 ### C2 — Methodology
 
 ```
-COLLECTION:    my-new-collection
+COLLECTION:    TEMPLATE-OPEN-EDITION
 WHAT CHANGED:  just the standings
 ```
 
@@ -2733,19 +2738,19 @@ explanation" only when the prose itself is now wrong.*
 ### D1 — Declare a ranked board
 
 ```
-COLLECTION:        my-new-collection
+COLLECTION:        TEMPLATE-OPEN-EDITION
 SOURCE DASHBOARD:  Sports Ledger (v3.5)
 BOARD ID:          nfl-games
 TITLE:             NFL · Games by Final Value
 WHAT IS RANKED:    games
 TRACK:             subject
 ENTITY TYPE:       game
-SEASON ID:         2026-NFL
+SEASON ID:         2026
 EXPORT FILE PREFIX:nfl-ranked
 LABEL COLUMN:      Matchup
 SCORE COLUMN:      FinalValue
-ID COLUMN:         GameId
-EXPORT HEADER ROW: Position,GameId,Matchup,Date,Winner,Spread,Total,FinalValue,AppVersion
+ID COLUMN:         none — this export has no stable id column
+EXPORT HEADER ROW: Position,Date,Matchup,Winner,WinScore,Spread,Total,FinalValue,AppVersion
 ```
 
 *`SOURCE DASHBOARD` carries the build for a reason — `v3.5` joins to
@@ -2759,14 +2764,20 @@ what participants collectively predicted, which no source produces yet.*
 ### D2 — Publish a round
 
 ```
-COLLECTION:   my-new-collection
-BOARD(S):     nfl-games
+COLLECTION:   TEMPLATE-TEST-LEDGER
+BOARD(S):     music-ranking
+EXPORT FILE:  music-ranking-2026-08-23.csv
 EXPORT DATE:  2026-08-23
 PATH:         import
+ALLOW INCOMPLETE?: no
 ```
 
-*`EXPORT DATE` is not a choice — it asserts that a file exists whose name
-carries that date. The round is read from the filename rather than the file's
+*This fixture had drifted from the header — it collected neither `EXPORT FILE`
+nor `ALLOW INCOMPLETE?`, both of which D2 asks for. The named export does not
+exist on the rig yet: `_input/boards/` is empty there, which is the gap
+`docs/open-items.md` tracks as "the ranked import path has never run on the
+rig". Filling it is what this fixture describes. `EXPORT DATE` is not a choice
+— it asserts that a file exists whose name carries that date. The round is read from the filename rather than the file's
 timestamp, so a copied or restored export keeps its place in the replay.*
 
 ---
@@ -2774,9 +2785,9 @@ timestamp, so a copied or restored export keeps its place in the replay.*
 ### D3 — Community leaderboard
 
 ```
-COLLECTION:        my-new-collection
+COLLECTION:        TEMPLATE-TEST-LEDGER
 SOURCE DASHBOARD:  Entertainment Ledger (v1.4)
-EXPORT FILE:       community-export-2026-08-24.csv
+EXPORT FILE:       community-leaderboard-2026-08-23.csv
 EXPORT HEADER ROW: Position,Handle,Points,Edge,Resolved,Category,AppVersion
 ```
 
@@ -2820,7 +2831,7 @@ reply carrying only a pick scores zero.*
 ### E3 — Capture a thread
 
 ```
-TARGET:            my-new-collection
+TARGET:            TEMPLATE-OPEN-EDITION
 SCORING DASHBOARD: Sports Ledger (v3.5)
 CONTEST ID:        weekly-total-contest
 CONTEST TYPE:      call the number
@@ -2860,7 +2871,7 @@ assume which post it is capturing.*
 ### E4 — Score and publish
 
 ```
-TARGET:      my-new-collection
+TARGET:      TEMPLATE-OPEN-EDITION
 CONTEST ID:  weekly-total-contest
 ROUND DATE:  2026-08-31
 ```
@@ -2874,13 +2885,13 @@ behave oppositely on a re-run. Name it precisely.*
 ### E5 — One-off board
 
 ```
-COLLECTION:       my-new-collection
+COLLECTION:       TEMPLATE-TEST-LEDGER
 BOARD ID:         nfl-w14-total-contest
 TITLE:            Week 14 Highest Total
 TRACK:            prediction
 ENTITY TYPE:      participant
-SEASON ID:        2026-NFL
-RULESET VERSION:  nfl-ledger-v3.5
+SEASON ID:        2026
+RULESET VERSION:  entertainment-ledger-v1.4
 SUBTITLE:         Actual highest total: 71 — Dolphins at Chargers
 ENTRIES:          @gridiron_gwen called 70 on Dolphins at Chargers, off by 1
                   @overunder_owen called 66 on Bills at Chiefs, off by 5
@@ -2898,7 +2909,7 @@ you, and does not check that your ranking is correct.*
 ### E6 — Close a contest
 
 ```
-TARGET:        my-new-collection
+TARGET:        TEMPLATE-OPEN-EDITION
 CONTEST ID:    weekly-total-contest
 ANNOUNCEMENT:  ANNOUNCEMENT-001
 ```
@@ -2912,7 +2923,7 @@ to tell you which card to retire. Nothing in the project closes a contest;
 ### F1 — Compose a post
 
 ```
-TARGET:    my-new-collection
+TARGET:    TEMPLATE-OPEN-EDITION
 TEMPLATE:  contest-result
 RECORD ID: weekly-total-contest
 BUDGET:    280
@@ -2928,7 +2939,7 @@ universal id field.*
 ### F2 — New post template
 
 ```
-TARGET:       my-new-collection
+TARGET:       TEMPLATE-OPEN-EDITION
 NAME:         round-recap
 SOURCE:       standings
 WHAT IT SAYS: Top three plus the biggest mover, in one short paragraph.
@@ -2949,7 +2960,7 @@ WHAT IT SCORES: Horse racing meetings and participant predictions on them
 SHAPE:          single-file HTML
 STARTING FROM:  fork of Sports Ledger (v3.5)
 PASTE TARGETS:  Meetings, Community entries, Results register
-EXPORTS:        ranked meeting boards → my-new-collection standings
+EXPORTS:        ranked meeting boards → TEMPLATE-OPEN-EDITION standings
 ```
 
 *`STARTING FROM` changes the whole runbook. A fork inherits a working scoring
@@ -3016,7 +3027,7 @@ PASTE TARGETS:     Meetings, Community entries, Results register
 RANKS?:            yes — rounds, seasons, movement
 JOINS?:            yes — predictions find results by meeting label
 RE-RUN SEMANTICS:  append
-DOWNSTREAM:        my-new-collection standings
+DOWNSTREAM:        TEMPLATE-OPEN-EDITION standings
 ```
 
 *`RE-RUN SEMANTICS` and `JOINS?` are the two answers that cannot be retrofitted.

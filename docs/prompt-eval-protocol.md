@@ -24,6 +24,40 @@ assumptions, and the answer will look better than the prompt deserves.
 collection, same ids, same dates. A different header produces a different runbook and
 the diff becomes an argument about inputs.
 
+**Grant the folders the prompt actually reads — they are not interchangeable.** Mode A
+is worthless if the answer cannot open what the prompt cites, and the grant differs per
+prompt. **G5 reads `Dashboards\`**: `new-dashboard-build-guide.md`, the `README.md` its
+own first instruction sends you to, and the five existing tools Part 0 draws on. The
+template matters only for its one cross-reference to
+`docs/new-collection-deployment-guide.md`. **D1 reads two folders**: the collection
+(`TEMPLATE-OPEN-EDITION`, for `backend/standings/` and the import path) and the source
+dashboard (`Dashboards\Sports Ledger`, where `sports-ledger-v3.5.html` makes the
+header's `v3.5` checkable). Grant one folder where the prompt spans two and you have run
+mode B without meaning to — and D1 is exactly the prompt whose vocabulary lives in one
+place and whose destination lives in the other.
+
+**In mode B, omit that line and every other file path.** Naming a file tells the
+model the file exists, which cues the very refusal mode B is trying to catch. The mode B
+paste is the header alone, in a chat with no folder granted and nothing else said.
+
+**Tell it not to open the answer key.** `docs/worked-run-*.md` and this file live inside
+the folder mode A grants, so an unrestricted session can score itself against the
+document you are about to score it with. End the pasted prompt with one line: *"Do not
+open docs/worked-run-*.md or docs/prompt-eval-protocol.md."*
+
+**The pasted block must be self-contained.** A header lifted out of a worked run can
+carry a `(see below)` that pointed at a note further down that *document* — below
+nothing, in a fresh chat. The session then invents the rationale or stops to ask, and
+either way the divergence is a defect in what you pasted rather than a prompt fault.
+Read the fence for dangling pointers before sending it.
+
+**Know which contradictions in the fixture are deliberate.** G5 declares `KIND: Ledger`
+with `RE-RUN SEMANTICS: rebuild`, and `JOINS?: yes` against a single paste target whose
+Horse and Jockey are columns of the same row. Both are intentional — they are the two
+places the answer is meant to stop and decide — and that worked run's *Notes on the
+filled values* say so. Settle whether a tension is a probe or a typo **before** the run;
+afterwards the answer is unscoreable either way.
+
 **Run it twice, in two modes.** They test different things:
 
 | Mode | Session | What it tests |
@@ -92,6 +126,7 @@ Keep it to one row. The value is the trend, not the prose.
 | | C1 | B | | — | | | | | | |
 | | E3 | A | | | | | | | | |
 | | G5 | A | | — | | | | | | |
+| | D1 | A | | — | | | | | | |   *(optional — the two-folder case)*
 
 A prompt fault found is the point of the exercise; a clean run means the prompt is
 carrying its weight, which is worth knowing and not worth writing up.
@@ -108,3 +143,8 @@ carrying its weight, which is worth knowing and not worth writing up.
 
 **Driven by no prompt.** This is a method, not a generator — the closest thing to it in
 the library is **H1**, which registers what this finds.
+
+**To hand the outstanding runs to another session**, use `docs/eval-run-handoff.md`: the
+four unrun blocks with their folder grants, where to point check 5, the known results
+that must not be re-filed as new findings, and the done-list. It is a work order against
+this method, and it goes stale as runs complete — this file stays the method.
