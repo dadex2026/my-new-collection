@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-18T17:13:14.572Z",
+  "generatedAt": "2026-08-28T05:27:59.670Z",
   "campaigns": [
     {
       "campaignId": "test-combined-check",
@@ -22,7 +22,7 @@
       "treasury": "7XJJvj5N4aBMNyX9g5NZqSEzi9vY6vYxWydezMZvC4n9",
       "claimLimitId": "",
       "claimLimit": null,
-      "claimed": 3
+      "claimed": null
     },
     {
       "campaignId": "test-mech-c-reward",
@@ -45,7 +45,7 @@
       "treasury": "",
       "claimLimitId": "1",
       "claimLimit": 1,
-      "claimed": 0
+      "claimed": null
     },
     {
       "campaignId": "test-mech-d-reward",
@@ -68,7 +68,7 @@
       "treasury": "",
       "claimLimitId": "1",
       "claimLimit": 1,
-      "claimed": 0
+      "claimed": null
     },
     {
       "campaignId": "test-page-004",
