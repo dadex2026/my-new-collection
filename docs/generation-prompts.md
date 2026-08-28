@@ -1542,7 +1542,11 @@ the concrete form of *What a good run gives back* above.
 ```
 I want to start a new X/Twitter contest on Index Portfolio.
 
-CONTEST ID:      <___>
+CONTEST ID:      <___ — the date suffix is the RESOLVE date, not the lock
+                  date: IDX_30D_0923 resolves 2026-09-23 and locks a month
+                  earlier. Every contest in the project follows this; nothing
+                  enforces it, and a reader who assumes otherwise will report
+                  a mismatch that is not one>
 TITLE:           <___ — put the distinguishing part BEFORE the em dash>
 QUESTION:        <___>
 KIND:            <index | constituent>
