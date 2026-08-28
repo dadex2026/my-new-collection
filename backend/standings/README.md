@@ -145,7 +145,9 @@ version the exports carry:
 ```
 
 Skip this and the import stops with *ruleset not declared in rulesets.json —
-tried "nfl-ledger-v1.0"*. That refusal is the point: an unfamiliar build becomes
+tried "v1.0" and "nfl-ledger-v1.0"*. The importer tries the bare stamp first,
+then the prefixed form, and names both — which also tells you whether
+`rulesetPrefix` is set the way you think it is. That refusal is the point: an unfamiliar build becomes
 a decision rather than something stamped with a stale value.
 
 **3 — `_input/boards.json`.** Seven fields are required: `boardId`, `title`,
@@ -163,7 +165,11 @@ Position,GameId,Matchup,Date,Winner,Spread,Total,FinalValue,AppVersion
 Three requirements the prose above implies without stating:
 
 - **A column named literally `Position`.** Not configurable. Rows lacking it
-  are dropped.
+  are dropped **silently** — unlike every other failure here, nothing is
+  reported, so the check is comparing the export's row count against the
+  published board's entry count. Note also that the example row above carries a
+  `GameId`; the Sports Ledger's documented Games export does not include one, so
+  a stable id is something to ask the source for rather than assume.
 - **A `YYYY-MM-DD` in the filename.** No date is a hard error — the round is
   read from the name rather than file mtime, so a copied or restored export
   keeps its place in the replay.

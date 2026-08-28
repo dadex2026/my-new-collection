@@ -257,7 +257,7 @@ in the prompt's own header, ten lines further down.
 | **D3** Community board | The Ledger export · its column labels, for `columnMap` |
 | **E1** Open a contest | One sample export from the scoring dashboard, to read its column labels for `EXPORT HEADER ROW` — only when declaring a new series. An existing series needs nothing; it is otherwise the one phase with no artifact |
 | **E2** Index contest | Enough recorded history to resolve the window — check `leaderboard.py --dry-run` first |
-| **E3** Capture a thread | **The captured replies *and* quote posts** · the extraction prompt from the **scoring dashboard's** `prompts/` — never the collection's, which has none |
+| **E3** Capture a thread | **The captured replies *and* quote posts** · the extraction prompt from the **scoring dashboard's** `prompts/` — never the collection's, which has none · the post itself, named by URL rather than assumed |
 | **E4** Score and publish | The scored export, or a settled `leaderboard.py` run |
 | **E5** One-off board | The scored entries, already in rank order |
 | **E6** Close a contest | The announcement's `textCardId` · results published |
@@ -276,6 +276,22 @@ and a partial capture does not merely lose those entrants, it distorts every
 other participant's difficulty multiplier. D2 and G4 both refuse an export
 whose filename carries no `YYYY-MM-DD`, because the round is read from the
 name rather than the file's timestamp.
+
+### Where `capture.complete` can actually be set
+
+Three prompts lean on this flag — **E3**, **D2** and **E6** — and it is not
+available on all three paths. Checked against the importers, not inferred:
+
+| Path | `capture.complete` |
+|---|---|
+| Hand-written board (**E5**) | **Authorable.** You write it; `false` refuses a final standing. |
+| Community board (**D3**) | **Set from the export.** Refusal applies. |
+| Ranked import (**D1/D2**) | **Not authorable.** `import-ranked-boards.js` writes `true` unconditionally, and `publish-round.js` runs the import and the card generator back to back, so there is no seam to change it in. |
+| Index Portfolio (**E2/E3/E4**) | **Does not exist.** Nothing in that project reads or writes it; `lock_at` plus the run report is what stands in, and neither can see a reply you never captured. |
+
+So on the path most contests use, the flag is not a safeguard you are choosing
+to trust — it is a value you cannot set. Say so rather than implying a control
+that isn't there.
 
 **What a good run gives back**, so you can tell a real answer from an
 improvised one: the finished `boards.json` declaration with all seven required
@@ -332,6 +348,29 @@ every refusal the engine performs.
 
 Same shape as the rule one level up: the AI extracts and drafts; the tools
 compute and publish.
+
+**The whole chain, stated once here because no single prompt states it end to
+end:**
+
+```
+CSV row (content) → compose-post.js → you read the draft → you post it on X
+→ set-post-url.js → push again
+```
+
+**Nothing in this project posts to X.** No script holds a credential or touches
+an API; the step between drafting and recording is a person reading the draft
+and posting it by hand. `set-post-url.js` exists precisely because that step
+happens outside the project — it takes the URL back afterwards. Automating it
+would mean putting credentials in the repo and giving up the read-before-post
+checkpoint, which is a decision to make deliberately, not a gap to fill.
+
+**And the url comes back to exactly one place** — the record the post belongs
+to: `postUrl` in `backend/textcards.csv` for a text card, written by
+`set-post-url.js`; `post_url` in the contest JSON for an Index Portfolio
+contest, written by `compose_post.py --record-url`. A prompt that asks for a
+post url in its header — **E3** does — is asking you to copy it from there, not
+to keep a second copy of it. If it is empty at that end, the launch step was
+never finished, and that is the thing to fix rather than to work around.
 
 ---
 
@@ -497,6 +536,8 @@ FOLDER NAME:                                      <___>
 GITHUB REPO:                                      <___>
 NETLIFY SITE NAME:                                <___>
 TREASURY WALLET:                                  <___>
+RPC PROXY URL (the Worker from A5):               <___ — never the template's own,
+                                                  which ships in deployment.json>
 NETWORK (devnet | mainnet):                       <___>
 WILL IT PUBLISH RANKINGS? (yes | no):             <___>
 SEASON ID (only if rankings):                     <___>
@@ -512,11 +553,15 @@ Cover, in order:
     deploy-state.json, registry.json). State plainly that these commands
     must run in the NEW folder, and what happens if they run in the
     template by mistake.
- 2. deployment.json — which keys to remove, which to set.
+ 2. deployment.json — which keys to remove (assetAddress, and createdAt, which
+    is stamped on creation rather than copied), which to set.
  3. The name in every place it lives: template-version.json collectionName,
     backend/config.json collectionSlug, backend/master.csv, and
-    backend/standings/_input/import-config.json if rankings are on. Give me
-    the three git grep commands that prove none of the placeholders survive.
+    backend/standings/_input/import-config.json if rankings are on. Include
+    backend/config.json's price, which ships as a live 0.01 and is easy to
+    leave. Give me the four git grep commands that prove nothing survives:
+    the three placeholder strings, and api-key= — a keyed RPC URL in a VITE_
+    value is baked into the public bundle.
  4. Replacing the sample content: the master.csv row, the campaigns.csv row,
     the six textcards.csv rows, deleting the EXAMPLE standings board and
     docs/open-items.md.
@@ -529,7 +574,8 @@ Cover, in order:
  8. The Netlify project: base directory frontend, build npm run build,
     publish ../dist, and project visibility.
  9. The environment variables, with VITE_REGISTRY_URL called out as the one
-    with no fallback in code.
+    with no fallback in code — and name the symptom, because that is what I
+    will actually see: the browser requests a URL literally named /undefined.
 10. Live verification of all five JSON endpoints, and which 404s are normal.
 
 Flag every step that cannot be undone, and say what makes it permanent.
@@ -542,6 +588,9 @@ become.
 ```
 
 **Reference:** `docs/new-collection-deployment-guide.md` · `docs/netlify-connection.md` · `template-version.json` · `schema.json`
+
+**A full worked run of this prompt** — filled header and all five parts of
+the output — is in `docs/worked-run-a1.md`.
 
 **Traps this prompt exists to catch:** `deployment.json` ships pointing at the
 template's own on-chain asset and nothing errors if you leave it; `origin`
@@ -569,6 +618,8 @@ ROYALTY (bps):     <500 = 5%>
 ITEM EXTERNAL URL: <___, or none>
 MINT STATUS:       <ready | paused>
 IMAGE:             <local file, or "not yet">
+SITE URL:          <___ — only if collectionExternalUrl is empty on the
+                    existing rows; this is the value that would fix it>
 
 Give me the runbook for appending this as a row to backend/master.csv and
 getting it visible on the site.
@@ -593,13 +644,19 @@ Cover:
    empty, warn me that {siteUrl} and {methodologyUrl} cannot resolve and every
    compose-post.js run will need --site.
  - Whether my dropItemId or the collectionSlug would fail preflight.js — it
-   refuses reserved test prefixes on both.
+   refuses reserved test prefixes on both: test-, demo-, sample- for the slug
+   and TEST-, DEMO-, SAMPLE- for the id. Name --allow-warnings as the
+   downgrade and say plainly that it is not a fix.
  - maxSupply: how "unlimited" is represented, and that "∞" / "infinity" are
    forbidden values per schema.json.
  - Whether the drop is publishable now or needs the production pipeline in
    A3 first — decide from whether the image is real.
- - node backend/scripts/generate-registry.js, and what it writes to
-   frontend/public/registry.json.
+ - node backend/scripts/generate-registry.js, and what it writes: backend/
+   registry.json by default, plus a best-effort copy into
+   frontend/public/registry.json when that directory exists — the frontend
+   reads the copy, so a missing one shows a stale site with no error. Note
+   that minted is null unless --fetch-minted, and that null means "check
+   on-chain", not zero.
  - The commit and push, and the hard refresh afterwards.
 
 Return it in the five-part output contract: numbered runbook; disposition
@@ -610,6 +667,9 @@ should become.
 ```
 
 **Reference:** `backend/master.csv` · `schema.json` · `backend/scripts/generate-registry.js` · `frontend/public/registry.json`
+
+**A full worked run of this prompt** — filled header and all five parts of
+the output — is in `docs/worked-run-a2.md`.
 
 ---
 
@@ -690,8 +750,18 @@ Cover:
    types.ts, main.ts, config.json, master.csv).
  - Whole directories a diff loop will never surface because the collection
    simply does not have them — currently backend/standings/,
-   backend/methodology/, and the scripts that serve them. Tell me to check
-   for missing directories explicitly.
+   backend/methodology/, backend/post-templates/ (all six templates, without
+   which nothing composes), and the scripts that serve them. Tell me to check
+   for missing directories explicitly, with a directory-level diff of backend/
+   and backend/scripts/.
+ - A template feature that arrives INSIDE a file I must never replace
+   wholesale: textcards.csv gaining image, imageAlt and postUrl takes the
+   header from 13 columns to 16. The merge is mechanical — append the three
+   names to the header and a trailing ,, to every existing row — and a
+   wholesale replace destroys my card rows.
+ - template-version.json gaining collectionName on an ALREADY-MINTED
+   collection: add the key with the name that is already on chain, never a
+   corrected one.
  - Deleting docs/open-items.md and the EXAMPLE standings board if they came
    across.
  - A test pass after the merge, before pushing.
@@ -704,6 +774,9 @@ should become.
 ```
 
 **Reference:** `docs/new-collection-deployment-guide.md` Step 5 · `.gitattributes`
+
+**A full worked run of this prompt** — filled header and all five parts of
+the output — is in `docs/worked-run-a4.md`.
 
 ---
 
@@ -723,9 +796,13 @@ Give me the runbook.
 Cover:
  - npx wrangler deploy, and the two variables: HELIUS_API_KEY (encrypted,
    required — without it the Worker returns 500) and CORS_ALLOW_ORIGIN.
- - The CORS logic in full: it is all-or-nothing per request, so the list must
-   contain every legitimate origin — production, any custom domain, and
-   http://localhost:5173. Explain what happens to Netlify deploy previews,
+ - The CORS logic in full: matching is EXACT STRING and all-or-nothing per
+   request, so a trailing slash, a www. prefix or http versus https fails
+   silently, and the list must contain every legitimate origin — production,
+   any custom domain, and http://localhost:5173. Say plainly what an UNSET
+   CORS_ALLOW_ORIGIN means: the Worker falls back to Access-Control-Allow-Origin
+   '*', open to every site and every quota-spender, which is the state reached
+   by doing nothing. Explain what happens to Netlify deploy previews,
    whose subdomains cannot be enumerated in advance, and give me the explicit
    choice rather than a default.
  - Every place the Worker URL has to be written, per collection:
@@ -746,6 +823,9 @@ should become.
 ```
 
 **Reference:** `docs/new-collection-deployment-guide.md` Step 7 · `Desktop\rpc-proxy`
+
+**A full worked run of this prompt** — filled header and all five parts of
+the output — is in `docs/worked-run-a5.md`.
 
 ---
 
@@ -778,6 +858,14 @@ Cover:
  - That Vite bakes env vars in at build time, so any change needs a fresh
    deploy to take effect.
  - Project visibility, if the deployed site returns 401.
+ - First, whether the project already EXISTS: .netlify/state.json holds a
+   siteId and `netlify status` from inside the folder names the linked site.
+   Picking up an inherited collection is at least as common as creating one.
+ - That publish is ../dist because it is relative to the BASE directory —
+   setting dist produces a green build that publishes nothing.
+ - Updating docs/netlify-connection.md, which ships with a
+   <project-name>.netlify.app placeholder and is the file someone reads later
+   to find the site.
 
 Return it in the five-part output contract: numbered runbook; disposition
 table (every file, its path, created/edited/generated, and where each piece
@@ -787,6 +875,9 @@ should become.
 ```
 
 **Reference:** `netlify.toml` · `docs/netlify-connection.md` · `.netlify/state.json`
+
+**A full worked run of this prompt** — filled header and all five parts of
+the output — is in `docs/worked-run-a6.md`.
 
 ---
 
@@ -814,6 +905,14 @@ Cover:
    CORS_ALLOW_ORIGIN on the Worker, not anything on Netlify.
  - The two known non-issues: the LF/CRLF warning on git add, and a 401 from
    an automated fetch when a real browser loads the site fine.
+ - FRESHNESS, because every status code can be green while the content is
+   weeks behind: compare the published card count against textcards.csv's
+   rows, and the published campaign count against the rows carrying a deployed
+   candy machine address. Neither needs a browser.
+ - Before concluding a 404 is the expected empty state, check backend/ for the
+   directory: a feature that was never forked in 404s identically to one that
+   has simply not published yet, and the remedies differ (A4 versus publishing
+   a round).
 
 Return it in the five-part output contract: numbered runbook; disposition
 table (every file, its path, created/edited/generated, and where each piece
@@ -823,6 +922,9 @@ should become.
 ```
 
 **Reference:** `docs/new-collection-deployment-guide.md` Step 10
+
+**A full worked run of this prompt** — filled header and all five parts of
+the output — is in `docs/worked-run-a7.md`.
 
 ---
 ---
@@ -845,7 +947,9 @@ WHO QUALIFIES:           <eligibility dropItemId or collection>
 WHAT THEY RECEIVE:       <target dropItemId>
 PRICE:                   <0 for free, or SOL>
 ALLOCATION:              <how many rewards exist>
-CLAIM LIMIT PER WALLET:  <___>
+CLAIM LIMIT PER WALLET:  <___ — this is the --claim-limit flag on the deploy
+                          command, not a column I fill; the CSV's claimLimit is
+                          written back by the script>
 NETWORK:                 <devnet | mainnet>
 
 Give me the runbook, from CSV row to live claim button to announcement post.
@@ -853,12 +957,18 @@ Give me the runbook, from CSV row to live claim button to announcement post.
 Cover:
  1. The backend/campaigns.csv row — all 21 columns in header order, with my
     values placed and the display-text columns distinguished from the
-    functional ones. Be explicit about which of eligibilityDropItemId,
+    functional ones. I have given you two display values; DRAFT the other
+    seven (description, eligibilityText, rewardText, priceText,
+    allocationText, claimText, soldOutText) and show them to me to approve,
+    because campaign-launch.txt composes the entire launch post out of them —
+    and warn me that a priceText saying FREE beside a price of 0.001 deploys
+    paid and announces free, with nothing erroring. Be explicit about which of eligibilityDropItemId,
     targetDropItemId, eligibilityCollection and targetCollection do the
     actual gating.
  2. Why eligibility and target are independent parameters — a campaign is not
     required to reward the same collection that establishes eligibility.
- 3. node backend/scripts/deploy-campaign.js — what it creates on chain, and
+ 3. node backend/scripts/deploy-campaign.js --campaign <campaignId>
+    [--claim-limit N] — what it creates on chain, and
     why it is its own candy machine rather than a guard group on the target
     drop's existing one (the two supply pools must not share a counter).
  4. node backend/scripts/generate-campaigns-registry.js →
@@ -878,6 +988,9 @@ should become.
 ```
 
 **Reference:** `backend/campaigns.csv` · `backend/scripts/deploy-campaign.js` · `generate-campaigns-registry.js` · `frontend/public/campaigns.json` · `backend/post-templates/campaign-launch.txt`
+
+**A full worked run of this prompt** — filled header and all five parts
+of the output — is in `docs/worked-run-b1.md`.
 
 ---
 
@@ -905,7 +1018,17 @@ Cover:
  - Idempotency and resumability: backend/airdrop-history.csv logs every
    attempt, success or failure, and a re-run only processes what is
    outstanding.
- - A dry-run or small-batch rehearsal before the real list.
+ - A dry-run or small-batch rehearsal before the real list — and that the
+   rehearsal is where the cost basis comes from. The fee is a few thousand
+   lamports; the larger component is ASSET RENT, which is not a number this
+   project can supply, so read the deployer balance before and after a
+   two-wallet batch rather than multiplying an estimate by the list.
+ - That the resume key is wallet + dropItemId, so the same list is outstanding
+   again for a different drop.
+ - --slug, which says which collectionSlug in master.csv this airdrop belongs
+   to when the file holds more than one.
+ - That airdrops leave registry.json and the site's minted count untouched,
+   since only public mints run through the candy machine's supply tracking.
 
 Return it in the five-part output contract: numbered runbook; disposition
 table (every file, its path, created/edited/generated, and where each piece
@@ -915,6 +1038,9 @@ should become.
 ```
 
 **Reference:** `backend/scripts/airdrop.js` · `backend/recipients.csv` · `backend/airdrop-history.csv`
+
+**A full worked run of this prompt** — filled header and all five parts of
+the output — is in `docs/worked-run-b2.md`.
 
 **Note:** `recipients.csv` and `airdrop-history.csv` do not exist in a fresh
 template checkout — you create the first, the script creates the second.
@@ -933,6 +1059,9 @@ template checkout — you create the first, the script creates the second.
 I want to publish a new text card.
 
 COLLECTION:   <target from the registry>
+TEXT CARD ID: <___ — permanent, never reused, and the number sequence is
+               GLOBAL rather than per-category: read the file and take the next
+               one, whatever the prefix>
 CATEGORY:     <NEWS | UPDATE | ANNOUNCEMENT | ANALYSIS>
 HEADLINE:     <___>
 SUBHEADLINE:  <___ or none>
@@ -940,17 +1069,27 @@ CONTENT:      <___>
 IMAGE:        <https:// url, or a site-relative /path, or none>
 IMAGE ALT:    <required if IMAGE is set — what the picture shows>
 FEATURED:     <TRUE | FALSE>
+PRIORITY:     <integer, default 0 — display order is featured, then priority
+               descending, then publishedDate, so this is half the ordering>
+PUBLISHED DATE: <ISO — required by the generator>
+AUTHOR:       <___ or none>
+TAGS:         <pipe|delimited|not|commas, or none>
+SITE URL:     <___ — needed for compose-post's --site whenever
+               collectionExternalUrl in master.csv is still a placeholder>
 EXPIRES:      <ISO date, or none>
 
-Give me the four-step lifecycle runbook — write the row, compose the post,
-publish the card, link the post back.
+Give me the five-step lifecycle runbook — write the row, compose the post,
+post it on X myself, publish the card, link the post back.
 
 Cover:
  A. The backend/textcards.csv row: all 16 columns in header order, a unique
     textCardId that will never be reused, tags pipe-delimited not
     comma-delimited, and the trailing commas an optional-column row still
-    needs. Tell me that a comma anywhere in my text requires the whole field
-    double-quoted, and that imageAlt is required if image is set. If I gave a
+    needs. Start by counting the header: a collection copied before image,
+    imageAlt and postUrl existed has 13 columns, not 16, and step E cannot run
+    at all until A4 brings the newer schema. Tell me that a comma anywhere in
+    my text requires the whole field double-quoted, and that imageAlt is
+    required if image is set. If I gave a
     site-relative IMAGE path, tell me the file it must exist at under
     frontend/public/ and that it has to be committed — a path that is right in
     the CSV and missing from the repo renders a broken image with no error
@@ -960,10 +1099,14 @@ Cover:
     Note that this reads textcards.csv directly, not the registry, so it works
     before the generator has run. Add --site if collectionExternalUrl in
     master.csv is still a placeholder. Explain the character report on stderr.
- C. node backend/scripts/generate-content-registry.js, then the git add of
+ C. Me posting it on X, by hand. Nothing here posts for me — no script holds
+    a credential — so say so rather than leaving a runbook that jumps from a
+    drafted post to a tweet url with no step in between. Tell me to read the
+    draft before it goes out; that reading is the point of the boundary.
+ D. node backend/scripts/generate-content-registry.js, then the git add of
     textcards.csv + backend/content-registry.json +
     frontend/public/content-registry.json, commit, push, hard refresh.
- D. node backend/scripts/set-post-url.js <textCardId> <tweet url>, then push
+ E. node backend/scripts/set-post-url.js <textCardId> <tweet url>, then push
     again. Tell me plainly that this second push is the step most often
     skipped and it is the entire reason the postUrl column exists.
 
@@ -986,6 +1129,9 @@ should become.
 ```
 
 **Reference:** `backend/textcards.csv` · `backend/scripts/generate-content-registry.js` · `set-post-url.js` · `compose-post.js` · `backend/post-templates/announcement.txt` · `frontend/src/ui.engine.ts`
+
+**A full worked run of this prompt** — filled header and all five parts
+of the output — is in `docs/worked-run-c1.md`.
 
 **Card ownership — get this wrong and work is silently overwritten:**
 
@@ -1015,8 +1161,14 @@ Cover:
    and everything that could go stale is re-derived from the standings
    themselves — which boards exist, which ruleset produced each, which export
    files they came from, the eligibility minimum, the ruleset changelog.
- - So: edit methodology.json only when the explanation changes; never
-   hand-write a derived fact into it.
+ - So: the authored half is TWO files. methodology.json is the TEMPLATE's —
+   leave it alone in a collection, so template improvements to the shared
+   sections keep arriving on version bump. Collection wording goes in
+   methodology/overrides.json, merged by section id: patch by reusing an id,
+   add with a new id (optionally "after": "<id>"), remove with "remove": true.
+   The two sections expected to be collection-specific are how-scored and
+   boards; editing any other one is a sign the change belongs upstream.
+   Never hand-write a derived fact into either file.
  - That this must run after ANY standings change, and that publish-round.js
    already runs it for exactly that reason.
  - The output: frontend/public/methodology.json, reached from the site's
@@ -1031,6 +1183,9 @@ should become.
 ```
 
 **Reference:** `backend/methodology/methodology.json` · `backend/scripts/generate-methodology.js` · `frontend/public/methodology.json`
+
+**A full worked run of this prompt** — filled header and all five parts of
+the output — is in `docs/worked-run-c2.md`.
 
 ---
 ---
@@ -1053,6 +1208,18 @@ WHAT IS RANKED:    <games | racing | poker | player stats | categories | …>
 TRACK:             <subject | consensus | prediction | reporting>
 ENTITY TYPE:       <game | player | team | participant | …>
 SEASON ID:         <___>
+EXPORT FILE PREFIX:<___ — what each round's export filename starts with, before
+                    the YYYY-MM-DD. Required in the declaration, and often NOT
+                    the same as BOARD ID: the board is named for what it ranks,
+                    the prefix for what the source exports. standings/README.md
+                    pairs boardId nfl-games with filePrefix nfl-ranked>
+LABEL COLUMN:      <___ — the export column holding the entity's name. Required
+                    in the declaration, and the default matching key>
+SCORE COLUMN:      <___ — the export column holding the ranked value. Required.
+                    A closest-call contest has no score; see the note below>
+ID COLUMN:         <the column holding a stable identity, or "none — the label
+                    is the identity". See the idColumn warning below: this is
+                    the field that costs a season when it is wrong>
 EXPORT HEADER ROW: <paste the export's first line, verbatim>
 
 Give me the runbook for adding this to the import path.
@@ -1095,6 +1262,9 @@ should become.
 
 **Reference:** `backend/standings/README.md` · `_input/import-config.json` · `_input/rulesets.json` · `backend/scripts/import-ranked-boards.js`
 
+**A full worked run of this prompt** — filled header and all five parts
+of the output — is in `docs/worked-run-d1.md`.
+
 ---
 
 ## D2 — Publish a round
@@ -1104,8 +1274,12 @@ I want to publish a round of standings.
 
 COLLECTION:   <target from the registry>
 BOARD(S):     <boardIds, or "all">
+EXPORT FILE:  <___ — the file being moved into _input/boards/; the date alone
+               does not name it>
 EXPORT DATE:  <YYYY-MM-DD>
 PATH:         <import | hand-written one-off>
+ALLOW INCOMPLETE?: <no | yes — publishes affected cards INACTIVE for review
+               instead of as a final standing>
 
 Give me the runbook.
 
@@ -1117,14 +1291,24 @@ Cover:
    import-ranked-boards.js → generate-standings-cards.js →
    generate-methodology.js, in that order, stopping at the first failure,
    with every log line still printing. Use --from standings for a
-   hand-written board with no export to import.
+   hand-written board with no export to import. Note that any other flag is
+   passed through to every step, which is how --allow-incomplete reaches the
+   card generator.
+ - What a board declared in boards.json with no matching export does: it logs
+   "No exports matching prefix ... — board not published this run" and the run
+   ends with a hint about putting dated exports in boards/. That is a warning,
+   not a failure, and it is the commonest state in a collection with more
+   declarations than rounds — say so, because it reads as a failure.
  - Every artifact written: backend/standings/<boardId>.json,
    backend/content-registry.json, frontend/public/content-registry.json,
    frontend/public/standings.json, frontend/public/methodology.json.
  - The refusals, and why each one is correct:
    · capture.complete false is a hard failure — a response never captured is
      indistinguishable from a participant who did not play. --allow-incomplete
-     publishes it INACTIVE for review instead of as a final standing.
+     publishes it INACTIVE for review instead of as a final standing. Tell me
+     which path I am on: on the ranked import path the flag is written true
+     unconditionally and this refusal cannot fire (see "Where
+     capture.complete can actually be set").
    · Entries not in rank order are refused, because that usually means the
      list was re-sorted by score after ranking, which breaks the movement
      column. Note that this catches a shuffled file, not a wrong one —
@@ -1155,6 +1339,9 @@ should become.
 
 **Reference:** `backend/scripts/publish-round.js` · `import-ranked-boards.js` · `generate-standings-cards.js` · `generate-methodology.js` · `backend/standings/README.md`
 
+**A full worked run of this prompt** — filled header and all five parts of
+the output — is in `docs/worked-run-d2.md`.
+
 **A `STANDINGS-` card must never be hand-edited** — the next
 `generate-standings-cards.js` run overwrites it. Edit the board file in
 `backend/standings/` and re-run. The full ownership table, covering all three
@@ -1168,8 +1355,13 @@ kinds of card that share `content-registry.json`, is under **C1**.
 I want to build the participant leaderboard from a Ledger export.
 
 COLLECTION:        <target from the registry>
-SOURCE DASHBOARD:  <Sports Ledger | Entertainment Ledger | other>
+SOURCE DASHBOARD:  <Sports Ledger | Entertainment Ledger | other — with its
+                    build stamp, which is what joins rulesetPrefix into a
+                    declared ruleset id>
 EXPORT FILE:       <___>
+EVIDENCE ROWS FILE:<___ — _input/rows/community-predictions-YYYY-MM-DD.csv.
+                    Without it the boards build and every entry silently loses
+                    its evidence object>
 EXPORT HEADER ROW: <paste the export's first line, verbatim>
 
 Give me the runbook for node backend/scripts/import-community-boards.js —
@@ -1181,8 +1373,17 @@ Cover:
  - The columnMap in _input/import-config.json, and exactly why it exists:
    Sports Ledger writes FinalPoints / SkillEdge / Predictions where
    Entertainment Ledger writes Points / Edge / Resolved. Give me the
-   columnMap for MY source. Note mapping is additive — original headers stay
-   — and a source already using the logical names needs no entry.
+   columnMap for MY source. The key is the logical name the importer reads and
+   the value is the source's header, not the other way round. Note mapping is
+   additive — original headers stay — and a source already using the logical
+   names needs no entry.
+ - That the export's ruleset must be declared here too: this importer refuses
+   an undeclared version exactly as the ranked one does, and an export taken
+   before the source stamped AppVersion resolves through import-config.json's
+   rulesetVersion fallback.
+ - That movement is suppressed by any rule-change in the SPAN, not just at the
+   ends: a rule-change sitting between two export-only versions suppresses
+   movement even though neither endpoint names it.
  - minPicks in import-config.json and the provisional threshold it sets.
  - The evidence object attachEvidence() hangs off every entry — per-prediction
    timestamp, late, pending, counts, settledBy, excludedReason, and a link to
@@ -1201,6 +1402,9 @@ should become.
 ```
 
 **Reference:** `backend/scripts/import-community-boards.js` · `_input/import-config.json` · `backend/standings/README.md`
+
+**A full worked run of this prompt** — filled header and all five parts of
+the output — is in `docs/worked-run-d3.md`.
 
 ---
 ---
@@ -1345,12 +1549,20 @@ Cover:
    --id <ID>. Tell me which template to use — compact for a free account,
    contest-launch-numeric for a numeric contest (a numeric contest needs a
    percentage, and a reply with only a pick scores zero).
+ - Me reading the draft and posting it on X, by hand. Nothing here posts for
+   me, so say so rather than jumping from a composed draft to a recorded url
+   with no step between them.
  - The four things the post must contain and why each earns its place: the
    exact contest id, the field spelled exactly as in the JSON, the trade
    range, and the lock time with a timezone.
  - Recording the url back: py scripts\compose_post.py --id <ID> --record-url
    <url>. Without it the record knows a contest exists but not where its
-   picks came from.
+   picks came from. This is the ONE home for that url on this path — the
+   contest JSON's post_url, which leaderboard.py reads and the dashboard links
+   from — and E3 reads its X POST value back from here rather than keeping a
+   second copy. The script refuses to overwrite a different url without
+   --force, on the stated grounds that losing the link to the thread the picks
+   actually came from is worse than a stopped run.
  - Exit codes: 0 composed, 1 could not compose, 2 over budget. --out never
    writes an over-budget post.
 
@@ -1363,6 +1575,9 @@ should become.
 
 **Reference:** `Dashboards\Index Portfolio\CONTEST_RUNBOOK.md` · `POST_GENERATOR.md` · `LEADERBOARD.md` · `scripts\leaderboard.py` · `scripts\compose_post.py` · `post-templates\`
 
+**A full worked run of this prompt** — filled header and all five parts of
+the output — is in `docs/worked-run-e2.md`.
+
 ---
 
 ## E3 — Capture a thread and extract rows
@@ -1374,18 +1589,25 @@ should become.
 ```
 I want to capture an X contest thread and turn it into rows.
 
-TARGET:            <collection or dashboard from the registry>
-SCORING DASHBOARD: <where the round is scored — the extraction prompt lives
-                    here, not with the collection. Same as TARGET only when
-                    the target IS the dashboard>
+TARGET:            <target from the registry — the registry value verbatim,
+                    not the display title>
+SCORING DASHBOARD: <where the round is scored, with its build stamp — the
+                    extraction prompt lives here, not with the collection.
+                    Same as TARGET only when the target IS the dashboard>
 CONTEST ID:        <___ — character for character. On the collection path
-                    this is the boardId>
+                    this is the boardId, the same string declared as BOARD ID
+                    in E1>
 CONTEST TYPE:      <pick the winner | call the number>
-LOCK TIME:         <___>
+LOCK TIME:         <date, time, timezone>
+X POST:            <url of the thread being captured — copied from where it is
+                    already recorded, never invented here. Index Portfolio: the
+                    contest JSON's post_url. Collection: the announcement
+                    card's postUrl in textcards.csv. Empty there means the
+                    launch step was never finished>
 
  — fill the one that matches the path —
 EVENT LABEL:       <collection path: the exact Sport/Event label every row
-                    carries, identically>
+                    carries, identically. Copy it, never retype it>
 THE FIELD:         <Index Portfolio path: the exact ids entrants pick from,
                     or "numeric">
 
@@ -1403,8 +1625,15 @@ because the two use different vocabulary and different destinations:
    changes the scores of everyone who is in it.
  - That the AI extracts only — it never scores, never ranks, never decides
    who won.
+ - Which surface each step happens at. Everything — the extraction prompt,
+   the paste, the resolve, the flag, the export — happens at the SCORING
+   DASHBOARD; the TARGET is read once, for the contest id, and is not opened
+   again. Tell me what it looks like when I have the two the wrong way round.
  - capture.complete: that flag is MY assertion that I got everyone, and
-   setting it false correctly refuses to publish a final standing.
+   setting it false correctly refuses to publish a final standing. It exists
+   on the COLLECTION path only — nothing in Index Portfolio has it — so on
+   that path say what stands in instead (lock_at, plus the run report), and
+   that neither can see a reply I never captured.
  - Optionally restricting replies on the X post, which is the only real close
    and is a manual action in X's own interface.
 
@@ -1412,15 +1641,23 @@ because the two use different vocabulary and different destinations:
   - The extraction prompt from the SCORING DASHBOARD's own prompts/ folder —
     a collection has no prompts/ folder and never will. Name the file, and
     name the build it is verified against.
-  - Its one blank is the EVENT LABEL, not a contest id. Warn me that the
-    median is computed per label, so two spellings split one contest into two
+  - Its blanks are the EVENT LABEL, not a contest id — and check that prompt
+    for a second block before you run it: the Sports Ledger's asks for a
+    REFERENCE TEAM whenever the predictions are margins or spreads, so "one
+    blank" holds for a total and not for a margin. Warn me that the median is
+    computed per label, so two spellings split one contest into two
     populations and silently change everyone's error scale. Nothing errors.
-  - The field contract, in order, and what a wrong field count does.
+  - The field contract, in order, and what a wrong field count does —
+    including the case that does not error: a row missing the tool's newest
+    field may still parse, take that field's default, and silently forfeit
+    what it carried.
   - That the rows are PASTED INTO THE LEDGER'S paste box — they are not saved
     as a file at this step. No dated file exists until the export, which is
     prompt G4.
-  - That the result column stays TBD at capture time and is filled afterwards
-    with the Ledger's bulk resolve control, which only ever fills a blank.
+  - That the result column — `Actual`, in the Sports Ledger — stays TBD at
+    capture time and is filled afterwards with the Ledger's bulk resolve
+    control, its **Resolve results** box, which only ever fills a blank. Use
+    the tool's own names for both, not paraphrases.
 
  INDEX PORTFOLIO PATH:
   - prompts/leaderboard-paste-prompt.md, and its three blanks: CONTEST ID
@@ -1442,6 +1679,11 @@ should become.
 
 **Reference:** `Dashboards\Index Portfolio\CONTEST_RUNBOOK.md` Phases 3–4 · `Dashboards\<scoring dashboard>\prompts\` · `backend/standings/README.md`
 
+**A full worked run of this prompt on the collection path** — filled header and
+all five parts of the output — is in `docs/worked-run-e3.md`. The Index Portfolio
+path is worked separately in `docs/worked-run-e3-index.md`, because the two use
+different vocabulary and different destinations.
+
 **The extraction prompt never lives with the collection.** Collections have no
 `prompts/` folder — the prompt belongs to the tool that scores, and its blanks
 are that tool's vocabulary. That is why `SCORING DASHBOARD` is a separate field
@@ -1458,6 +1700,8 @@ I want to score and publish the results of a contest.
 TARGET:      <collection or dashboard from the registry>
 CONTEST ID:  <___>
 ROUND DATE:  <YYYY-MM-DD>
+POST URL:    <___ — recorded at the end, into postUrl or post_url; leave blank
+              until the result post exists>
 
 Give me the runbook for whichever pipeline this target uses, and say which
 one it is before you start.
@@ -1487,10 +1731,21 @@ IF INDEX PORTFOLIO (Python pipeline):
    the contest is measured against.
  - On or after resolve_date, run leaderboard.py again to settle it.
  - py scripts\compose_post.py contest-result --id <ID>, which refuses until
-   the contest is scored.
+   the contest is scored — and there are TWO refusals, not one: no scored
+   output at all ("run leaderboard.py first"), and a result whose status is not
+   settled, which is what I hit running too early on the right day. Then me
+   reading it and posting it AS A REPLY to the announcement thread, exactly as
+   on the collection branch — nothing posts it for me.
  - Warn me off --mock: it writes synthetic rows into the real history,
    constituent-history and latest files and rewrites data-state, and contests
    resolve from exactly those files. Use --help to smoke-test instead.
+
+EITHER WAY, before I write a word of the post:
+ - In a NUMERIC contest the board's top scorer may have picked the losing
+   option, because the score is the accuracy of the number and not the pick.
+   The project's own worked example does exactly this. Check the winner
+   sentence against the board before composing — it is the likeliest way a
+   correct board produces a wrong post.
 
 EITHER WAY, on ties:
  - Ranking is competition-style: two entries sharing a position both take the
@@ -1512,6 +1767,9 @@ should become.
 
 **Reference:** `backend/scripts/publish-round.js` · `compose-post.js` · `backend/post-templates/contest-result.txt` · `Index Portfolio\scripts\leaderboard.py` · `compose_post.py`
 
+**A full worked run of this prompt** — filled header and all five parts of
+the output — is in `docs/worked-run-e4.md`.
+
 ---
 
 ## E5 — One-off contest, hand-written
@@ -1526,6 +1784,10 @@ TRACK:            <subject | consensus | prediction | reporting>
 ENTITY TYPE:      <participant | team | player | …>
 SEASON ID:        <___>
 RULESET VERSION:  <the declared version that scored this round>
+CUT-OFF TIME:     <___ with timezone — goes in eligibility.note, and is what
+                   any lateness decision rests on>
+TIEBREAK:         <___ — competition ranking will show three people at rank 1
+                   and will not choose between them>
 SUBTITLE:         <the answer, so a reader can check the arithmetic>
 ENTRIES:          <handle, what they called, what they picked, error>
 
@@ -1535,7 +1797,10 @@ Cover:
  - That I am choosing this path deliberately, and the cost: if this contest
    ever recurs, starting it here means round 2 shows every entrant as "new".
    If there is any chance of recurrence, tell me to use the import path
-   instead even for round one.
+   instead even for round one — and if I have already hand-written round one,
+   give me the two repairs: back-fill it as a dated export so the replay sees
+   both rounds, or accept one round of missing arrows and let it correct
+   itself from round three.
  - The board file at backend/standings/<boardId>.json — every required field
    (boardId, title, track, entityType, seasonId, rulesetVersion, entries) and
    the optional ones worth setting for a contest (subtitle, eligibility.note,
@@ -1551,9 +1816,15 @@ Cover:
  - Since a hand-written board carries no evidence object, if lateness could
    be contested put the posted time in fields ("Posted": "…") and state the
    cut-off in eligibility.note. Both publish and cost nothing either way.
+ - That eligibility and capture publish from HERE and nowhere else on the
+   ranked path: import-ranked-boards.js writes eligibility: null and
+   capture.complete: true unconditionally, so a minEntries or note declared in
+   boards.json never reaches an imported board — which is why the tiebreak
+   must also go in the announcement content there.
  - node backend/scripts/publish-round.js --from standings — the flag exists
    for exactly this case, because there is no export to import.
- - Then compose-post.js contest-result --id <boardId>.
+ - Then compose-post.js contest-result --id <boardId>, me reading it, and me
+   posting it as a reply to the announcement thread. Nothing posts it for me.
 
 Return it in the five-part output contract: numbered runbook; disposition
 table (every file, its path, created/edited/generated, and where each piece
@@ -1563,6 +1834,9 @@ should become.
 ```
 
 **Reference:** `backend/standings/README.md` "One-off" and "Writing the entries" · `backend/scripts/publish-round.js`
+
+**A full worked run of this prompt** — filled header and all five parts of
+the output — is in `docs/worked-run-e5.md`.
 
 ---
 
@@ -1574,6 +1848,9 @@ I want to close a contest cleanly.
 TARGET:        <collection or dashboard from the registry>
 CONTEST ID:    <___>
 ANNOUNCEMENT:  <the textCardId of the opening card>
+RESULTS DATE:  <___ — expiresAt goes PAST this, never on the entry deadline>
+POST URL:      <___ — the result post, for set-post-url.js; blank until it
+                exists>
 
 Give me the closing runbook.
 
@@ -1585,8 +1862,13 @@ up on their own —
    announcement's content, enforced by nobody. A reply at 12:01 is excluded
    because I closed my capture, not because anything rejected it.
  · capture.complete is my assertion that I got everyone, and setting it false
-   correctly refuses to publish a final standing.
- · expiresAt does not mean closed. It only hides the card.
+   correctly refuses to publish a final standing — but tell me whether this
+   contest's path lets me set it at all. On the ranked import path it does not
+   (see "Where capture.complete can actually be set").
+ · expiresAt does not mean closed. It only hides the card — and afterwards
+   the row still reads ACTIVE, so textcards.csv cannot tell me the card is
+   hidden. Only the renderer knows. Tell me to check for a past expiresAt on
+   an ACTIVE row before assuming the announcement is up.
 
 Then the sequence:
  1. At the stated time, capture the replies — copy them somewhere before
@@ -1598,7 +1880,9 @@ Then the sequence:
  5. compose-post.js contest-result, read it, post it as a reply to the
     announcement thread.
  6. Retire the announcement card if I left expiresAt empty — status INACTIVE,
-    never deletion, because textCardId is permanent.
+    never deletion, because textCardId is permanent. The six valid statuses are
+    DRAFT, SCHEDULED, ACTIVE, INACTIVE, EXPIRED, ARCHIVED; anything else fails
+    the generator with unknown_status.
 
 And note that removing the contest's board file marks its card ARCHIVED on
 the next run rather than deleting it, so a finished contest stays readable.
@@ -1611,6 +1895,9 @@ should become.
 ```
 
 **Reference:** `backend/standings/README.md` "Closing a contest"
+
+**A full worked run of this prompt** — filled header and all five parts of
+the output — is in `docs/worked-run-e6.md`.
 
 ---
 ---
@@ -1637,7 +1924,11 @@ Cover:
    · text card        → backend/textcards.csv     --id matches textCardId
    · standings        → frontend/public/standings.json  --id matches boardId
    There is no universal id field. Authored content is sourced from its CSV;
-   generated content is sourced from its published artifact.
+   generated content is sourced from its published artifact — so a standings
+   post composed before publish-round.js silently composes the PREVIOUS round.
+   Note too that RECORD ID's kind is decided by TEMPLATE: where one string is
+   both a dropItemId and a textCardId, the pair is ambiguous to a reader and
+   not to the tool.
  - stdout for the post, stderr for the character report, so
    "> post.txt" gives a clean file with the budget still on screen. --out does
    the same without the redirect.
@@ -1653,6 +1944,11 @@ Cover:
    not exist in the template and read the error — it lists every available
    field, and on a standings board it lists THAT board's entry fields.
  - --site when collectionExternalUrl in master.csv is still the placeholder.
+ - That what this produces is a DRAFT. Nothing in this project posts to X — no
+   script holds a credential — so the last step is always me reading it and
+   posting it by hand, then recording the url where that content type keeps
+   it: set-post-url.js for a text card, --record-url for an Index Portfolio
+   contest (which writes post_url into the contest JSON).
 
 Return it in the five-part output contract: numbered runbook; disposition
 table (every file, its path, created/edited/generated, and where each piece
@@ -1662,6 +1958,9 @@ should become.
 ```
 
 **Reference:** `docs/post-generator-spec.md` · `backend/scripts/compose-post.js` · `backend/post-templates/`
+
+**A full worked run of this prompt** — filled header and all five parts of
+the output — is in `docs/worked-run-f1.md`.
 
 ---
 
@@ -1691,7 +1990,12 @@ Cover:
  - That a standings board declares its own columns, so a template hardcoding
    {score} breaks on a board that does not publish one. Resolve the available
    fields from the board being rendered, and check with the
-   unknown-placeholder trick before shipping the template.
+   unknown-placeholder trick before shipping the template. Available fields
+   come from the ENTRY OBJECT, not from columns — entries also carry entityId
+   and previousRank, and columns governs only what the card displays.
+ - That movement in standings.json is a raw {state, delta} object, not the
+   formatted string a card carries: the engine mirrors formatMovement() from
+   generate-standings-cards.js, and the two must be kept in step.
  - That an entry's extra columns live in a nested fields object and are
    flattened onto the row — this is how Winner, Spread, Total reach a post.
  - The methodology requirement: any template sourced from standings MUST
@@ -1711,6 +2015,9 @@ should become.
 ```
 
 **Reference:** `docs/post-generator-spec.md` · `backend/post-templates/`
+
+**A full worked run of this prompt** — filled header and all five parts of
+the output — is in `docs/worked-run-f2.md`.
 
 ---
 ---
@@ -1788,7 +2095,11 @@ because it changes what the folder contains:
    collection's standings, its labels must either match the logical names or
    get a columnMap entry in that collection's _input/import-config.json.
    Inheriting the parent's labels silently inherits the parent's columnMap
-   requirement. Name which collections are affected.
+   requirement. Name which collections are affected, and give me the labels to
+   decide now, while changing them is a text edit rather than a re-export.
+ - Give me the inherited-term review as a TABLE I can paste into the README —
+   term, what it means in the parent, what it means here — because that is the
+   output of this branch and there is nowhere else to record it.
  - Re-verify every prompt against the fork before shipping, per the corollary
    above. An inherited prompt that still parses is not evidence it is right.
 
@@ -1800,6 +2111,9 @@ should become.
 ```
 
 **Reference:** `Desktop\Dashboards\README.md` · the parent tool's own `README.md` and its *Sibling project* section
+
+**A full worked run of this prompt** — filled header and all five parts of
+the output — is in `docs/worked-run-g1.md`.
 
 **G1 stands the project up; it does not build the tool.** The architecture, the scoring boundary, ranking and snapshot timing, re-run semantics and the build order are in `Dashboards\new-dashboard-build-guide.md`, driven by prompt **G5**.
 
@@ -1837,7 +2151,15 @@ Cover:
    project keeps them.
  - Whether any downstream collection's standings import is affected — a
    changed column label needs a columnMap entry, and a changed AppVersion
-   needs a rulesets.json declaration on the collection side.
+   needs a rulesets.json declaration on the collection side, with a KIND and
+   an effectiveFrom. The kind is the consequential part: export-only retains
+   movement, rule-change suppresses it across that boundary permanently, and
+   bug-fix recomputes history. Ask me which collections consume this tool —
+   the declaration lands in another project's repo, possibly several.
+ - The acceptance rule for the test-data pass: in a build where no formula
+   changed, every number must match exactly and a difference is a regression;
+   in a build where one did, the expected values are part of the change and I
+   update them deliberately.
 
 Return it in the five-part output contract: numbered runbook; disposition
 table (every file, its path, created/edited/generated, and where each piece
@@ -1847,6 +2169,9 @@ should become.
 ```
 
 **Reference:** `Desktop\Dashboards\README.md` · the project's own `README.md` and `_superseded/`
+
+**A full worked run of this prompt** — filled header and all five parts of
+the output — is in `docs/worked-run-g2.md`.
 
 ---
 
@@ -1869,10 +2194,13 @@ It must:
  - State the one rule up front: the AI extracts, the tool scores. No prompt
    ever asks for points, totals, positions, percentages or rank changes.
  - Give the output contract as a table: which box, which field order.
- - State the format rules explicitly — pipe-delimited (commas and tabs parse
-   but pipes are the only separator safe when a value contains a comma), one
-   line per entity, no header row, no numbering, no bullets, no commentary,
-   no code fence. Dates YYYY-MM-DD and optional.
+ - State the format rules explicitly. THE SEPARATOR IS THE TARGET TOOL'S, not
+   a house rule: Entertainment Ledger's prompts are pipe-delimited (pipes being
+   the only separator safe when a title contains a comma), while Sports Ledger
+   and Index Portfolio are comma-separated, and the Index prompt requires empty
+   fields to keep their commas. Read it off the box you are writing for and say
+   which you chose. Then: one line per entity, no header row, no numbering, no
+   bullets, no commentary, no code fence. Dates YYYY-MM-DD and optional.
  - Name every place the AI is allowed to add information it was not given,
    and put an accuracy guardrail on each. If there are none, say so.
  - Include a worked example: a realistic source snippet and the exact lines
@@ -1890,6 +2218,9 @@ should become.
 ```
 
 **Reference:** `Dashboards\<target>\prompts\` · `Dashboards\README.md` "Before trusting a number"
+
+**A full worked run of this prompt** — filled header and all five parts of
+the output — is in `docs/worked-run-g3.md`.
 
 ---
 
@@ -1910,13 +2241,23 @@ Cover:
    what shape a ranked export has: Position first, a label column, a value
    column, extras after.
  - The move into <collection>\backend\standings\_input\boards\ with the
-   filePrefix and the YYYY-MM-DD in the filename. This is a manual step; the
+   filePrefix and the YYYY-MM-DD in the filename. Warn me that filePrefix is
+   usually NOT the board id — the platform's own example pairs boardId
+   nfl-games with filePrefix nfl-ranked — and that a wrongly-prefixed file is
+   not an error, it is simply never selected.
+ - That rows lacking Position are DROPPED SILENTLY, unlike every other failure
+   here, so the check is comparing the export's row count against the
+   published board's entry count. This is a manual step; the
    date places the round in the movement replay, which is why it is read from
    the name and not from file mtime.
  - The column-name check: does this source use the labels the board
    declaration expects? Sports writes FinalPoints / SkillEdge / Predictions,
    Entertainment writes Points / Edge / Resolved. If they differ, the fix is
-   a columnMap in _input/import-config.json, not a renamed file.
+   a columnMap in _input/import-config.json, not a renamed file. Check the
+   BOARD declaration rather than the tool's reputation: a ranked Games board
+   declares labelColumn Matchup and scoreColumn FinalValue, which the export
+   already uses, so it needs no map — the three-way rename bites on community
+   boards, where the logical names are fixed.
  - The AppVersion column: it joins to rulesetPrefix, so v1.0 resolves to
    <prefix>-v1.0, and that version must be declared in _input/rulesets.json
    or the import stops. Tell me the exact refusal.
@@ -1930,6 +2271,9 @@ should become.
 ```
 
 **Reference:** `Dashboards\<target>\exports\` · `backend/standings/_input/` · `backend/scripts/import-ranked-boards.js`
+
+**A full worked run of this prompt** — filled header and all five parts of
+the output — is in `docs/worked-run-g4.md`.
 
 ## G5 — Build the tool itself
 
@@ -1982,10 +2326,11 @@ that already went wrong here:
  - If it ranks: competition ranking, ties stand, movement rendered and never
    invented, and the MANUAL-ADD path re-snapshots — not just the paste path.
    Every clear path takes explicit snapshot keys, never prefix-derived.
- - If it joins: exact matching with case, spacing and punctuation normalised,
-   never fuzzy. Nothing auto-matches. An unmatched row is named back to me
-   with a suggested fix. But first tell me whether the join can be designed
-   away with a per-row outcome field instead of two tables.
+ - If it joins: FIRST tell me whether the join can be designed away with a
+   per-row outcome field instead of two tables — that answer decides whether
+   any of the matching rules are needed at all. If it cannot: exact matching
+   with case, spacing and punctuation normalised, never fuzzy. Nothing
+   auto-matches. An unmatched row is named back to me with a suggested fix.
  - Settings as standalone variables plus one plain overrides object. Never
    Object.assign over a defaults object containing a nested object.
  - Companion files prefixed with the project name, from the first file.
@@ -2003,6 +2348,9 @@ as the verification section.
 ```
 
 **Reference:** `Dashboards\new-dashboard-build-guide.md` · `Dashboards\README.md` · the nearest existing tool's `*-extraction-summary.md`
+
+**A full worked run of this prompt** — filled header and all five parts of
+the output — is in `docs/worked-run-g5.md`.
 
 **Two things this prompt will make you decide, and both are expensive later:**
 re-run semantics (rebuild like Index Portfolio, or append like Sports Ledger —
@@ -2106,6 +2454,20 @@ one:
 End by listing every file you changed, and remind me that these documents are
 updated in place, never versioned — one copy of each, always matching what is
 on disk.
+
+THE CANONICAL COPY IS `TEMPLATE-OPEN-EDITION\docs\`. That is where this file
+and every companion document live and are edited. Any copy of them under
+another project is a mirror, not a second original: it may be read, it must not
+be edited, and where the two disagree the template's copy wins. If I ask you to
+change a document, change it there — and if a mirror exists, say so rather than
+editing both, because two copies kept in step by hand is the failure this
+paragraph exists to prevent.
+
+If I am registering a BATCH — several documents at once, or a run that reported
+many Missing inputs — register the set as a set: one row in the closing table
+naming the collection, and one pointer from each prompt the set serves. A row
+per file makes the index unscannable, which defeats the check by satisfying
+it.
 
 Return it in the five-part output contract: numbered runbook; disposition
 table (every file, its path, created/edited/generated, and where each piece
@@ -2352,6 +2714,10 @@ WHAT IS RANKED:    games
 TRACK:             subject
 ENTITY TYPE:       game
 SEASON ID:         2026-NFL
+EXPORT FILE PREFIX:nfl-ranked
+LABEL COLUMN:      Matchup
+SCORE COLUMN:      FinalValue
+ID COLUMN:         GameId
 EXPORT HEADER ROW: Position,GameId,Matchup,Date,Winner,Spread,Total,FinalValue,AppVersion
 ```
 
@@ -2403,12 +2769,14 @@ See **A completed header** near the top of this file.
 ### E2 — Open a contest on Index Portfolio
 
 ```
-CONTEST ID:      IDX_30D_0923
+CONTEST ID:      IDX_30D_EXAMPLE
 TITLE:           30-Day Index Showdown — September
 QUESTION:        Which index posts the highest 30-day return by 23 September?
 KIND:            index
 SCORING MODE:    categorical
 FIELD:           US_TECH_10, US_REIT_8, CRYPTO_L1, COMMODITY_5
+                 (an illustrative field — a real contest's field is copied from
+                  its own JSON, never from an example)
 WINDOW:          30d
 RESOLVE DATE:    2026-09-23
 LOCK AT:         2026-09-16T20:00:00-05:00
@@ -2430,6 +2798,7 @@ SCORING DASHBOARD: Sports Ledger (v3.5)
 CONTEST ID:        weekly-total-contest
 CONTEST TYPE:      call the number
 LOCK TIME:         Sunday 31 Aug 2026, 12:00 ET
+X POST:            https://x.com/dadex2026/status/1961234567890123456
 
  — fill the one that matches the path —
 EVENT LABEL:       NFL
@@ -2445,13 +2814,19 @@ with nothing erroring.*
 *On the Index Portfolio path the header reads
 `TARGET: Index Portfolio` / `SCORING DASHBOARD: Index Portfolio` /
 `CONTEST ID: IDX_30D_0923` / `THE FIELD: US_TECH_10, US_REIT_8, CRYPTO_L1,
-MULTI_STRATEGY_FUNDS_6, MEME_COIN_5, COMMODITY_5` — `THE FIELD` instead of
+MULTI_STRATEGY_FUNDS_6, MEME_COIN_5, COMMODITY_5` — copied from that contest
+JSON's own `field` array, which is the only authority. Note that
+`CONTEST_RUNBOOK.md` Phase 1 and E2's worked header both show a shorter,
+illustrative field for this same id; copy from the JSON, never from an
+example — `THE FIELD` instead of
 `EVENT LABEL` beneath the same divider, because that pipeline picks from a
 declared list rather than labelling one event.*
 
 *`LOCK TIME` is the whole basis of any lateness decision either way, and this
 is the one step that cannot be redone: a thread captured three days late
-cannot be un-captured.*
+cannot be un-captured — so it carries date, time and timezone, never a bare
+wall-clock time. `X POST` names the thread rather than leaving the runbook to
+assume which post it is capturing.*
 
 ---
 
@@ -2592,7 +2967,7 @@ read.*
 
 ```
 SOURCE DASHBOARD:  Sports Ledger (v3.5)
-COLLECTION:        my-new-collection
+COLLECTION:        TEMPLATE-TEST-LEDGER
 BOARD:             nfl-games
 ROUND DATE:        2026-08-30
 ```
@@ -2659,6 +3034,7 @@ The related documents, in the order you usually need them:
 | `docs/post-generator-spec.md` | The `compose-post.js` contract: sources, placeholders, refusals, character budget |
 | `docs/netlify-connection.md` | Deploy access |
 | `docs/worked-run-e1.md` | One complete E1 run — filled header and all five parts of the output. The concrete form of *What a good run gives back*; compare a real answer against it. **Not a source of truth** — where it and the scripts disagree, the scripts win |
+| `docs/worked-run-*.md` | **One complete run per prompt** — filled header and all five parts of the output, built against real files rather than examples. 23 of the 28 prompts have one (A3 and the four that predate this set aside): `worked-run-a1/a2/a4/a5/a6/a7`, `b1/b2`, `c1/c2`, `d1/d2/d3`, `e2/e3/e3-index/e4/e5/e6`, `f1/f2`, `g1/g2/g3/g4/g5`. Each names the project it was run against and ends with an **Appendix** of findings about its own prompt. **Not a source of truth** — where one and the scripts disagree, the scripts win |
 | `docs/open-items.md` | Backlog, plus a verified-state table. **Delete when forking** |
 | `Dashboards\README.md` | The dashboard conventions and the AI/tool boundary |
 | `Dashboards\new-dashboard-build-guide.md` | Building a new dashboard: kind and shape, the non-negotiables, ranking and snapshot timing, re-run semantics, build order. **Prompt G5 drives it** |
