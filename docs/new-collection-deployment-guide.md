@@ -1,96 +1,103 @@
-# Spinning Up a New Collection from TEMPLATE-OPEN-EDITION
+# Launching a Collection from TEMPLATE-OPEN-EDITION
 
-This is the operational playbook for taking a copy of `TEMPLATE-OPEN-EDITION`,
-turning it into a standalone, deployable NFT collection project, and getting
-it live on its own Netlify site. It was written from the process used to
-stand up `my-new-collection`, and applies to any future collection started
-the same way (a folder copy of the template, customized with real config).
+**The one guide.** Copy the template, configure it, mint it on chain, put it on the
+web, and run it. Start to finish, in the order the steps must happen. Nothing here
+sends you to another document to complete a step.
 
-## Where things are documented
+Everything through **Stage 6** is free and reversible. **Stage 7 spends money and writes
+the chain permanently.** The boundary is marked, and it is the only one that matters.
 
-This file is the front door, not the whole manual. It covers standing a
-collection up and the day-to-day content loop; two other files carry detail
-that would swamp it. If you are looking for something and it is not below,
-it is in one of these.
+---
 
-| File | Covers | Reach for it when |
+## Contents
+
+| Stage | What it does | Reversible? |
 |---|---|---|
-| **`docs/new-collection-deployment-guide.md`** (this file) | Copying and naming the collection, repo split, display name, RPC proxy, Netlify, env vars, live verification. Then the ongoing loops: Text Cards, Rankings, Methodology. | Standing up a collection, or publishing a news/update/announcement card. |
-| **`docs/generation-prompts.md`** | The AI prompt library — one block per thing that can be created (collection, drop, campaign, text card, board, contest, dashboard, post), plus the registry of every collection and dashboard. | Starting anything new, or when you want a step-by-step runbook rather than a reference. |
-| **`docs/runs/worked-run-e1.md`** | One prompt from that library — **E1**, opening an X contest — run end to end: the filled header, and all five parts of the output it should return. | Checking whether an answer a prompt gave you is a real run or an improvised one. |
-| **`docs/runs/README.md`** | The worked-run folder — 29 complete runs, one per prompt in that library, each against real files and each ending with findings about its own prompt. Index, family map, and the rules for changing anything in there. | Running a prompt for the first time, or checking whether an answer it gave you is real. |
-| **`docs/runs/prompt-eval-protocol.md`** | How to test a prompt cold against its worked run, and how to tell a prompt's fault from an answer's. | After changing a prompt's header, after a tool ships a build, or when a runbook in the wild produced a wrong answer. |
-| **`backend/standings/README.md`** | Board file format field by field, the two importers, `_input/` layout, **running a contest**, rank order, ties, score direction. | Anything ranked — leaderboards, standings, contests. |
-| **`docs/post-generator-spec.md`** | The `compose-post.js` contract: sources, placeholder resolution, the refusal rules, weighted character counting, the six templates. | Writing or debugging a post template. |
-| **`docs/netlify-connection.md`** | Logging into and confirming the Netlify project. | Deploy access questions. |
-| **`docs/open-items.md`** | Backlog, plus a **verified state** table of facts checked against the code. | Picking up work, or before trusting a claim in an inherited handoff. |
+| **0** | Decide the four permanent things | — |
+| **1** | Copy the template, strip what shouldn't travel | yes |
+| **2** | Split into its own repo | yes |
+| **3** | Set identity — the seven places the name lives | yes |
+| **4** | Replace the sample content | yes |
+| **5** | Point the RPC at the proxy | yes |
+| **6** | Preflight — the gate | free, read-only |
+| **7** | **The mint — spends, permanent** | **no** |
+| **8** | Netlify site and environment variables | yes |
+| **9** | Verify — chain, site, and drift | yes |
+| **10** | Ongoing: text cards, rankings, methodology | yes |
 
-Two of those are easy to miss and worth naming outright. **Contests are not
-documented here** — the whole workflow, from board file to results post, lives
-in `backend/standings/README.md`. And **`docs/open-items.md` records several
-claims that earlier handoffs got confidently wrong**; check it before acting on
-anything a previous session asserted.
+Appendix A — the sixteen preflight checks · Appendix B — known non-issues ·
+Appendix C — reference documents (none of which you need to finish a launch)
 
-Delete `docs/open-items.md` when forking — it tracks template maintenance, not
-collection content.
+---
 
-## Why this needs a deliberate process, not just "copy and deploy"
+# Stage 0 — Decide the four permanent things
 
-A collection folder that started life as a copy of the template usually still
-has `git`'s `origin` remote pointing at the **template's own GitHub repo**,
-not a repo of its own. If that's left as-is:
+None of these is a preflight check. That is exactly why they get missed. Settle all four
+in writing before you copy anything.
 
-- A plain `git push` from inside the collection folder pushes that
-  collection's config, CSVs, and generated data straight into the shared
-  template repository — corrupting the template for every future collection
-  built from it.
-- There is no dedicated place for this collection's own deploy history,
-  issues, or collaborators.
+### 1. `collectionName`
 
-So step one, always, is separating the collection into its own repo before
-doing anything else with git or Netlify.
+Written on chain by `scripts/deployCoreAsset.ts` and **not renameable, ever**. If it is
+absent the code falls back to `templateName` — which is how a collection ends up minted
+as "TEMPLATE-OPEN-EDITION", permanently.
 
-## Step 1 — Copy the template and name the collection
+### 2. The royalty rate
 
-> **Every command in Steps 1–10 runs in the *new collection's* folder, never in
-> `TEMPLATE-OPEN-EDITION` itself.** Step 1 is the exception that creates that
-> folder — the `Copy-Item` below runs from anywhere, and everything after it
-> runs inside the copy.
+`sellerFeeBasisPoints` is **per-row in `master.csv` but collection-wide on chain**.
+`deploy-collection.js` warns when rows disagree, then silently uses the first row's
+value. The sample row ships `500` — 5%. Decide the number, then make it identical on
+every row. `0` attaches no Royalties plugin at all.
+
+### 3. The mint price, and which field actually sets it
+
+**The price charged is `row.price` in `master.csv`** (`deploy-candy-machine.js:279`).
+`config.json`'s `price` field is **required to be present** (`deploy-collection.js:171`)
+but is **never read as the price**. Set both to the same number so nobody later trusts
+the wrong one.
+
+### 4. Deployer keypair custody
+
+The deployer wallet is the collection's authority. Back it up somewhere that survives
+this machine, **before** Stage 7. No check covers this, and it is unrecoverable.
+
+> Also decide, if the launch will have them: **rewards** (holder campaigns need
+> `backend/scripts/get-holders.js`, which is **0 bytes** today — see Stage 10) and
+> **rankings** (`rulesetPrefix` ships as `CHANGE ME`; the feature is undeclared, not
+> broken). Neither blocks a mint. Both block promising them.
+
+---
+
+# Stage 1 — Copy the template
+
+> **Every command from here to Stage 9 runs in the *new collection's* folder, never in
+> `TEMPLATE-OPEN-EDITION` itself.** Stage 1 is the exception that creates that folder —
+> the `Copy-Item` runs from anywhere, everything after it runs inside the copy.
 >
-> This matters most for the `Remove-Item` block. Run it in the template by
-> mistake and you delete `backend/.env`, `backend/.env.admin` and
-> `frontend/.env` — gitignored files holding a treasury address, a deployer key
-> and RPC settings, which are in no commit and cannot be restored with
-> `git checkout`.
+> This matters most for the `Remove-Item` block below. Run it in the template by mistake
+> and you delete `backend/.env`, `backend/.env.admin` and `frontend/.env` — gitignored
+> files holding a treasury address, a deployer key and RPC settings, which are in no
+> commit and **cannot be restored with `git checkout`**.
 
 ### Copy with `.git`, not without
 
-Copy the whole `TEMPLATE-OPEN-EDITION` folder, keeping `.git`. That is the
-choice this guide assumes, and it is worth understanding why before you make
-it, because it is hard to reverse:
+Keep `.git`. It is hard to reverse, so understand the trade:
 
-- **With `.git`** — the copy shares history with the template. `origin` still
-  points at the template's repo, which Steps 2–4 exist to fix. In exchange,
-  Step 5 can diff any file against the **fork point** to tell customization
-  apart from drift. That comparison is the only reliable way to pull in later
-  template features without clobbering your own config.
-- **Without `.git`** — a clean slate and `git init`. Simpler on day one, and
-  Step 5 becomes impossible: with no shared ancestor there is nothing to diff
-  against, so every future template upgrade is a manual read of both files.
-
-In PowerShell:
+- **With `.git`** — the copy shares history with the template. `origin` still points at
+  the template's repo, which Stage 2 fixes. In exchange you can diff any file against
+  the **fork point**, which is the only reliable way to pull in later template features
+  without clobbering your own config.
+- **Without `.git`** — a clean slate and `git init`. Simpler on day one; every future
+  template upgrade becomes a manual read of two files, because there is no shared
+  ancestor to diff against.
 
 ```powershell
 Copy-Item -Recurse C:\Users\User\Desktop\TEMPLATE-OPEN-EDITION `
                    C:\Users\User\Desktop\my-collection
 cd C:\Users\User\Desktop\my-collection
+pwd    # confirm you are in the copy before the next block
 ```
 
 ### Delete what should not have come along
-
-A folder copy carries things a `git clone` would not. **Confirm you are in the
-new folder first** — `pwd` should show `my-collection`, not
-`TEMPLATE-OPEN-EDITION`:
 
 ```powershell
 Remove-Item -Recurse -Force node_modules,backend\node_modules,frontend\node_modules,dist -EA SilentlyContinue
@@ -99,10 +106,9 @@ Remove-Item -Recurse -Force backend\logs,.netlify -EA SilentlyContinue
 Remove-Item -Force backend\deploy-state.json,backend\registry.json -EA SilentlyContinue
 ```
 
-`node_modules` matters more than it looks: the template's copy was built
-against this machine's Node, and reinstalling per project is cheaper than
-debugging a stale native binary later. The `.env` files hold live secrets that
-belong to the template, not to you.
+`node_modules` matters more than it looks: the template's copy was built against this
+machine's Node, and reinstalling per project is cheaper than debugging a stale native
+binary later. The `.env` files hold live secrets belonging to the template, not to you.
 
 ### `deployment.json` is the trap
 
@@ -116,15 +122,61 @@ belong to the template, not to you.
 }
 ```
 
-Left in place, the new collection appears to already have a deployed collection
-asset — the template's. Nothing errors; it simply points at the wrong thing.
-Delete `assetAddress` and `createdAt`, set `treasury` to your own wallet, and
-keep `rpc` pointing at the proxy (Step 7).
+Left in place, the new collection *appears* to already have a deployed collection asset —
+the template's. Nothing errors; it simply points at the wrong thing. Delete
+`assetAddress` and `createdAt`, set `treasury` to your own wallet, and leave `rpc` for
+Stage 5.
 
-### Where the name actually lives
+---
 
-There is no single rename. The collection's identity appears in seven places,
-and the first four are files:
+# Stage 2 — Split into its own repo
+
+A folder copy still has `origin` pointing at the **template's** GitHub repo. Left alone,
+a plain `git push` from this folder pushes your collection's config and CSVs into the
+shared template repository, corrupting it for every future collection.
+
+```powershell
+git remote -v
+```
+
+If that shows the template's URL, continue. If it already names a repo for this
+collection, skip to Stage 3.
+
+```powershell
+git add -A
+git commit -m "Checkpoint: collection config before separating from template repo"
+```
+
+> `fatal: Unable to create '...\.git\index.lock': File exists.` is a stale lock, not a
+> conflict. Confirm no git process is running, then `Remove-Item .git\index.lock -Force`
+> and retry.
+
+Create a **fully empty** repo at `github.com/new` — no README, `.gitignore` or license,
+since you are pushing existing history into it. Then:
+
+```powershell
+git remote set-url origin https://github.com/<your-org>/<collection-repo>.git
+git push -u origin main
+```
+
+From here, `git push` only ever affects this collection.
+
+> **Forking an older collection rather than today's template?** Then you also need to
+> merge newer template features in deliberately. Diff each file against the fork point —
+> `git diff --ignore-space-at-eol -w <fork-point-commit> -- path/to/file` — and take the
+> template's version wholesale only where there are no differences. Backend scripts are
+> generic tooling and almost always safe to take wholesale; frontend files that render
+> collection UI are not. Whole *directories* an older collection lacks
+> (`backend/standings/`, `backend/methodology/` and their scripts) won't surface in a
+> file diff at all — check for missing directories explicitly. **A fresh fork from
+> today's `main` skips all of this.**
+
+---
+
+# Stage 3 — Set identity
+
+There is no single rename. The collection's identity lives in **seven** places; four are
+files:
 
 | Where | Field | Ships as |
 |---|---|---|
@@ -133,321 +185,358 @@ and the first four are files:
 | `backend/master.csv` | `collectionSlug`, `collectionName` | `sample-collection`, `Sample Collection` |
 | `backend/standings/_input/import-config.json` | `collectionTitle`, `seasonId`, `rulesetPrefix` | `CHANGE ME` (only if you publish rankings) |
 
-The remaining three are the folder name, the GitHub repo (Step 4) and the
-Netlify site (Step 8).
+The other three are the folder name, the GitHub repo (Stage 2) and the Netlify site
+(Stage 8).
 
-**`collectionName` is the one with a deadline.** It is also written on-chain by
-`scripts/deployCoreAsset.ts`, and an on-chain asset name cannot be changed
-after minting. Step 6 covers it in full — but set it now, while you are already
-editing identity, rather than discovering it after a mint.
+**`collectionSlug` must be byte-identical in `config.json` and `master.csv`.** Preflight
+matches rows on it; a mismatch fails `collection_has_rows` and four content checks never
+run at all.
 
-Verify with:
+`collectionName` is also injected into `frontend/index.html` at build time by a Vite
+`transformIndexHtml` plugin, so it becomes the browser tab title and the on-page `<h1>` —
+*and* the name written on chain. A Netlify title is a one-line fix at any time; an
+on-chain asset name is not.
+
+Also set now, while you are editing identity:
+
+- **`collectionExternalUrl`** in `master.csv` — the collection's real site URL. Every
+  post composed by `compose-post.js` derives `{siteUrl}` from this field, and
+  `{methodologyUrl}` appends `/#methodology`. Left as `https://example.com`, or left
+  blank, both resolve to a placeholder and every post is wrong.
+- **`.env.admin`** — present, gitignored, `DEPLOYER_PRIVATE_KEY` set. Confirm with
+  `git check-ignore backend/.env.admin`. A key that is not gitignored is a key in every
+  clone of the repo, forever, including forks.
+- **`config.json`** — real `treasury`, and `network` set deliberately.
+  `not_already_deployed` is **network-aware**, so a fork left on `devnet` will happily
+  re-deploy something already live on mainnet.
+
+Verify:
 
 ```powershell
-git grep -n "Template Open Edition"
+git grep -n "Template Open Edition"    # only template-version.json should hit
 git grep -n "sample-collection"
 git grep -n "CHANGE ME"
 ```
 
-### Replace the sample content
+---
 
-Five generated artifacts are tracked and will otherwise ship as your site's
-data: `frontend/public/` holds `registry.json`, `campaigns.json`,
-`content-registry.json`, `standings.json` and `methodology.json`. Don't delete
-them — replace the *sources* and re-run the generators:
+# Stage 4 — Replace the sample content
 
-- `backend/master.csv` — the `sample-collection` row
-- `backend/campaigns.csv` — the `sample-campaign-001` row
-- `backend/textcards.csv` — six sample cards
-- `backend/standings/EXAMPLE-participants-accuracy.json` — delete it
-- `docs/open-items.md` — delete it; it tracks template maintenance
+Five generated artifacts are tracked and will otherwise ship as your site's data:
+`frontend/public/` holds `registry.json`, `campaigns.json`, `content-registry.json`,
+`standings.json` and `methodology.json`. **Don't delete them** — replace the *sources*
+and re-run the generators.
 
-Then continue to Step 2.
+- `backend/master.csv` — replace the `sample-collection` / `SAMPLE-001` row with real
+  drops: real `dropItemId`s, real images, real `itemExternalUrl`, the royalty and price
+  settled in Stage 0.
+- `backend/campaigns.csv` — the `sample-campaign-001` row.
+- `backend/textcards.csv` — six sample cards.
+- `backend/standings/EXAMPLE-participants-accuracy.json` — **delete it.** It publishes a
+  visible card tagged `example` if left in place.
+- `docs/open-items.md` — **delete it.** It tracks template maintenance, not collection
+  content.
 
-## Step 2 — Check whether the collection folder is already a separate repo
+---
 
-From inside the collection's folder in PowerShell:
-
-```powershell
-git remote -v
-```
-
-If this shows the template's own repo URL (e.g.
-`https://github.com/<org>/template-open-edition.git`) rather than a repo
-named for this collection, proceed to Step 3. If it already points at a
-dedicated repo for this collection, skip to Step 5.
-
-## Step 3 — Checkpoint the collection's current state
-
-Before touching the remote, commit whatever customization already exists
-locally (config, CSVs, any partially-integrated features) so nothing is at
-risk during the repo split:
-
-```powershell
-git add -A
-git commit -m "Checkpoint: collection config before separating from template repo"
-```
-
-If `git add`/`git commit` fails with something like:
-
-```
-fatal: Unable to create '...\.git\index.lock': File exists.
-```
-
-that's a stale lock file, not a real conflict (confirm no other git process
-is actually running, e.g. via Task Manager, then):
-
-```powershell
-Remove-Item .git\index.lock -Force
-```
-
-and retry the add/commit.
-
-## Step 4 — Create a dedicated GitHub repo and repoint origin
-
-1. Go to `github.com/new`, name the repo after this collection, and leave it
-   **fully empty** — no README, `.gitignore`, or license template, since
-   you're pushing existing history into it.
-2. Repoint the local repo's `origin` and push:
-
-```powershell
-git remote set-url origin https://github.com/<your-org>/<collection-repo>.git
-git push -u origin main
-```
-
-This pushes the collection's full existing history (including whatever
-commits it shares with the template up to the fork point) into its own,
-independent repo. From this point on, `git push` from this folder only ever
-affects this collection's own repo.
-
-## Step 5 — Pull in newer template features, without losing customization
-
-If the template has gained features since this collection's copy was made
-(new content systems, security hardening, new minting logic, etc.), those
-need to be merged in deliberately, not blindly overwritten — the collection
-almost certainly has its own customized `config.json`, `master.csv`, branded
-`index.html`, and similar files that must not be clobbered.
-
-The reliable way to do this:
-
-1. Identify the commit both repos share as a common ancestor (the fork
-   point) — usually the collection's oldest/earliest commit if it was cloned
-   directly from the template.
-2. For each file that might have diverged, compare the collection's current
-   version against that same file **at the fork-point commit**, ignoring
-   line-ending and blank-line noise:
-
-   ```powershell
-   git diff --ignore-space-at-eol -w <fork-point-commit> -- path/to/file
-   ```
-
-   - If this shows **no differences**, the file hasn't been customized —
-     it's safe to replace wholesale with the template's newer version.
-   - If it shows real differences, the file has been customized and needs a
-     manual/hand merge: take the template's new pieces (new functions, new
-     imports, new config keys) and layer them into the collection's existing
-     customized version, rather than overwriting it outright.
-3. Backend scripts in particular (`deploy-candy-machine.js`,
-   `deploy-collection.js`, `preflight.js`, `upload-images.js`,
-   `upload-metadata.js`, and similar) are usually generic tooling, not
-   collection-specific — if a collection's copy has drifted from the
-   template's latest version, it's almost always safe to take the template's
-   version wholesale, since these scripts don't normally carry
-   collection-specific data (that lives in `config.json`/`master.csv`
-   instead).
-4. Frontend files that render collection-specific UI (`index.html`,
-   `ui.engine.ts`, `state.ts`, `types.ts`, `adapter.ts`, `main.ts`) need the
-   comparison-against-fork-point check above — a collection that's already
-   had one feature (e.g. holder campaigns) wired in will differ from the
-   template's pre-that-feature baseline in exactly the ways that feature
-   added, and a later feature (e.g. Text Cards) needs to layer on top of
-   that, not replace it.
-5. Delete `docs/open-items.md` if it came across. That file is the template's
-   own maintenance backlog, not collection content — the same rule as the
-   example standings board below.
-6. Newer template features also arrive as **whole directories that an older
-   collection simply doesn't have** — currently `backend/standings/`,
-   `backend/methodology/`, and the scripts that serve them
-   (`import-ranked-boards.js`, `import-community-boards.js`,
-   `generate-standings-cards.js`, `generate-methodology.js`). There is
-   nothing to merge for these: copy the directory across, then delete the
-   template's sample data (see the Rankings section below). A file-by-file
-   diff won't surface them, so check for missing directories explicitly
-   rather than relying on the diff loop above.
-
-## Step 6 — Set the collection's display name (do this before minting)
-
-`template-version.json` carries the collection's human-readable name:
-
-```json
-{
-  "templateName": "TEMPLATE-OPEN-EDITION",
-  "version": "1.0.0",
-  "collectionName": "Template Open Edition"
-}
-```
-
-`collectionName` is the single source for three separate things:
-
-- the browser tab title and the on-page `<h1>` (injected into
-  `frontend/index.html` at build time by a Vite `transformIndexHtml` plugin),
-  and
-- the **name written on-chain** by `scripts/deployCoreAsset.ts` when the
-  collection asset is minted.
-
-**Change it before you mint.** A Netlify title is a one-line fix at any time;
-an on-chain asset name is not renameable after the fact. A collection minted
-while this still says "Template Open Edition" carries that name permanently.
-
-Grep for any lingering hardcoded name before minting:
-
-```powershell
-git grep -n "Template Open Edition"
-```
-
-The only hit should be `template-version.json` itself.
-
-## Step 7 — Point the RPC at the proxy, not at a keyed endpoint
+# Stage 5 — Point the RPC at the proxy
 
 **Never commit a keyed RPC URL.** A URL of the form
-`https://mainnet.helius-rpc.com/?api-key=<key>` is a live credential, and a
-public collection repo puts it in front of anyone. Frontend builds make this
-worse: Vite bakes `VITE_*` values into the shipped bundle, so a keyed URL in
-the frontend env is readable by every visitor even if the repo is private.
+`https://mainnet.helius-rpc.com/?api-key=<key>` is a live credential. Frontend builds
+make it worse: Vite bakes `VITE_*` values into the shipped bundle, so a keyed URL in the
+frontend env is readable by every visitor even if the repo is private.
 
-The collection therefore talks to a **Cloudflare Worker proxy** that holds
-the Helius key server-side. The Worker source lives in its own repo (a copy
-of `helius-labs/helius-rpc-proxy`); the working checkout for these
-collections is `C:\Users\User\Desktop\rpc-proxy`.
-
-### Deploying or redeploying the Worker
+The collection talks to a **Cloudflare Worker proxy** holding the Helius key server-side.
+The Worker source lives in its own repo (a copy of `helius-labs/helius-rpc-proxy`); the
+working checkout is `C:\Users\User\Desktop\rpc-proxy`.
 
 ```powershell
 npx wrangler deploy src/index.ts   # or: npm run deploy
 ```
 
-### The two Worker variables
-
 | Variable | Required | Notes |
 |---|---|---|
-| `HELIUS_API_KEY` | yes | The real Helius key. Set it as an **encrypted** variable so it's hidden from the dashboard, the API, and logs. Without it the Worker returns `500 Missing HELIUS_API_KEY`. |
-| `CORS_ALLOW_ORIGIN` | no | Comma-separated list of allowed origins. **If unset, the Worker answers `Access-Control-Allow-Origin: *`** — any site on the internet can route Solana RPC through your key's quota. |
+| `HELIUS_API_KEY` | yes | The real key. Set it **encrypted** so it is hidden from the dashboard, the API and logs. Without it the Worker returns `500 Missing HELIUS_API_KEY`. |
+| `CORS_ALLOW_ORIGIN` | no | Comma-separated allowed origins. **If unset, the Worker answers `Access-Control-Allow-Origin: *`** — any site on the internet can route Solana RPC through your key's quota. |
 
-Set them under **Workers & Pages → your worker → Settings → Variables**, or
-with `npx wrangler secret put HELIUS_API_KEY`.
+**The CORS behaviour is all-or-nothing per request.** If `CORS_ALLOW_ORIGIN` is set and
+the incoming `Origin` isn't on the list, the Worker returns no
+`Access-Control-Allow-Origin` header at all and the browser blocks the call. No partial
+credit. The list must contain *every* origin that legitimately calls the proxy:
 
-### The CORS gotcha worth understanding before you set it
-
-The Worker's logic is all-or-nothing per request: if `CORS_ALLOW_ORIGIN` is
-set and the incoming `Origin` **isn't** on the list, it returns no
-`Access-Control-Allow-Origin` header at all — and the browser blocks the
-call. There is no partial credit. So the list must contain *every* origin
-that legitimately calls the proxy:
-
-- the production site — `https://<your-site>.netlify.app` (and any custom
-  domain)
+- production — `https://<your-site>.netlify.app`, plus any custom domain
 - local dev — `http://localhost:5173`
 
-Netlify **deploy previews and branch deploys get generated subdomains**
-(`deploy-preview-12--your-site.netlify.app`), which can't be enumerated in
-advance. If you rely on previews for testing, either accept that RPC calls
-fail there, or leave the variable unset and rely on the Helius-side IP
-allow-list instead. Decide deliberately; don't discover it mid-review.
+Netlify deploy previews get generated subdomains
+(`deploy-preview-12--your-site.netlify.app`) which cannot be enumerated in advance.
+Either accept that RPC fails on previews, or leave the variable unset and rely on the
+Helius-side IP allow-list. Decide deliberately; don't discover it mid-review.
 
-### Where the proxy URL goes
-
-Set the Worker URL (no key, no query string) in each place the collection
-reads an RPC endpoint:
+**Put the Worker URL (no key, no query string) everywhere the collection reads an RPC:**
 
 - `deployment.json` → `rpc`
 - `backend/config.json` → `rpc`
-- `frontend/.env` → `VITE_SOLANA_RPC_URL` (and the matching Netlify
-  environment variable — see Step 9)
+- `frontend/.env` → `VITE_SOLANA_RPC_URL` (and the matching Netlify variable, Stage 8)
 - `backend/.env` → `SOLANA_RPC_URL`, `VITE_SOLANA_RPC_URL`
 
-### Rotating a leaked key
+This has to happen **before** Stage 7, because the deploy scripts read `config.json`'s
+`rpc`.
 
-1. Delete the exposed key in the Helius dashboard **first** — that's what
-   actually stops the bleeding. Scrubbing the repo does not.
-2. Create a replacement key and update `HELIUS_API_KEY` on the Worker.
-   Cloudflare rolls out a new version on save; the collection needs no
-   redeploy, because the collection never held the key.
-3. Confirm the repo is clean at the current tip:
+> **Rotating a leaked key:** delete the exposed key in the Helius dashboard **first** —
+> that is what stops the bleeding; scrubbing the repo does not. Create a replacement and
+> update `HELIUS_API_KEY` on the Worker; the collection needs no redeploy because it
+> never held the key. Then confirm the tip is clean with `git grep -n "api-key="`,
+> remembering that a key committed at any point stays in history.
 
-   ```powershell
-   git grep -n "api-key="
-   ```
+---
 
-   Remember that a key committed at any point remains in git history even
-   after it's removed from the working tree — which is exactly why step 1 is
-   deletion at the provider, not a rewrite.
+# Stage 6 — Preflight: the gate
 
-## Step 8 — Create a dedicated Netlify site
+```powershell
+node backend/scripts/preflight.js
+```
 
-Netlify terminology: the dashboard's top-level entity is now called a
-**Project** (previously "Site") — look for **"Add new project"**, not "Add
-new site."
+Reads `config.json`, `.env.admin`, `master.csv`, `campaigns.csv`. **Writes nothing.**
+Re-running is always safe — it is the only step in the whole pipeline that is. Run it as
+many times as it takes.
 
-1. Log into Netlify with the account that should permanently own this
-   collection's infrastructure. Logging in via "Continue with GitHub" using
-   the same GitHub account that owns the collection's repo is simplest.
-2. **Add new project → Import an existing project → GitHub** → select this
-   collection's repo.
-   - If the repo doesn't appear in the list, Netlify's GitHub App access is
-     probably scoped to "only selected repositories" and doesn't include
-     this one yet. Fix at `github.com/settings/installations` → find
-     **Netlify** → **Configure** → add the repo under "Repository access" →
-     **Save**. Then retry the import.
-3. Confirm build settings match `netlify.toml`:
-   - Base directory: `frontend`
-   - Build command: `npm run build`
-   - Publish directory: `../dist`
-4. **Before the first successful full deploy**, add environment variables
-   (see Step 9 — this is the step most likely to be missed).
+**Pass condition:** exit `0` with **`READY — all checks passed`**. Not
+`READY WITH WARNINGS`, and **without `--allow-warnings`**.
+
+> **A fresh fork fails here immediately, before you change anything.** `config.json`
+> ships `collectionSlug: "your-collection-slug"` and the only `master.csv` row is
+> `sample-collection`, so `collection_has_rows` fails and four content checks never run.
+> That is preflight working, not preflight broken.
+
+### Two things a clean exit does not prove
+
+**Read the `deployer_not_treasury` detail line.** It returns `pass: true` in three cases
+where it *could not check at all*: `DEPLOYER_PRIVATE_KEY` absent, not a 64-byte secret
+key, or not base58-decodable. Each prints `Skipped — …` and counts as a pass. The exit
+code is not proof the wallets are separate; the detail line is.
+
+**If `campaigns.csv` exists, confirm `no_reserved_campaign_ids` appears in the output.**
+That check runs only when the file is present. Its silence is not a pass.
+
+### The flags, and what each one costs you
+
+| Flag | What it does | When it is legitimate |
+|---|---|---|
+| `--slug <name>` | Check a slug other than `config.json`'s | Multi-collection repos |
+| `--allow-warnings` | Downgrades **six** checks to warnings — see Appendix A | A deliberate test deployment. **On mainnet this is the flag that mints test data.** |
+| `--force` | Overrides `not_already_deployed` | An intentional re-deploy. Nothing else. |
+
+Preflight writes `force` and `allowWarnings` into `backend/logs/preflight.log` at start,
+so a downgraded pass leaves an audit trail.
+
+**Anything preflight refuses is fixed in the template, then pulled into the fork** — not
+patched in the fork alone. A fix that lives only in a fork is a fix the next collection
+does not get.
+
+### Before you cross into Stage 7
+
+- [ ] `network` in `config.json` read back and said aloud.
+- [ ] Preflight clean, no flags.
+- [ ] `git check-ignore backend/.env.admin` confirms the key is ignored.
+- [ ] Deployer funded; Irys balance sufficient for images **and** metadata.
+- [ ] Deployer ≠ treasury, confirmed from the detail line.
+- [ ] Every `itemImage` is real art — **checked by eye, not by flag.**
+- [ ] The deployer keypair is backed up off this machine.
+
+---
+
+# Stage 7 — The mint
+
+> ## ⚠ Everything below spends money and cannot be undone.
+>
+> Arweave storage is paid once and kept forever; there is no delete. Chain steps have no
+> rename, no re-point, no undo. **Exit codes are uniform across this stage — `0` success,
+> `1` validation, `2` upload, `3` chain** — which is what lets you tell "I typed
+> something wrong" from "the network refused" without reading the logs.
+
+Seven scripts, in the only order they may run.
+
+### 7.1 `prepare-images.js` — local images into `backend/images/`
+
+```powershell
+node backend/scripts/prepare-images.js
+node backend/scripts/prepare-images.js --source ./incoming-images
+node backend/scripts/prepare-images.js --source ./incoming-images --force
+```
+
+Reads the source folder and `master.csv`; writes files into `backend/images/`, not into
+the CSV. **Local only — no SOL, nothing permanent.** `--force` overwrites images already
+prepared. Safe to re-run.
+
+### 7.2 `upload-images.js` — Irys/Arweave → `itemImage` ⚠ SPENDS
+
+```powershell
+node backend/scripts/upload-images.js --strict --dry-run   # ← do this first, always
+node backend/scripts/upload-images.js --strict
+node backend/scripts/upload-images.js --strict --fund      # auto-fund a shortfall first
+```
+
+**`--dry-run` is the last free look at a paid step. Use it every time.** It is available
+here and on `upload-metadata.js`, and nowhere else in this stage.
+
+Reads `backend/images/`; **writes the resulting URL into `itemImage` per row.**
+
+Re-running uploads *again* and pays again. A row that already carries a real `itemImage`
+is what makes a re-run cheap instead of expensive. **`--strict` turns a missing local
+image from a silent skip into a failure — use it for a real mint.** Exit `2` is an upload
+failure, and the money question is whether it failed before or after payment; the log
+answers that.
+
+### 7.3 `generate-metadata.js` → `backend/metadata/<dropItemId>.json`
+
+```powershell
+node backend/scripts/generate-metadata.js --strict
+```
+
+Reads `master.csv`; writes JSON files. `backend/metadata/` **does not exist in a fresh
+checkout — this script creates it.** Local, free, re-runnable; `--force` overwrites.
+
+**The guardrail:** by default a row whose `itemImage` is still a placeholder is
+**skipped**, because embedding a placeholder URL into metadata that then gets uploaded
+and minted is unfixable. If rows are being skipped, run 7.2 first.
+
+> **`--allow-placeholder` must never touch mainnet.** It exists for local testing. What
+> it buys you on mainnet is a permanent on-chain asset pointing at a picture that says
+> "placeholder", and the only remedy is minting a new collection.
+
+### 7.4 `upload-metadata.js` — Irys/Arweave → `uri` ⚠ SPENDS
+
+```powershell
+node backend/scripts/upload-metadata.js --strict --dry-run   # ← again, first
+node backend/scripts/upload-metadata.js --strict
+node backend/scripts/upload-metadata.js --strict --fund
+```
+
+Reads `backend/metadata/`; **writes `uri` per row.** Same economics as 7.2. This is the
+last step before anything reaches the chain — the last point at which a wrong image is
+still only an Arweave receipt rather than an on-chain asset.
+
+### 7.5 `deploy-collection.js` — the Core collection ⚠ SPENDS ⚠ PERMANENT
+
+```powershell
+node backend/scripts/deploy-collection.js
+node backend/scripts/deploy-collection.js --slug founders
+```
+
+Reads `config.json` and `master.csv`; **writes `collectionAddress` and `network` back
+into every matching row.** The collection exists on chain from here.
+
+**Deploying twice produces two collections and no error.** That is what
+`not_already_deployed` protects, and why `--force` on preflight is not a routine flag.
+
+This is also where the royalty decision lands: rows that disagree on
+`sellerFeeBasisPoints` produce a warning and the first row's value wins, collection-wide.
+
+### 7.6 `deploy-candy-machine.js` — one per drop ⚠ SPENDS ⚠ PERMANENT
+
+```powershell
+node backend/scripts/deploy-candy-machine.js
+node backend/scripts/deploy-candy-machine.js --drop OE-001
+```
+
+**Writes `candyMachineAddress`, `candyGuardAddress` and `treasury` back into
+`master.csv`.**
+
+Also accepts `--start-date`, `--mint-limit`, `--bot-tax` and `--mutable`. Each sets a
+guard or a flag on the machine at creation time, so each is a decision made **once**, not
+adjusted later — settle them before running this, not after.
+
+**Why one machine per drop, not one per collection:** each machine carries its own
+`itemsAvailable` / `itemsRedeemed` counter, and a *drop* is the thing that has a supply.
+One machine per collection would mean every drop drawing from a single counter. It is the
+same structural fact a holder campaign relies on when it gets a dedicated machine against
+the same collection — several machines may reference one Collection, each with
+independent supply.
+
+**For an open edition** every item shares one name and one `uri`, so the machine carries
+no per-item config line. That is what makes an open edition open: there is no item list
+to exhaust, and an airdropped asset and a publicly minted one are indistinguishable
+afterwards because both belong to the same Collection.
+
+### 7.7 `generate-registry.js` → `frontend/public/registry.json`
+
+```powershell
+node backend/scripts/generate-registry.js
+git add -A
+git commit -m "Deploy <collection>: collection, candy machines, registry"
+git push origin main
+```
+
+Free, re-runnable, and **the only output in this stage a re-run can fix.** `minted` is
+`null` unless you pass `--fetch-minted`. The site shows nothing until the built copy
+ships.
+
+---
+
+# Stage 8 — Netlify
+
+Netlify's top-level entity is now a **Project**, not a "Site" — look for **Add new
+project**.
+
+1. Log in with the account that should permanently own this collection's infrastructure.
+   "Continue with GitHub" using the account that owns the repo is simplest.
+2. **Add new project → Import an existing project → GitHub** → select this repo.
+   - If the repo isn't listed, Netlify's GitHub App is scoped to selected repositories.
+     Fix at `github.com/settings/installations` → **Netlify** → **Configure** → add the
+     repo → **Save**, then retry.
+3. Confirm build settings match `netlify.toml`: base `frontend`, build
+   `npm run build`, publish `../dist`.
+4. **Add environment variables before the first full deploy** — see below.
 5. Deploy.
 
-### Renaming the site
+### Environment variables — the step most likely to break a first deploy
 
-Project configuration → General → Project details → **Change site name**.
-The subdomain namespace (`<name>.netlify.app`) is shared across all Netlify
-users — if your preferred name is taken, you'll need a variant.
+`.env` files are gitignored by design, so **none of your local values are on Netlify.**
+Add them under **Project configuration → Environment variables**:
 
-### If the deployed site returns 401 / requires login
+- **`VITE_SOLANA_RPC_URL`** — the Worker proxy URL from Stage 5. Never a keyed Helius
+  URL; Vite inlines this into the public bundle.
+- **`VITE_REGISTRY_URL`** — set it to `/registry.json`. **This is the single most common
+  cause of "the site loads but is empty."** It does have a fallback —
+  `frontend/src/config.ts:8` reads
+  `import.meta.env.VITE_REGISTRY_URL || "/registry/registry.json"` — but the generator
+  publishes to `frontend/public/registry.json`, and there is no `public/registry/`
+  directory. So the fallback resolves to a path that does not exist and you get a
+  **404 on `/registry/registry.json`**, with the drops grid silently empty.
 
-Newer Netlify projects can default to restricted visibility. Check:
-**Project configuration → General → Project visibility**, and set both
-**Production visibility** and **Deploy Preview visibility** to **Public** if
-you want the site reachable without a Netlify login.
+  > Earlier revisions of this guide said this variable has *no* fallback and that a
+  > missing value fetches a URL literally named `/undefined`. Both were wrong — verified
+  > against `config.ts` on 2026-08-28. The symptom is identical, but if you go looking for
+  > `/undefined` in the console you will not find it and will chase the wrong thing.
+- `VITE_SOLANA_RPC_URL_DEVNET`, `VITE_CAMPAIGNS_URL`, `VITE_CONTENT_REGISTRY_URL` if set
+  locally.
 
-## Step 9 — Environment variables (the step most likely to break a first deploy)
+Variable changes take effect only on a **new build** — Vite bakes them in at build time.
+After changing one: **Deploys → Trigger deploy → Deploy site.**
 
-`.env` files are gitignored by design (they hold live secrets like RPC API
-keys) — which means **none of a collection's local `.env` values are
-automatically present on Netlify.** They must be added manually:
+**Renaming:** Project configuration → General → Project details → Change site name. The
+`<name>.netlify.app` namespace is shared across all Netlify users.
 
-**Project configuration → Environment variables**, matching whatever keys
-exist in `frontend/.env` locally, at minimum:
+**If the site returns 401:** Project configuration → General → **Project visibility** —
+set Production and Deploy Preview visibility to **Public**.
 
-- `VITE_SOLANA_RPC_URL` — the **Worker proxy URL** from Step 7, never a keyed
-  Helius URL. Vite inlines this into the public bundle at build time.
-- `VITE_REGISTRY_URL` — set this to `/registry.json`. Unlike
-  `VITE_CAMPAIGNS_URL` and `VITE_CONTENT_REGISTRY_URL`, this one has **no
-  fallback default in code** — if it's missing, the deployed app tries to
-  fetch a URL literally named `/undefined`, which 404s and silently breaks
-  the whole collections/drops display. This is the single most common cause
-  of "the site loads but shows nothing."
-- `VITE_SOLANA_RPC_URL_DEVNET`, `VITE_CAMPAIGNS_URL`,
-  `VITE_CONTENT_REGISTRY_URL` if set locally.
+---
 
-Environment variable changes only take effect on a **new build** (Vite bakes
-them into the bundle at build time, not read at runtime) — after adding or
-changing one, trigger a fresh deploy: **Deploys tab → Trigger deploy →
-Deploy site.**
+# Stage 9 — Verify
 
-## Step 10 — Verify the live deploy
+### The chain
 
-Don't just eyeball the homepage — check the actual data endpoints directly,
-since a broken fetch can fail silently behind a normal-looking page:
+- [ ] Exactly one collection created; `collectionAddress` and `network` written to every
+      row.
+- [ ] One candy machine per drop; `candyMachineAddress`, `candyGuardAddress` and
+      `treasury` written.
+- [ ] The asset is visible on an explorer **under the intended `collectionName`**.
+- [ ] **A test mint from a wallet that is not the deployer.**
+
+### The site
+
+Check the data endpoints directly — a broken fetch fails silently behind a
+normal-looking page:
 
 ```
 https://<your-site>.netlify.app/registry.json
@@ -458,27 +547,43 @@ https://<your-site>.netlify.app/methodology.json
 ```
 
 A 404 on `campaigns.json`, `content-registry.json`, `standings.json` or
-`methodology.json` is *normal* if that collection has no campaigns, text
-cards, or published boards yet (all are handled as an expected empty state,
-not an error, in the frontend code). A 404 on `registry.json`, or a request
-to a literal `/undefined` URL, means something is actually broken — almost
-always the missing `VITE_REGISTRY_URL` environment variable from Step 9.
+`methodology.json` is **normal** when the collection has no campaigns, cards or boards
+yet — all are handled as expected empty states.
 
-Also check the browser console (F12 → Console) on the live site for any
-`Failed to load resource` lines and cross-reference them against the
-environment variables above. A CORS error naming the Worker URL points at
-`CORS_ALLOW_ORIGIN` (Step 7), not at Netlify.
+A 404 on `registry.json` is real breakage. So is a 404 on **`/registry/registry.json`** —
+that is the built-in fallback firing because `VITE_REGISTRY_URL` was never set on Netlify
+(Stage 8), and it is the most common first-deploy failure there is.
 
-## Ongoing content workflow — Text Cards
+Check the browser console (F12) for `Failed to load resource`. A CORS error naming the
+Worker URL points at `CORS_ALLOW_ORIGIN` (Stage 5), not at Netlify.
 
-Once the site is live, publishing simple content (News/Update/Announcement/
-Analysis cards) is a repeatable loop, not a one-time setup. The whole lifecycle
-is four steps: **write the row, compose the post, publish the card, link the
-post back.**
+### Drift
 
-### Step A — Write the row
+```powershell
+node backend/scripts/check-published.js --site https://<your-site>.netlify.app
+```
 
-Append to `backend/textcards.csv`. Sixteen columns, in this order:
+**Exit `0`** = the live site matches the repo. **Exit `1`** = drift. **Exit `2` means
+nothing was compared — treat it as unknown, never as a pass.**
+
+Run this after every publish, not just this one. It exists because one published card ran
+against nine CSV rows for weeks and every endpoint returned `200` the whole time.
+
+### Then
+
+- [ ] Anything this launch broke or exposed is fixed **in the template**, not only here.
+
+---
+
+# Stage 10 — Ongoing
+
+## Text cards
+
+Four steps: write the row, compose the post, publish the card, link the post back.
+
+### A. Write the row
+
+Append to `backend/textcards.csv`. **Sixteen columns, in this order:**
 
 ```
 textCardId,category,headline,subheadline,content,publishedDate,updatedDate,
@@ -487,95 +592,72 @@ status,expiresAt,tags,featured,priority,author,image,imageAlt,postUrl
 
 | Column | Required | Notes |
 |---|---|---|
-| `textCardId` | yes | Unique, and **never reused** once assigned. Duplicates are a hard error. |
-| `category` | yes | `NEWS`, `UPDATE`, `ANNOUNCEMENT` or `ANALYSIS`. The structured categories are refused here — see below. |
+| `textCardId` | yes | Unique, **never reused** once assigned. Duplicates are a hard error. |
+| `category` | yes | `NEWS`, `UPDATE`, `ANNOUNCEMENT`, `ANALYSIS`. Structured categories are refused — see below. |
 | `headline` | yes | |
 | `subheadline` | no | |
 | `content` | yes | The body prose. |
-| `publishedDate` | yes | ISO 8601. A future date means the card is written now and appears later. |
-| `updatedDate` | no | Defaults to `publishedDate`. When it differs, the card shows *Updated …*. |
-| `status` | yes | `DRAFT`, `SCHEDULED`, `ACTIVE`, `INACTIVE`, `EXPIRED`, `ARCHIVED`. Only `ACTIVE` renders. |
-| `expiresAt` | no | ISO 8601. Hides the card afterwards — it enforces nothing else. |
-| `tags` | no | Pipe-delimited (`a\|b\|c`), not comma — same convention as `master.csv`'s `attributes`. |
+| `publishedDate` | yes | ISO 8601. A future date means written now, appears later. |
+| `updatedDate` | no | Defaults to `publishedDate`. When it differs the card shows *Updated …*. |
+| `status` | yes | `DRAFT`, `SCHEDULED`, `ACTIVE`, `INACTIVE`, `EXPIRED`, `ARCHIVED`. **Only `ACTIVE` renders.** |
+| `expiresAt` | no | ISO 8601. Hides the card afterwards; enforces nothing else. |
+| `tags` | no | Pipe-delimited (`a\|b\|c`), not comma. |
 | `featured` | no | `TRUE`/`FALSE`. Sorts first. |
 | `priority` | no | Integer, descending. Breaks ties among featured. |
 | `author` | no | |
 | `image` | no | `http(s)://` or a site-relative `/path`. Any other scheme is refused. |
-| `imageAlt` | **yes, if `image` is set** | Refused without it. An image with no alt text is invisible to a screen reader, and backfilling alt across a grown archive is far harder than writing one line now. |
-| `postUrl` | no | Where this card was announced. `https://` only. Added in Step D. |
+| `imageAlt` | **yes, if `image` is set** | Refused without it. Backfilling alt text across a grown archive is far harder than writing one line now. |
+| `postUrl` | no | Where the card was announced. `https://` only. Added in step D. |
 
-Optional columns still need their commas, so a minimal row ends in a run of
-them. Two things that will bite:
+Optional columns still need their commas, so a minimal row ends in a run of them. Two
+things that bite: **a comma anywhere in your text requires the whole field in double
+quotes** (which is why `tags` uses a pipe), and **structured categories — `RANKING`,
+`LEADERBOARD`, `SCOREBOARD`, `STANDINGS`, `STATS` — are rejected from this CSV**, because
+their content is an entries array, not prose. Those come from board files.
 
-- **A comma anywhere in your text requires the whole field in double quotes.**
-  That is why `tags` uses a pipe separator instead.
-- **Structured categories** — `RANKING`, `LEADERBOARD`, `SCOREBOARD`,
-  `STANDINGS`, `STATS` — are rejected from this CSV, with an error saying why:
-  their content is an entries array, not prose. Those come from board files.
-  See the Rankings section below.
+Display order is `featured`, then `priority` descending, then `publishedDate` newest
+first.
 
-Display order is `featured` (true first), then `priority` (descending), then
-`publishedDate` (most recent first) — see `frontend/src/ui.engine.ts`'s
-`getVisibleTextCards()` for the exact sort/filter logic.
-
-### Step B — Compose the post
+### B. Compose the post
 
 ```powershell
 node backend/scripts/compose-post.js announcement --id ANNOUNCEMENT-012
 ```
 
-**This reads `textcards.csv` directly, not the registry** — so it works before
-the generator has run, and iterating on wording touches no published file. Add
-`--site https://your-site.netlify.app` while `collectionExternalUrl` in
-`master.csv` is still the template's placeholder.
+Reads `textcards.csv` **directly, not the registry**, so it works before the generator
+has run and iterating on wording touches no published file. The post prints to stdout and
+the character report to stderr, so `… > post.txt` gives a clean file with the budget
+still on screen. Over budget, it prints the post, names the line to cut, and writes
+nothing. It refuses rather than guessing — unknown placeholder, empty field, unmatched
+`--id` — and always names the valid options. **It never posts; you paste.**
 
-The post prints to stdout and a character report to stderr, so
-`… > post.txt` gives a clean file with the budget breakdown still on screen.
-Over budget, it prints the post, names the line to cut, and writes nothing.
-
-`compose-post.js` refuses rather than guessing — unknown placeholder, empty
-field, unmatched `--id` — and always names the valid options. It never posts;
-you paste. See `docs/post-generator-spec.md` for the full contract and the
-other five templates.
-
-### Step C — Publish the card
+### C. Publish the card
 
 ```powershell
 node backend/scripts/generate-content-registry.js
-git add backend/textcards.csv backend/content-registry.json frontend/public/content-registry.json
+git add -A
 git commit -m "Add <description of new card(s)>"
 git push origin main
 ```
 
-The generator writes `backend/content-registry.json` and copies it to
-`frontend/public/content-registry.json` automatically. Netlify rebuilds on
-push; hard-refresh the live site once the build finishes, or you will be served
-the cached bundle and conclude nothing happened.
+Netlify rebuilds on push. Hard-refresh the live site once the build finishes, or you will
+be served the cached bundle and conclude nothing happened.
 
-### Step D — Link the post back
-
-Post to X yourself, copy the tweet URL, and hand both to:
+### D. Link the post back
 
 ```powershell
 node backend/scripts/set-post-url.js ANNOUNCEMENT-012 https://x.com/you/status/123
 ```
 
-It writes `postUrl` into that row and re-runs `generate-content-registry.js`.
-Then push again. (`--no-generate` skips the second half if you would rather
-regenerate later.)
+Writes `postUrl` into that one row and re-runs the registry generator. It refuses a
+non-`https://` URL and an unknown card id **before touching the file**, and rewrites only
+the line it matched — every other row stays byte-identical. Then push again.
 
-It refuses a non-`https://` URL and an unknown card id before touching the file,
-and rewrites only the one line it matched — every other row stays byte-identical.
+**This second push is the step most likely to be skipped, and it is the entire reason the
+column exists.** The card renders a *Discussion →* link so readers can join the
+conversation instead of hunting your timeline.
 
-The card now renders a *Discussion →* link in its meta row, so a reader can
-join the conversation instead of hunting your timeline — and months later you
-can find the thread without searching. This second push is the step most likely
-to be skipped, and it is the entire reason the column exists.
-
-### Who owns which card in `content-registry.json`
-
-Two generators share the file and never overlap. Getting this wrong is how
-work gets silently overwritten, so it's worth stating precisely:
+### Who owns which card
 
 | Card kind | Id prefix | Source of truth | Written by |
 |---|---|---|---|
@@ -583,120 +665,145 @@ work gets silently overwritten, so it's worth stating precisely:
 | Generated standings | `STANDINGS-` | a board file in `backend/standings/` | `generate-standings-cards.js` |
 | Hand-authored persistent (RANKING, LEADERBOARD, SCOREBOARD, STATS) | anything *except* `STANDINGS-` | the registry entry itself | nobody — edit by hand |
 
-`generate-content-registry.js` leaves every persistent card alone.
-`generate-standings-cards.js` rewrites every card whose id starts with
-`STANDINGS-` and carries everything else through untouched.
+**A `STANDINGS-` card must never be hand-edited** — the next generator run overwrites it.
+Edit the board file and re-run. A persistent card with any other id is yours and no script
+touches it.
 
-So: **a `STANDINGS-` card must never be hand-edited** — the next generator
-run will overwrite it. Edit the board file in `backend/standings/` and re-run
-the script instead. A persistent card with any other id is yours to edit
-directly and no script will touch it.
+**Deleting a CSV row does not retire a card.** The generator seeds from the existing
+registry and overlays the CSV, so it only ever adds or updates; an entry it no longer sees
+is carried through untouched and stays live. **`status` is the only thing that hides a
+card.** Retire, don't delete.
 
-Every card keeps a permanent `textCardId` that is never reused once assigned,
-even if the card is later retired — set `status` to
-`INACTIVE`/`EXPIRED`/`ARCHIVED` instead of deleting the entry.
+## Rankings and standings
 
-**Deleting the CSV row does not retire the card.** `generate-content-registry.js`
-seeds its map from the existing `content-registry.json` and then overlays the CSV
-rows, so it only ever adds or updates — an entry it no longer sees in the CSV is
-carried through untouched and stays live. `status` is the only thing that hides a
-card: `isTextCardVisible()` returns false for anything not `ACTIVE`. To remove a
-card from the registry outright you have to edit the JSON by hand, which is why
-the convention is to retire rather than delete.
+One JSON file per board in `backend/standings/`. A generator projects each into a
+`STANDINGS-` card for the RANKINGS tab and publishes the *complete* board — every entry,
+not just the rows the card shows — to `frontend/public/standings.json`.
 
-## Ongoing content workflow — Rankings and standings
-
-Ranked boards are a separate pipeline with its own source of truth. The full
-reference is `backend/standings/README.md`; this is the operational summary.
-
-**The shape of it:** one JSON file per board in `backend/standings/`. A
-generator projects each board into a `STANDINGS-` card for the news grid's
-RANKINGS tab, and publishes the complete board — every entry, not just the
-rows the card shows — to `frontend/public/standings.json`.
-
-Boards are produced by importers rather than written by hand:
+Boards are produced by importers, never written by hand. The whole round is one command:
 
 ```powershell
-# Participant leaderboards from a Ledger export (one export → four boards)
-node backend/scripts/import-community-boards.js
-
-# Everything else — games, racing, poker, player stats, category rankings
-node backend/scripts/import-ranked-boards.js
-
-# Project the boards into cards + publish standings.json
-node backend/scripts/generate-standings-cards.js
+node backend/scripts/publish-round.js
 ```
+
+That runs import → standings cards → methodology, in the only order they may run, with
+every log line still printed, stopping at the first non-zero exit. `--from standings`
+skips the import for a hand-written one-off contest. The individual scripts
+(`import-ranked-boards.js`, `import-community-boards.js`,
+`generate-standings-cards.js`, `generate-methodology.js`) still exist if you need one
+alone.
 
 Inputs live in `backend/standings/_input/`:
 
-- `import-config.json` — importer settings, including `columnMap` when the
-  source app's column labels differ from the logical names (Sports Ledger
-  writes `FinalPoints`/`SkillEdge`/`Predictions`; Entertainment Ledger writes
-  `Points`/`Edge`/`Resolved`).
-- `rulesets.json` — the ruleset changelog; each board stamps the
-  `rulesetVersion` that produced it.
-- `boards.json` plus dated exports in `_input/boards/` — the declarations
-  `import-ranked-boards.js` reads. **Neither exists in a fresh template
-  checkout**; create them when you add your first ranked board (the README
-  has a worked example).
+- `import-config.json` — importer settings, including `columnMap` when the source app's
+  labels differ from the logical names.
+- `rulesets.json` — the ruleset changelog; each board stamps the `rulesetVersion` that
+  produced it.
+- `boards.json` plus dated exports in `_input/boards/` — **neither exists in a fresh
+  checkout.** Create them when you declare your first ranked board.
 
-**Rules that will stop a run, by design:**
+**Rules that stop a run, by design:** a board with `capture.complete: false` is a hard
+failure, because a response that was never captured is indistinguishable from a
+participant who didn't play — pass `--allow-incomplete` to publish it `INACTIVE` for
+review instead. Entries must already be in rank order. And **nothing here scores
+anything**: ranks, scores and movement arrive settled from the source, and projection is
+formatting, not arithmetic. That is what makes a published card reproducible from its
+board file.
 
-- A board with `capture.complete: false` is a hard failure. A response that
-  was never captured is indistinguishable from a participant who didn't play,
-  so a partial round is refused rather than published as final. Pass
-  `--allow-incomplete` to publish it `INACTIVE` for review instead.
-- Entries must already be in rank order. Ranks that jump around usually mean
-  the list was re-sorted by score after ranking, which quietly breaks the
-  movement column.
-- Nothing here scores anything. Ranks, scores and movement arrive settled
-  from the source; projection is formatting, not arithmetic. That's what
-  makes a published card reproducible from its board file.
+**Two behaviours that look like bugs and aren't:** a `cardLimit` of 10 can publish 12
+rows, because the slice extends through the whole tie group at the cut line rather than
+splitting a tie; and deleting a board file marks its card `ARCHIVED` on the next run
+rather than removing it, so history survives.
 
-**Two behaviours that look like bugs but aren't:** a `cardLimit` of 10 can
-publish 12 rows, because the slice extends through the whole tie group at the
-cut line rather than cutting a tie in half; and deleting a board file marks
-its card `ARCHIVED` on the next run rather than removing it, so history
-survives.
+## The methodology page
 
-**For a new collection:** delete `backend/standings/EXAMPLE-participants-accuracy.json`.
-It exists only to prove the pipeline end to end, and it publishes a visible
-card tagged `example` if left in place.
-
-## Ongoing content workflow — the Methodology page
-
-The Rankings link in the site's top navigation points at `#methodology`, and
-that page is generated:
+`publish-round.js` runs this for you. Standalone:
 
 ```powershell
 node backend/scripts/generate-methodology.js
 ```
 
-It merges authored prose from `backend/methodology/methodology.json` with
-facts **derived from the standings themselves** — which boards exist, which
-ruleset produced each one, which export files they were built from, the
-current eligibility minimum, and the full ruleset changelog — and writes
-`frontend/public/methodology.json`.
+It merges authored prose from `backend/methodology/methodology.json` with facts **derived
+from the standings themselves** — which boards exist, which ruleset produced each, which
+exports they came from, the eligibility minimum, the full changelog.
 
-The split is the point: edit `methodology.json` when the *explanation*
-changes, and let everything that could go stale be re-derived. A methodology
-page quietly describing last month's rules is worse than no methodology page,
-because readers trust it.
+The split is the point: edit the prose when the *explanation* changes, and let everything
+that could go stale be re-derived. A methodology page quietly describing last month's
+rules is worse than none, because readers trust it.
 
-Practical consequence: **re-run this after any standings change.** The
-ordinary sequence for a new round is import → generate standings cards →
-generate methodology → commit → push.
+## Rewards
 
-## Known non-issues (safe to ignore)
+Holder campaigns — hold this, buy that at a discount — run from `backend/campaigns.csv`
+via `deploy-campaign.js`. **`backend/scripts/get-holders.js` is 0 bytes**, so the holder
+snapshot that feeds a reward campaign does not exist yet. If a launch promises anything to
+holders, that file has to be written first. If it promises nothing, confirm the site says
+nothing that implies otherwise.
 
-- **`warning: ... LF will be replaced by CRLF ...`** during `git add` — this
-  is Windows Git normalizing line endings on checkout. Cosmetic, not an
-  error. (If you see a diff of thousands of untouched lines instead, that's a
-  different problem: the collection is missing the `.gitattributes` file the
-  template carries. Copy it over and renormalize.)
-- **A 401 fetching your own site from an automated tool** while it loads
-  fine in an actual browser (including incognito) — some hosts apply
-  different handling to non-browser/automated requests at the edge. Trust
-  real browser verification over an automated fetch in this case.
-- **A 404 on `standings.json` or `methodology.json`** before you've published
-  any boards. Expected empty state, handled in the frontend.
+---
+
+# Appendix A — The sixteen preflight checks
+
+| Group | Check | Notes |
+|---|---|---|
+| Project Structure | `config_exists` | |
+| | `config_valid_json` | **Failure-only** — recorded only when it fails |
+| | `collection_slug_present` | **Failure-only** |
+| | `collection_has_rows` | **Failure-only** |
+| Environment | `env_admin_exists` | |
+| | `env_admin_gitignored` | The difference between a key on your disk and a key in every clone forever |
+| | `deployer_key_present` | |
+| | `treasury_valid` | |
+| | `rpc_valid` | |
+| | `deployer_not_treasury` | **Downgradable** by `--allow-warnings`; **passes when it cannot check** |
+| Content Validation | `no_reserved_slug` | Downgradable. Catches `test-`/`demo-`/`sample-` |
+| | `no_reserved_drop_ids` | Downgradable. Catches `TEST-`/`DEMO-`/`SAMPLE-` |
+| | `no_placeholder_images` | Downgradable. **Placeholder art about to be minted permanently** |
+| | `no_placeholder_uris` | Downgradable |
+| Campaign Validation | `no_reserved_campaign_ids` | Downgradable; **runs only if `campaigns.csv` exists** |
+| Deployment State | `not_already_deployed` | Network-aware; overridden by `--force` |
+
+**Two corrections against earlier documentation**, both verified in
+`backend/scripts/preflight.js`:
+
+1. **`--allow-warnings` downgrades six checks, not five, and one is an Environment
+   check.** The set is `CONTENT_CHECK_NAMES` (preflight.js:344) and it includes
+   `deployer_not_treasury`. Earlier docs said an Environment failure is never a warning.
+   That is false, and false about the check standing between the deploy key and the sale
+   proceeds.
+2. **Three checks are pushed to results only on failure**, so a clean run records about
+   twelve named results and still prints `READY — all checks passed`. The conditions are
+   genuinely evaluated — not a hole — but don't go looking for sixteen ticks.
+
+---
+
+# Appendix B — Known non-issues
+
+- **`warning: … LF will be replaced by CRLF …`** during `git add` — Windows Git
+  normalizing line endings. Cosmetic. (A diff of thousands of untouched lines is a
+  *different* problem: the collection is missing the `.gitattributes` the template
+  carries. Copy it over and renormalize.)
+- **A 401 fetching your own site from an automated tool** while it loads fine in a real
+  browser, including incognito — some hosts treat non-browser requests differently at the
+  edge. Trust the browser.
+- **A 404 on `standings.json` or `methodology.json`** before you've published any boards.
+  Expected empty state, handled in the frontend.
+- **`backend/metadata/` missing** in a fresh checkout. `generate-metadata.js` creates it.
+- **`scripts/audit-production.ps1` and `backend/scripts/get-holders.js` are empty files.**
+  Do not build a step on either. There is currently no scripted post-mint chain audit.
+
+---
+
+# Appendix C — Reference documents
+
+None of these is needed to complete a launch. Reach for one when you want depth this
+guide deliberately doesn't carry.
+
+| File | Covers |
+|---|---|
+| `docs/generation-prompts.md` | The AI prompt library — one block per thing that can be created, plus the registry of every collection and dashboard. |
+| `docs/runs/README.md` | 29 worked runs, one per prompt, each run against real files. The fixtures of record. |
+| `backend/standings/README.md` | Board format field by field, the two importers, running and closing a contest, ties, score direction. |
+| `docs/post-generator-spec.md` | The `compose-post.js` contract: sources, placeholders, refusals, weighted character counting, the six templates. |
+| `docs/netlify-connection.md` | Logging into and confirming the Netlify project. |
+| `docs/production-readiness.md` | The launch record — what the August deployment logs prove, why the first launch runs on mainnet, and template-level fixes still outstanding. **Not a guide.** |
+| `docs/open-items.md` | Template maintenance backlog, plus a verified-state table. **Delete when forking.** |

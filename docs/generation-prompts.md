@@ -690,7 +690,7 @@ DROPS:        <all, or the specific dropItemIds>
 Give me the full production pipeline runbook, in the order the scripts must
 run, with the purpose and the idempotency behaviour of each:
 
-  backend/scripts/preflight.js            the gate — all ten checks
+  backend/scripts/preflight.js            the gate — all sixteen checks
   backend/scripts/prepare-images.js       local images into backend/images/
   backend/scripts/upload-images.js        Irys/Arweave → itemImage in master.csv
   backend/scripts/generate-metadata.js    → backend/metadata/<dropItemId>.json
