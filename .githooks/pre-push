@@ -1,0 +1,45 @@
+#!/bin/sh
+#
+# .githooks/pre-push — refuse a push whose docs contradict the code.
+#
+# WHY THIS IS HERE AND NOT IN .git/hooks/
+#   .git/hooks/ is not version controlled, so a hook written there protects one
+#   checkout and no fork. This directory is committed, which means every
+#   collection generated from the template carries the guard — but each clone
+#   still has to opt in once:
+#
+#     git config core.hooksPath .githooks
+#
+#   That one command is in the launch guide's Stage 2. Without it this file is
+#   inert, which is worth knowing rather than assuming.
+#
+# WHAT IT BLOCKS
+#   scripts/check-docs.js exits 1 when a doc asserts something the code
+#   contradicts. Worked runs are advisory and never block — they are historical
+#   fixtures judged against their own commit.
+#
+# ESCAPE HATCH
+#   git push --no-verify
+#   Legitimate when you are pushing a doc fix and a code fix in separate
+#   commits. Not legitimate as a habit; the failure text names the file, the
+#   line and the code that disagrees, and fixing it is usually quicker than
+#   typing the flag.
+
+if [ ! -f scripts/check-docs.js ]; then
+  # A collection may legitimately delete the template's maintenance tooling.
+  # Absent guard, absent check — but say so rather than passing silently.
+  echo "pre-push: scripts/check-docs.js not present, skipping doc check." >&2
+  exit 0
+fi
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "pre-push: node not on PATH, cannot run the doc check. Not a pass — verify manually." >&2
+  exit 0
+fi
+
+node scripts/check-docs.js || {
+  echo "pre-push: blocked. Fix the claim, or run with --no-verify if you know why." >&2
+  exit 1
+}
+
+exit 0

@@ -173,6 +173,18 @@ git push -u origin main
 
 From here, `git push` only ever affects this collection.
 
+**Turn on the doc guard — one command, once per clone:**
+
+```powershell
+git config core.hooksPath .githooks
+```
+
+`.githooks/pre-push` runs `scripts/check-docs.js`, which refuses a push whose
+documentation asserts something the code contradicts. It exists because the same class
+of defect — a doc describing behaviour the scripts don't have — was found four separate
+times in one week, each time by someone happening to notice. Git does not version
+`.git/hooks/`, so without this command the committed hook is inert.
+
 > **Forking an older collection rather than today's template?** Then you also need to
 > merge newer template features in deliberately. Diff each file against the fork point —
 > `git diff --ignore-space-at-eol -w <fork-point-commit> -- path/to/file` — and take the

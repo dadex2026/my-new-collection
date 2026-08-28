@@ -43,6 +43,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { execFileSync } = require("child_process");
 
 const ROOT = path.join(__dirname, "..");
 const SEARCH_DIRS = ["docs", "backend/standings"];
@@ -124,6 +125,38 @@ function walk(dir, out) {
   return out;
 }
 
+// Is the guard actually armed? core.hooksPath set to a directory that does not
+// exist disables hooks SILENTLY — git runs nothing and says nothing. That state
+// was reached once, on 2026-08-28, by a `git reset --hard` that removed the hook
+// while leaving the config pointing at it. A guard that can quietly become
+// inert is worse than no guard, because it is trusted.
+//
+// The hook cannot detect its own absence, so this reports it when run by hand.
+function hookStatus() {
+  if (process.env.GIT_PARAMS !== undefined || process.env.PRE_PUSH === "1") return null;
+  let configured;
+  try {
+    configured = execFileSync("git", ["config", "--get", "core.hooksPath"], {
+      cwd: ROOT,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return { armed: false, why: "core.hooksPath is not set — the committed hook never runs" };
+  }
+  if (!configured) {
+    return { armed: false, why: "core.hooksPath is not set — the committed hook never runs" };
+  }
+  const hook = path.join(ROOT, configured, "pre-push");
+  if (!fs.existsSync(hook)) {
+    return {
+      armed: false,
+      why: `core.hooksPath is "${configured}" but ${configured}/pre-push does not exist — git runs NO hooks and reports nothing`,
+    };
+  }
+  return { armed: true };
+}
+
 function main() {
   if (process.argv.includes("--list")) {
     for (const r of RULES) {
@@ -173,9 +206,18 @@ function main() {
     advisories.forEach((h) => report(h, o));
   }
 
+  const hook = hookStatus();
+  if (hook && !hook.armed) {
+    process.stdout.write(
+      `\n⚠ the guard is NOT armed: ${hook.why}.\n` +
+        `  Arm it:  git config core.hooksPath .githooks\n` +
+        `  Until then this check only runs when you type it.\n`
+    );
+  }
+
   if (blocking.length === 0) {
     process.stdout.write(
-      `✓ check-docs: ${files.length} file(s), ${RULES.length} rule(s), no contradicted claims.\n\n`
+      `\n✓ check-docs: ${files.length} file(s), ${RULES.length} rule(s), no contradicted claims.\n\n`
     );
     process.exit(0);
   }
