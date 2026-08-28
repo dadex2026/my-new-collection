@@ -3,7 +3,7 @@
 **For a separate session.** Everything needed is in this file; nothing has to be
 reconstructed from a prior chat.
 
-**Method:** `docs/prompt-eval-protocol.md` in `TEMPLATE-OPEN-EDITION`. Read it before
+**Method:** `docs/runs/prompt-eval-protocol.md` in `TEMPLATE-OPEN-EDITION`. Read it before
 scoring. This file is the work order, not a replacement for it.
 
 ---
@@ -12,7 +12,7 @@ scoring. This file is the work order, not a replacement for it.
 
 **The prompt library is complete and evidenced.** All 28 prompts in
 `docs/generation-prompts.md` (A1–A7, B1–B2, C1–C2, D1–D3, E1–E6, F1–F2, G1–G5, H1) have
-a filled sample header and a full worked run in `docs/worked-run-*.md` — 29 files, the
+a filled sample header and a full worked run in `docs/runs/worked-run-*.md` — 29 files, the
 extra being `worked-run-e3-index.md` for E3's second path. Those were built by reading
 the code and comparing, which tests the **prompts as written**.
 
@@ -73,7 +73,7 @@ as real and closed.
 1. **One prompt per chat, fresh.** A second prompt in the same conversation inherits the
    first's assumptions and the answer looks better than the prompt deserves.
 2. **Paste the block below verbatim.** Each has been diffed against its worked run's
-   SAMPLE HEADER, value for value. Do not improve the wording. **`docs/worked-run-*.md`
+   SAMPLE HEADER, value for value. Do not improve the wording. **`docs/runs/worked-run-*.md`
    is the fixture of record** — if `generation-prompts.md`'s worked-headers appendix ever
    shows a different fixture for the same prompt, the worked run wins for evaluation
    purposes and the disagreement is a backlog item, not something to reconcile mid-run.
@@ -125,7 +125,7 @@ IMAGE ALT:    Sample Item artwork beside a Claim Reward button
 FEATURED:     TRUE
 EXPIRES:      none
 
-Do not open docs/worked-run-*.md or docs/prompt-eval-protocol.md.
+Do not open docs/runs/worked-run-*.md or docs/runs/prompt-eval-protocol.md.
 ```
 
 ### C1 / mode B — grant nothing
@@ -176,7 +176,7 @@ EXPORT HEADER ROW: Position,Date,Matchup,Winner,WinScore,Spread,Total,FinalValue
 
 Give me the runbook for adding this to the import path.
 
-Do not open docs/worked-run-*.md or docs/prompt-eval-protocol.md.
+Do not open docs/runs/worked-run-*.md or docs/runs/prompt-eval-protocol.md.
 ```
 
 The worked-headers appendix in `generation-prompts.md` carries the same D1 fixture as of
@@ -204,7 +204,7 @@ JOINS?:            jockey rows must find their horse rows
 RE-RUN SEMANTICS:  rebuild
 DOWNSTREAM:        a collection's standings
 
-Do not open docs/worked-run-*.md or docs/prompt-eval-protocol.md.
+Do not open docs/runs/worked-run-*.md or docs/runs/prompt-eval-protocol.md.
 ```
 
 **Not the template.** The build guide is `Dashboards\new-dashboard-build-guide.md`, its
@@ -298,7 +298,7 @@ Only the first is worth acting on.
 
 ## 6. Record it
 
-One row per run, appended to the table in `docs/prompt-eval-protocol.md`. The value is
+One row per run, appended to the table in `docs/runs/prompt-eval-protocol.md`. The value is
 the trend, not the prose.
 
 | Date | Prompt | Mode | Parts | Branch | Cover | Refusals | Strings | Missing | Invented | Prompt faults found |

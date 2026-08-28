@@ -228,7 +228,7 @@ exist until the first round imports — weeks of replies later. Paste a real
 export's first line, or write `UNKNOWN — tell me what to check`.
 
 A full worked run from this header, output and all, is in
-`docs/worked-run-e1.md`.
+`docs/runs/worked-run-e1.md`.
 
 ### What must already exist
 
@@ -302,7 +302,7 @@ the file and the position inside it for every block it hands you, and
 distinguishes *edited* from *created*; and the exact refusal text for a ruleset that is not
 declared. An answer with no refusals section did not read the files.
 
-That paragraph is a description; `docs/worked-run-e1.md` is the thing itself —
+That paragraph is a description; `docs/runs/worked-run-e1.md` is the thing itself —
 E1 run end to end, so a real answer can be held next to a known-good one rather
 than against prose.
 
@@ -592,7 +592,7 @@ become.
 **Reference:** `docs/new-collection-deployment-guide.md` · `docs/netlify-connection.md` · `template-version.json` · `schema.json`
 
 **A full worked run of this prompt** — filled header and all five parts of
-the output — is in `docs/worked-run-a1.md`.
+the output — is in `docs/runs/worked-run-a1.md`.
 
 **Traps this prompt exists to catch:** `deployment.json` ships pointing at the
 template's own on-chain asset and nothing errors if you leave it; `origin`
@@ -671,7 +671,7 @@ should become.
 **Reference:** `backend/master.csv` · `schema.json` · `backend/scripts/generate-registry.js` · `frontend/public/registry.json`
 
 **A full worked run of this prompt** — filled header and all five parts of
-the output — is in `docs/worked-run-a2.md`.
+the output — is in `docs/runs/worked-run-a2.md`.
 
 ---
 
@@ -731,7 +731,7 @@ should become.
 **Reference:** `backend/scripts/preflight.js` · `prepare-images.js` · `upload-images.js` · `generate-metadata.js` · `upload-metadata.js` · `deploy-collection.js` · `deploy-candy-machine.js` · `backend/config.json` · `backend/.env.admin`
 
 **A full worked run of this prompt** — filled header and all five parts of
-the output — is in `docs/worked-run-a3.md`. It was written and not executed:
+the output — is in `docs/runs/worked-run-a3.md`. It was written and not executed:
 the prerequisites it turns on cannot be verified without spending.
 
 **Note:** `scripts/audit-production.ps1` and `backend/scripts/get-holders.js` are
@@ -792,7 +792,7 @@ should become.
 **Reference:** `docs/new-collection-deployment-guide.md` Step 5 · `.gitattributes`
 
 **A full worked run of this prompt** — filled header and all five parts of
-the output — is in `docs/worked-run-a4.md`.
+the output — is in `docs/runs/worked-run-a4.md`.
 
 ---
 
@@ -841,7 +841,7 @@ should become.
 **Reference:** `docs/new-collection-deployment-guide.md` Step 7 · `Desktop\rpc-proxy`
 
 **A full worked run of this prompt** — filled header and all five parts of
-the output — is in `docs/worked-run-a5.md`.
+the output — is in `docs/runs/worked-run-a5.md`.
 
 ---
 
@@ -893,7 +893,7 @@ should become.
 **Reference:** `netlify.toml` · `docs/netlify-connection.md` · `.netlify/state.json`
 
 **A full worked run of this prompt** — filled header and all five parts of
-the output — is in `docs/worked-run-a6.md`.
+the output — is in `docs/runs/worked-run-a6.md`.
 
 ---
 
@@ -944,7 +944,7 @@ should become.
 **Reference:** `docs/new-collection-deployment-guide.md` Step 10
 
 **A full worked run of this prompt** — filled header and all five parts of
-the output — is in `docs/worked-run-a7.md`.
+the output — is in `docs/runs/worked-run-a7.md`.
 
 ---
 ---
@@ -1010,7 +1010,7 @@ should become.
 **Reference:** `backend/campaigns.csv` · `backend/scripts/deploy-campaign.js` · `generate-campaigns-registry.js` · `frontend/public/campaigns.json` · `backend/post-templates/campaign-launch.txt`
 
 **A full worked run of this prompt** — filled header and all five parts
-of the output — is in `docs/worked-run-b1.md`.
+of the output — is in `docs/runs/worked-run-b1.md`.
 
 ---
 
@@ -1060,7 +1060,7 @@ should become.
 **Reference:** `backend/scripts/airdrop.js` · `backend/recipients.csv` · `backend/airdrop-history.csv`
 
 **A full worked run of this prompt** — filled header and all five parts of
-the output — is in `docs/worked-run-b2.md`.
+the output — is in `docs/runs/worked-run-b2.md`.
 
 **Note:** `recipients.csv` and `airdrop-history.csv` do not exist in a fresh
 template checkout — you create the first, the script creates the second.
@@ -1151,7 +1151,7 @@ should become.
 **Reference:** `backend/textcards.csv` · `backend/scripts/generate-content-registry.js` · `set-post-url.js` · `compose-post.js` · `backend/post-templates/announcement.txt` · `frontend/src/ui.engine.ts`
 
 **A full worked run of this prompt** — filled header and all five parts
-of the output — is in `docs/worked-run-c1.md`.
+of the output — is in `docs/runs/worked-run-c1.md`.
 
 **Card ownership — get this wrong and work is silently overwritten:**
 
@@ -1205,7 +1205,7 @@ should become.
 **Reference:** `backend/methodology/methodology.json` · `backend/scripts/generate-methodology.js` · `frontend/public/methodology.json`
 
 **A full worked run of this prompt** — filled header and all five parts of
-the output — is in `docs/worked-run-c2.md`.
+the output — is in `docs/runs/worked-run-c2.md`.
 
 ---
 ---
@@ -1283,7 +1283,7 @@ should become.
 **Reference:** `backend/standings/README.md` · `_input/import-config.json` · `_input/rulesets.json` · `backend/scripts/import-ranked-boards.js`
 
 **A full worked run of this prompt** — filled header and all five parts
-of the output — is in `docs/worked-run-d1.md`.
+of the output — is in `docs/runs/worked-run-d1.md`.
 
 ---
 
@@ -1360,7 +1360,7 @@ should become.
 **Reference:** `backend/scripts/publish-round.js` · `import-ranked-boards.js` · `generate-standings-cards.js` · `generate-methodology.js` · `backend/standings/README.md`
 
 **A full worked run of this prompt** — filled header and all five parts of
-the output — is in `docs/worked-run-d2.md`.
+the output — is in `docs/runs/worked-run-d2.md`.
 
 **A `STANDINGS-` card must never be hand-edited** — the next
 `generate-standings-cards.js` run overwrites it. Edit the board file in
@@ -1424,7 +1424,7 @@ should become.
 **Reference:** `backend/scripts/import-community-boards.js` · `_input/import-config.json` · `backend/standings/README.md`
 
 **A full worked run of this prompt** — filled header and all five parts of
-the output — is in `docs/worked-run-d3.md`.
+the output — is in `docs/runs/worked-run-d3.md`.
 
 ---
 ---
@@ -1528,7 +1528,7 @@ should become.
 **Reference:** `backend/standings/README.md` "Running a contest" · `backend/textcards.csv` · `backend/post-templates/announcement.txt` · `contest-result.txt`
 
 **A full worked run of this prompt** — filled header and all five parts of the
-output — is in `docs/worked-run-e1.md`. Compare a real answer against it; it is
+output — is in `docs/runs/worked-run-e1.md`. Compare a real answer against it; it is
 the concrete form of *What a good run gives back* above.
 
 ---
@@ -1600,7 +1600,7 @@ should become.
 **Reference:** `Dashboards\Index Portfolio\CONTEST_RUNBOOK.md` · `POST_GENERATOR.md` · `LEADERBOARD.md` · `scripts\leaderboard.py` · `scripts\compose_post.py` · `post-templates\`
 
 **A full worked run of this prompt** — filled header and all five parts of
-the output — is in `docs/worked-run-e2.md`.
+the output — is in `docs/runs/worked-run-e2.md`.
 
 ---
 
@@ -1704,8 +1704,8 @@ should become.
 **Reference:** `Dashboards\Index Portfolio\CONTEST_RUNBOOK.md` Phases 3–4 · `Dashboards\<scoring dashboard>\prompts\` · `backend/standings/README.md`
 
 **A full worked run of this prompt on the collection path** — filled header and
-all five parts of the output — is in `docs/worked-run-e3.md`. The Index Portfolio
-path is worked separately in `docs/worked-run-e3-index.md`, because the two use
+all five parts of the output — is in `docs/runs/worked-run-e3.md`. The Index Portfolio
+path is worked separately in `docs/runs/worked-run-e3-index.md`, because the two use
 different vocabulary and different destinations.
 
 **The extraction prompt never lives with the collection.** Collections have no
@@ -1792,7 +1792,7 @@ should become.
 **Reference:** `backend/scripts/publish-round.js` · `compose-post.js` · `backend/post-templates/contest-result.txt` · `Index Portfolio\scripts\leaderboard.py` · `compose_post.py`
 
 **A full worked run of this prompt** — filled header and all five parts of
-the output — is in `docs/worked-run-e4.md`.
+the output — is in `docs/runs/worked-run-e4.md`.
 
 ---
 
@@ -1860,7 +1860,7 @@ should become.
 **Reference:** `backend/standings/README.md` "One-off" and "Writing the entries" · `backend/scripts/publish-round.js`
 
 **A full worked run of this prompt** — filled header and all five parts of
-the output — is in `docs/worked-run-e5.md`.
+the output — is in `docs/runs/worked-run-e5.md`.
 
 ---
 
@@ -1921,7 +1921,7 @@ should become.
 **Reference:** `backend/standings/README.md` "Closing a contest"
 
 **A full worked run of this prompt** — filled header and all five parts of
-the output — is in `docs/worked-run-e6.md`.
+the output — is in `docs/runs/worked-run-e6.md`.
 
 ---
 ---
@@ -1984,7 +1984,7 @@ should become.
 **Reference:** `docs/post-generator-spec.md` · `backend/scripts/compose-post.js` · `backend/post-templates/`
 
 **A full worked run of this prompt** — filled header and all five parts of
-the output — is in `docs/worked-run-f1.md`.
+the output — is in `docs/runs/worked-run-f1.md`.
 
 ---
 
@@ -2041,7 +2041,7 @@ should become.
 **Reference:** `docs/post-generator-spec.md` · `backend/post-templates/`
 
 **A full worked run of this prompt** — filled header and all five parts of
-the output — is in `docs/worked-run-f2.md`.
+the output — is in `docs/runs/worked-run-f2.md`.
 
 ---
 ---
@@ -2137,7 +2137,7 @@ should become.
 **Reference:** `Desktop\Dashboards\README.md` · the parent tool's own `README.md` and its *Sibling project* section
 
 **A full worked run of this prompt** — filled header and all five parts of
-the output — is in `docs/worked-run-g1.md`.
+the output — is in `docs/runs/worked-run-g1.md`.
 
 **G1 stands the project up; it does not build the tool.** The architecture, the scoring boundary, ranking and snapshot timing, re-run semantics and the build order are in `Dashboards\new-dashboard-build-guide.md`, driven by prompt **G5**.
 
@@ -2195,7 +2195,7 @@ should become.
 **Reference:** `Desktop\Dashboards\README.md` · the project's own `README.md` and `_superseded/`
 
 **A full worked run of this prompt** — filled header and all five parts of
-the output — is in `docs/worked-run-g2.md`.
+the output — is in `docs/runs/worked-run-g2.md`.
 
 ---
 
@@ -2244,7 +2244,7 @@ should become.
 **Reference:** `Dashboards\<target>\prompts\` · `Dashboards\README.md` "Before trusting a number"
 
 **A full worked run of this prompt** — filled header and all five parts of
-the output — is in `docs/worked-run-g3.md`.
+the output — is in `docs/runs/worked-run-g3.md`.
 
 ---
 
@@ -2297,7 +2297,7 @@ should become.
 **Reference:** `Dashboards\<target>\exports\` · `backend/standings/_input/` · `backend/scripts/import-ranked-boards.js`
 
 **A full worked run of this prompt** — filled header and all five parts of
-the output — is in `docs/worked-run-g4.md`.
+the output — is in `docs/runs/worked-run-g4.md`.
 
 ## G5 — Build the tool itself
 
@@ -2374,7 +2374,7 @@ as the verification section.
 **Reference:** `Dashboards\new-dashboard-build-guide.md` · `Dashboards\README.md` · the nearest existing tool's `*-extraction-summary.md`
 
 **A full worked run of this prompt** — filled header and all five parts of
-the output — is in `docs/worked-run-g5.md`.
+the output — is in `docs/runs/worked-run-g5.md`.
 
 **Two things this prompt will make you decide, and both are expensive later:**
 re-run semantics (rebuild like Index Portfolio, or append like Sports Ledger —
@@ -2487,7 +2487,7 @@ change a document, change it there — and if a mirror exists, say so rather tha
 editing both, because two copies kept in step by hand is the failure this
 paragraph exists to prevent.
 
-A prompt fault found by `docs/prompt-eval-protocol.md` arrives here as a Missing
+A prompt fault found by `docs/runs/prompt-eval-protocol.md` arrives here as a Missing
 input or a cover item, and is registered the same way as any other.
 
 If I am registering a BATCH — several documents at once, or a run that reported
@@ -3071,9 +3071,9 @@ The related documents, in the order you usually need them:
 | `backend/standings/README.md` | Board format, the two importers, **running a contest**, ties, score direction |
 | `docs/post-generator-spec.md` | The `compose-post.js` contract: sources, placeholders, refusals, character budget |
 | `docs/netlify-connection.md` | Deploy access |
-| `docs/worked-run-e1.md` | One complete E1 run — filled header and all five parts of the output. The concrete form of *What a good run gives back*; compare a real answer against it. **Not a source of truth** — where it and the scripts disagree, the scripts win |
-| `docs/worked-run-*.md` | **One complete run per prompt** — filled header and all five parts of the output, built against real files rather than examples. 23 of the 28 prompts have one (A3 and the four that predate this set aside): `worked-run-a1/a2/a4/a5/a6/a7`, `b1/b2`, `c1/c2`, `d1/d2/d3`, `e2/e3/e3-index/e4/e5/e6`, `f1/f2`, `g1/g2/g3/g4/g5`. Each names the project it was run against and ends with an **Appendix** of findings about its own prompt. **Not a source of truth** — where one and the scripts disagree, the scripts win |
-| `docs/prompt-eval-protocol.md` | How to test whether a prompt actually produces its worked run: paste it cold, score seven things, and classify each divergence as a prompt fault, an answer fault or a stale worked run. The worked runs say what a good answer looks like; this says how to find out whether the prompt yields one |
+| `docs/runs/worked-run-e1.md` | One complete E1 run — filled header and all five parts of the output. The concrete form of *What a good run gives back*; compare a real answer against it. **Not a source of truth** — where it and the scripts disagree, the scripts win |
+| `docs/runs/worked-run-*.md` | **One complete run per prompt** — filled header and all five parts of the output, built against real files rather than examples. 23 of the 28 prompts have one (A3 and the four that predate this set aside): `worked-run-a1/a2/a4/a5/a6/a7`, `b1/b2`, `c1/c2`, `d1/d2/d3`, `e2/e3/e3-index/e4/e5/e6`, `f1/f2`, `g1/g2/g3/g4/g5`. Each names the project it was run against and ends with an **Appendix** of findings about its own prompt. **Not a source of truth** — where one and the scripts disagree, the scripts win |
+| `docs/runs/prompt-eval-protocol.md` | How to test whether a prompt actually produces its worked run: paste it cold, score seven things, and classify each divergence as a prompt fault, an answer fault or a stale worked run. The worked runs say what a good answer looks like; this says how to find out whether the prompt yields one |
 | `docs/open-items.md` | Backlog, plus a verified-state table. **Delete when forking** |
 | `Dashboards\README.md` | The dashboard conventions and the AI/tool boundary |
 | `Dashboards\new-dashboard-build-guide.md` | Building a new dashboard: kind and shape, the non-negotiables, ranking and snapshot timing, re-run semantics, build order. **Prompt G5 drives it** |

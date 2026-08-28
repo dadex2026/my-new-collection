@@ -1,7 +1,7 @@
 # Worked run — E3, Index Portfolio path
 
 **Driven by prompt E3** in `docs/generation-prompts.md`, on the branch where the
-target *is* the scoring dashboard. The sibling of `docs/worked-run-e3.md`, which
+target *is* the scoring dashboard. The sibling of `docs/runs/worked-run-e3.md`, which
 runs the same prompt on the collection path.
 
 **Not a source of truth.** Where this file and the tool disagree, the tool wins.

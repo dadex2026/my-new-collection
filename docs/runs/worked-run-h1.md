@@ -22,7 +22,7 @@ I want to register something new in docs/generation-prompts.md.
 WHAT KIND:  document
 
 IF A DOCUMENT:
-  PATH:                 docs/worked-run-*.md  (22 files)
+  PATH:                 docs/runs/worked-run-*.md  (22 files)
   WHAT IT COVERS:       One complete run of one prompt — filled header and all
                         five parts of the output — built against real project
                         files, ending with findings about that prompt.
@@ -50,7 +50,7 @@ satisfying it. So the five existing per-prompt rows were **collapsed into one co
 row** naming the set, the coverage (23 of 28 prompts, listed by id), the shape of each
 file, and the *"not a source of truth"* clause the individual rows carried.
 
-**`docs/worked-run-e1.md` keeps its own row.** It predates this set, it is cited three
+**`docs/runs/worked-run-e1.md` keeps its own row.** It predates this set, it is cited three
 times in the file's prose, and it is the reference for *What a good run gives back* —
 a different role from "one run per prompt."
 
@@ -82,7 +82,7 @@ runbook spends real SOL when executed.
 
 *"Does this document supersede or contradict anything already in the closing table?"*
 
-- **`docs/worked-run-e1.md`** — not superseded. Different role, kept.
+- **`docs/runs/worked-run-e1.md`** — not superseded. Different role, kept.
 - **The five per-prompt rows** — superseded by the corpus row, and removed rather than
   left to disagree.
 - **`docs/open-items.md`** — the worked runs' findings appendices overlap its purpose.

@@ -1,6 +1,6 @@
 # Testing whether a prompt produces its runbook
 
-The worked runs in `docs/worked-run-*.md` establish what a good answer looks like.
+The worked runs in `docs/runs/worked-run-*.md` establish what a good answer looks like.
 They were built by reading the code and comparing — which tests the *prompts as
 written*, not the *answers they produce*. This file is the other direction: paste a
 prompt cold and see whether it yields something resembling its worked run.
@@ -40,10 +40,10 @@ place and whose destination lives in the other.
 model the file exists, which cues the very refusal mode B is trying to catch. The mode B
 paste is the header alone, in a chat with no folder granted and nothing else said.
 
-**Tell it not to open the answer key.** `docs/worked-run-*.md` and this file live inside
+**Tell it not to open the answer key.** `docs/runs/worked-run-*.md` and this file live inside
 the folder mode A grants, so an unrestricted session can score itself against the
 document you are about to score it with. End the pasted prompt with one line: *"Do not
-open docs/worked-run-*.md or docs/prompt-eval-protocol.md."*
+open docs/runs/worked-run-*.md or docs/runs/prompt-eval-protocol.md."*
 
 **The pasted block must be self-contained.** A header lifted out of a worked run can
 carry a `(see below)` that pointed at a note further down that *document* — below
@@ -144,7 +144,7 @@ carrying its weight, which is worth knowing and not worth writing up.
 **Driven by no prompt.** This is a method, not a generator — the closest thing to it in
 the library is **H1**, which registers what this finds.
 
-**To hand the outstanding runs to another session**, use `docs/eval-run-handoff.md`: the
+**To hand the outstanding runs to another session**, use `docs/runs/eval-run-handoff.md`: the
 four unrun blocks with their folder grants, where to point check 5, the known results
 that must not be re-filed as new findings, and the done-list. It is a work order against
 this method, and it goes stale as runs complete — this file stays the method.

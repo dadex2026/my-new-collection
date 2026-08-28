@@ -6,7 +6,7 @@ not a substitute for `docs/new-collection-deployment-guide.md` — that guide is
 authority for *how*; this file is the authority for *whether you are ready to start*.
 
 **What it is not.** It does not gate on the prompt-eval runs in
-`docs/eval-run-handoff.md`. Those test whether the instruction library produces good
+`docs/runs/eval-run-handoff.md`. Those test whether the instruction library produces good
 runbooks for a stranger; they are quality work on the documents, they can run in
 parallel, and no mint waits on them.
 
@@ -165,7 +165,7 @@ Each of these is minutes, and each is worse after ten collections have inherited
 ## Not gates — deliberately
 
 **The prompt-eval runs.** Four unrun plus E3's re-runs, tracked in
-`docs/eval-run-handoff.md`. They improve the instructions, not the code.
+`docs/runs/eval-run-handoff.md`. They improve the instructions, not the code.
 
 **`open-items.md`'s "Open — real work" entries** — surfacing `standings.json`,
 the nav `IntersectionObserver`, carrying `eligibility` through the ranked importer,
