@@ -568,7 +568,9 @@ Cover, in order:
  5. git remote -v, the checkpoint commit, the new empty repo, remote set-url,
     push -u.
  6. Setting collectionName BEFORE any mint, and why that ordering is not
-    negotiable.
+    negotiable. Say what happens if it is simply absent: deployCoreAsset.ts
+    falls back to templateVersion.templateName, so an unset collectionName
+    mints on chain as "TEMPLATE-OPEN-EDITION" — permanently, with no error.
  7. Pointing every rpc field at the Worker proxy — deployment.json,
     backend/config.json, frontend/.env, backend/.env.
  8. The Netlify project: base directory frontend, build npm run build,
@@ -702,7 +704,15 @@ whether re-running is safe, what --force actually overrides, and its exit
 codes (0 success, 1 validation, 2 upload, 3 chain).
 
 Then specifically:
- - List preflight's ten checks and what each one would have caught.
+ - List preflight's checks and what each one would have caught. There are
+   SIXTEEN, in five groups — project structure 4, environment 6, content
+   validation 4, campaign validation 1, deployment state 1 — and the group
+   most easily dropped is Environment, which holds env_admin_gitignored and
+   deployer_not_treasury: a key about to be committed, and a deployer that is
+   also the treasury.
+ - --allow-warnings, which downgrades the reserved-prefix and placeholder
+   failures. Treat it exactly as seriously as --allow-placeholder: it is the
+   flag that lets test data reach a mainnet mint.
  - Explain why generate-metadata.js skips a row whose itemImage is still a
    placeholder, and why --allow-placeholder must never be used against
    mainnet.
@@ -719,6 +729,10 @@ should become.
 ```
 
 **Reference:** `backend/scripts/preflight.js` · `prepare-images.js` · `upload-images.js` · `generate-metadata.js` · `upload-metadata.js` · `deploy-collection.js` · `deploy-candy-machine.js` · `backend/config.json` · `backend/.env.admin`
+
+**A full worked run of this prompt** — filled header and all five parts of
+the output — is in `docs/worked-run-a3.md`. It was written and not executed:
+the prerequisites it turns on cannot be verified without spending.
 
 **Note:** `scripts/audit-production.ps1` and `backend/scripts/get-holders.js` are
 currently **empty files**. Do not build a runbook step on either until they

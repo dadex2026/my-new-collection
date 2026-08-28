@@ -107,7 +107,9 @@ Still open at the end of the review pass:
 | Item | Where |
 |---|---|
 | `backend/standings/README.md` differs between the template (29 KB) and the test rig (6.7 KB) — same opening, divergent bodies. Decide whether the rig's is an older partial copy to replace or a deliberately rig-specific file. | worked-run-d1, worked-run-g4 |
-| A3 has no worked run — deliberately skipped, since its runbook spends real SOL when executed. | — |
+| ~~A3 has no worked run~~ — written 2026-08-28 as `docs/worked-run-a3.md`, against the devnet rig and **not executed**. | worked-run-a3 |
+| `rulesetPrefix` in `my-new-collection` is still `CHANGE ME`. It depends on which Ledger will feed that collection, and once rounds publish under a ruleset id, changing it orphans them. Set it when D1 declares the first board there. | worked-run-d1 |
+| `preflight.js` runs **sixteen** checks; A3 said ten. Corrected in the prompt — but worth confirming no other doc quotes the old count. | worked-run-a3 |
 | `my-new-collection` is missing nine scripts, `post-templates/`, `backend/standings/` and `backend/methodology/`, and its `textcards.csv` is on the 13-column header. Until A4 runs there, C1 step E, D-series, E-series and G4 cannot. | worked-run-a4 |
 | That collection's live site is stale: 1 published card against 9 CSV rows, 3 published campaigns against 8 deployed. | worked-run-a7 |
 
