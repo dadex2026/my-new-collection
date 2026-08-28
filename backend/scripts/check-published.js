@@ -35,6 +35,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { execFileSync } = require("child_process");
 
 const BACKEND_DIR = path.join(__dirname, "..");
 const bust = () => `?v=${Date.now()}`;
@@ -71,6 +72,21 @@ function readCsv(file) {
 }
 
 const isSolanaAddress = v => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(v || "");
+
+// When master.csv last CHANGED, not when the file was last touched. A git
+// checkout rewrites mtimes, so comparing against the mtime reports drift after
+// an innocent branch switch — a false alarm in the one check whose whole job is
+// telling real staleness from a green status code. Fall back to mtime only
+// where git cannot answer (no repo, git absent, file never committed).
+function lastChanged(file) {
+  try {
+    const out = execFileSync("git", ["log", "-1", "--format=%cI", "--", file],
+      { cwd: BACKEND_DIR, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    if (out) return out;
+  } catch { /* not a repo, or git unavailable */ }
+  const p = path.join(BACKEND_DIR, file);
+  return fs.existsSync(p) ? fs.statSync(p).mtime.toISOString() : "";
+}
 
 async function getJson(url) {
   try {
@@ -141,12 +157,11 @@ async function main() {
       "REAL FAILURE — usually the missing VITE_REGISTRY_URL env var"]);
   } else {
     const gen = registry.body?.generatedAt || "";
-    const masterPath = path.join(BACKEND_DIR, "master.csv");
-    const edited = fs.existsSync(masterPath) ? fs.statSync(masterPath).mtime.toISOString() : "";
+    const edited = lastChanged("master.csv");
     const stale = gen && edited && gen < edited;
     if (stale) drift = true;
     rows.push(["registry.json", gen.slice(0, 10) || "?", edited.slice(0, 10) || "?",
-      stale ? "DRIFT — generated before master.csv was last edited" : "ok"]);
+      stale ? "DRIFT — generated before master.csv last changed" : "ok"]);
   }
 
   const w = [22, 12, 12];
