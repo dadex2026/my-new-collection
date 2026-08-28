@@ -757,8 +757,10 @@ Cover:
  - A template feature that arrives INSIDE a file I must never replace
    wholesale: textcards.csv gaining image, imageAlt and postUrl takes the
    header from 13 columns to 16. The merge is mechanical — append the three
-   names to the header and a trailing ,, to every existing row — and a
-   wholesale replace destroys my card rows.
+   names to the header and THREE trailing commas to every existing row, one
+   per new column — and a wholesale replace destroys my card rows. Verify with
+   a quote-aware parser afterwards, not by eye: content fields contain commas,
+   so counting separators lies.
  - template-version.json gaining collectionName on an ALREADY-MINTED
    collection: add the key with the name that is already on chain, never a
    corrected one.
@@ -909,6 +911,10 @@ Cover:
    weeks behind: compare the published card count against textcards.csv's
    rows, and the published campaign count against the rows carrying a deployed
    candy machine address. Neither needs a browser.
+ - That a re-check after a deploy must bust the cache — append ?v=<anything>
+   to the url. A cached response is indistinguishable from a live one and will
+   happily report the old counts minutes after a successful build, which is
+   the same confident-wrong-answer failure this whole prompt is about.
  - Before concluding a 404 is the expected empty state, check backend/ for the
    directory: a feature that was never forked in 404s identically to one that
    has simply not published yet, and the remedies differ (A4 versus publishing
