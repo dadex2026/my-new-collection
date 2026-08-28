@@ -575,9 +575,11 @@ Cover, in order:
     backend/config.json, frontend/.env, backend/.env.
  8. The Netlify project: base directory frontend, build npm run build,
     publish ../dist, and project visibility.
- 9. The environment variables, with VITE_REGISTRY_URL called out as the one
-    with no fallback in code — and name the symptom, because that is what I
-    will actually see: the browser requests a URL literally named /undefined.
+ 9. The environment variables, with VITE_REGISTRY_URL called out as the most
+    common first-deploy failure — and name the symptom, because that is what I
+    will actually see: config.ts falls back to /registry/registry.json, which
+    is not where the generator publishes, so the browser 404s on that path and
+    the drops grid is silently empty.
 10. Live verification of all five JSON endpoints, and which 404s are normal.
 
 Flag every step that cannot be undone, and say what makes it permanent.
@@ -865,9 +867,10 @@ Cover:
  - Build settings, which must match netlify.toml: base directory frontend,
    build command npm run build, publish directory ../dist.
  - Adding environment variables BEFORE the first full deploy, with
-   VITE_REGISTRY_URL = /registry.json called out as the one that has no
-   fallback default in code — missing it makes the app fetch a URL literally
-   named /undefined and the site loads but shows nothing.
+   VITE_REGISTRY_URL = /registry.json called out as the most common
+   first-deploy failure — missing it, config.ts falls back to
+   /registry/registry.json, a path the generator never writes, so the site
+   loads and shows nothing.
  - The rest: VITE_SOLANA_RPC_URL (the Worker proxy, never a keyed Helius
    URL), VITE_SOLANA_RPC_URL_DEVNET, VITE_CAMPAIGNS_URL,
    VITE_CONTENT_REGISTRY_URL.
@@ -913,8 +916,8 @@ Cover:
    /content-registry.json, /standings.json, /methodology.json.
  - Which 404s are the expected empty state (campaigns, content-registry,
    standings, methodology, when nothing has been published yet) and which
-   mean something is actually broken (registry.json, or any request to a
-   literal /undefined).
+   mean something is actually broken (registry.json, or a 404 on
+   /registry/registry.json — that is the VITE_REGISTRY_URL fallback firing).
  - The browser console pass: F12 → Console, every "Failed to load resource"
    line cross-referenced against the environment variables.
  - How to tell a CORS error apart — if it names the Worker URL the problem is
