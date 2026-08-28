@@ -308,12 +308,21 @@ many times as it takes.
 > `sample-collection`, so `collection_has_rows` fails and four content checks never run.
 > That is preflight working, not preflight broken.
 
-### Two things a clean exit does not prove
+### The three verdicts, and why the exact wording matters
 
-**Read the `deployer_not_treasury` detail line.** It returns `pass: true` in three cases
-where it *could not check at all*: `DEPLOYER_PRIVATE_KEY` absent, not a 64-byte secret
-key, or not base58-decodable. Each prints `Skipped — …` and counts as a pass. The exit
-code is not proof the wallets are separate; the detail line is.
+| Line | Exit | Meaning |
+|---|---|---|
+| `READY — all checks passed` | 0 | The only clean pass. |
+| `READY — but N check(s) could not be verified` | 0 | Every check that ran, passed — but N did not run. Listed under **Could not verify**, and shown as `? UNVERIFIED` on the category line. |
+| `READY WITH WARNINGS` | 0 | You passed `--allow-warnings` and something was downgraded. |
+| `NOT READY — N failure(s)` | 1 | Stop. |
+
+**Do not read an unverified check as a pass.** `deployer_not_treasury` cannot run when
+`DEPLOYER_PRIVATE_KEY` is absent, is not a 64-byte secret key, or will not base58-decode —
+and it is the check standing between your deploy key and your sale proceeds. It reports
+`COULD NOT VERIFY — …` in each case. That does not block a deploy, because an underivable
+key format is not itself grounds to refuse one; it does mean nobody has confirmed the two
+wallets are different.
 
 **If `campaigns.csv` exists, confirm `no_reserved_campaign_ids` appears in the output.**
 That check runs only when the file is present. Its silence is not a pass.
@@ -754,7 +763,7 @@ nothing that implies otherwise.
 | | `deployer_key_present` | |
 | | `treasury_valid` | |
 | | `rpc_valid` | |
-| | `deployer_not_treasury` | **Downgradable** by `--allow-warnings`; **passes when it cannot check** |
+| | `deployer_not_treasury` | **Never downgradable.** Reports `COULD NOT VERIFY` rather than passing when the key is absent, not 64 bytes, or undecodable |
 | Content Validation | `no_reserved_slug` | Downgradable. Catches `test-`/`demo-`/`sample-` |
 | | `no_reserved_drop_ids` | Downgradable. Catches `TEST-`/`DEMO-`/`SAMPLE-` |
 | | `no_placeholder_images` | Downgradable. **Placeholder art about to be minted permanently** |
@@ -762,17 +771,16 @@ nothing that implies otherwise.
 | Campaign Validation | `no_reserved_campaign_ids` | Downgradable; **runs only if `campaigns.csv` exists** |
 | Deployment State | `not_already_deployed` | Network-aware; overridden by `--force` |
 
-**Two corrections against earlier documentation**, both verified in
-`backend/scripts/preflight.js`:
+**`--allow-warnings` downgrades five checks.** Until 2026-08-28 it downgraded six: the
+sixth was `deployer_not_treasury`, an *Environment* check, which made the long-standing
+claim that "an Environment failure is never a warning" false — and false about the check
+protecting the deploy key. It has been removed from `CONTENT_CHECK_NAMES`, with a comment
+saying not to put it back. Same date, its three un-runnable paths stopped reporting
+`pass` and started reporting `COULD NOT VERIFY`.
 
-1. **`--allow-warnings` downgrades six checks, not five, and one is an Environment
-   check.** The set is `CONTENT_CHECK_NAMES` (preflight.js:344) and it includes
-   `deployer_not_treasury`. Earlier docs said an Environment failure is never a warning.
-   That is false, and false about the check standing between the deploy key and the sale
-   proceeds.
-2. **Three checks are pushed to results only on failure**, so a clean run records about
-   twelve named results and still prints `READY — all checks passed`. The conditions are
-   genuinely evaluated — not a hole — but don't go looking for sixteen ticks.
+**Three checks are pushed to results only on failure**, so a clean run records about
+twelve named results and still prints `READY — all checks passed`. The conditions are
+genuinely evaluated — not a hole — but don't go looking for sixteen ticks.
 
 ---
 

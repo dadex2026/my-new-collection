@@ -230,17 +230,17 @@ function checkDeployerNotTreasury(config) {
   if (!secret || !config.treasury) {
     // Can't check without both values — other checks already cover
     // their individual presence/validity, so just pass here silently.
-    return { pass: true, detail: "Skipped — DEPLOYER_PRIVATE_KEY or config.treasury not available to compare" };
+    return { pass: true, unknown: true, detail: "COULD NOT VERIFY — DEPLOYER_PRIVATE_KEY or config.treasury not available to compare" };
   }
   let derivedDeployerAddress;
   try {
     const secretKeyBytes = decodeBase58(secret.trim());
     if (secretKeyBytes.length !== 64) {
-      return { pass: true, detail: "Skipped — DEPLOYER_PRIVATE_KEY is not a standard 64-byte secret key, cannot derive its address" };
+      return { pass: true, unknown: true, detail: "COULD NOT VERIFY — DEPLOYER_PRIVATE_KEY is not a standard 64-byte secret key, cannot derive its address" };
     }
     derivedDeployerAddress = encodeBase58(secretKeyBytes.slice(32, 64));
   } catch (err) {
-    return { pass: true, detail: `Skipped — could not decode DEPLOYER_PRIVATE_KEY to compare: ${err.message}` };
+    return { pass: true, unknown: true, detail: `COULD NOT VERIFY — could not decode DEPLOYER_PRIVATE_KEY to compare: ${err.message}` };
   }
 
   if (derivedDeployerAddress === config.treasury) {
@@ -347,8 +347,12 @@ const CONTENT_CHECK_NAMES = new Set([
   "no_placeholder_images",
   "no_placeholder_uris",
   "no_reserved_campaign_ids",
-  "deployer_not_treasury",
 ]);
+// deployer_not_treasury was in this set until 2026-08-28. It is an ENVIRONMENT
+// check — it is what stands between the deploy key and the sale proceeds — and
+// listing it here meant --allow-warnings could downgrade it, contradicting
+// every doc that said an Environment failure is never a warning. Do not add it
+// back.
 
 const CATEGORIES = [
   { name: "Project Structure", checks: ["config_exists", "config_valid_json", "collection_slug_present", "collection_has_rows"] },
@@ -442,8 +446,15 @@ function main() {
   const hardFailures = results.filter((r) => !r.pass && !(allowWarnings && CONTENT_CHECK_NAMES.has(r.name)));
   const warnings = results.filter((r) => !r.pass && allowWarnings && CONTENT_CHECK_NAMES.has(r.name));
 
+  // A check that could not run is not a check that passed. It does not block —
+  // an underivable key format is not itself a reason to refuse a deploy — but it
+  // must never be reported as a pass, and it suppresses the "all checks passed"
+  // line that operators are told to look for.
+  const unknowns = results.filter((r) => r.unknown);
+
   for (const r of results) {
-    log({ status: r.pass ? "check_passed" : "check_failed", check: r.name, detail: r.detail });
+    const status = r.unknown ? "check_unknown" : r.pass ? "check_passed" : "check_failed";
+    log({ status, check: r.name, detail: r.detail });
   }
 
   // ---- Categorized report -------------------------------------------------
@@ -461,10 +472,21 @@ function main() {
       (r) => !r.pass && !(allowWarnings && CONTENT_CHECK_NAMES.has(r.name))
     );
     const categoryWarn = inCategory.some((r) => !r.pass && allowWarnings && CONTENT_CHECK_NAMES.has(r.name));
-    const status = categoryHardFail ? "✗ FAIL" : categoryWarn ? "⚠ WARN" : "✓ PASS";
+    const categoryUnknown = inCategory.some((r) => r.unknown);
+    const status = categoryHardFail
+      ? "✗ FAIL"
+      : categoryWarn
+      ? "⚠ WARN"
+      : categoryUnknown
+      ? "? UNVERIFIED"
+      : "✓ PASS";
 
     console.log(`${category.name.padEnd(24)}${status}`);
     for (const r of inCategory) {
+      if (r.unknown) {
+        console.log(`  ? ${r.detail}`);
+        continue;
+      }
       if (!r.pass) {
         const isWarning = allowWarnings && CONTENT_CHECK_NAMES.has(r.name);
         console.log(`  ${isWarning ? "⚠" : "✗"} ${r.detail}`);
@@ -491,12 +513,32 @@ function main() {
     process.exit(1);
   }
 
+  if (unknowns.length > 0) {
+    console.log("\nCould not verify (these did not run — do not read them as passes):");
+    for (const u of unknowns) {
+      console.log(`  ? ${u.name}: ${u.detail}`);
+    }
+  }
+
   if (warnings.length > 0) {
     console.log(`  READY WITH WARNINGS — proceeding is your explicit decision (--allow-warnings was set).\n`);
     log({
       status: "success",
       message: `Preflight passed with ${warnings.length} warning(s) downgraded via --allow-warnings.`,
       warnings: warnings.map((r) => r.name),
+      unknowns: unknowns.map((r) => r.name),
+    });
+    process.exit(0);
+  }
+
+  if (unknowns.length > 0) {
+    console.log(
+      `  READY — but ${unknowns.length} check(s) could not be verified. Resolve them, or proceed knowing what was not checked.\n`
+    );
+    log({
+      status: "success",
+      message: `Preflight passed, but ${unknowns.length} check(s) could not be verified.`,
+      unknowns: unknowns.map((r) => r.name),
     });
     process.exit(0);
   }

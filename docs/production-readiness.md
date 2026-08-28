@@ -60,6 +60,34 @@ Two facts settle it:
 preflight on real ids followed by a deploy **is** the first collection, permanently, under
 a name that cannot be changed. One drop, to bound the cost.
 
+## What it cost, from the logs
+
+`upload-images.log` and `upload-metadata.log` record an Irys `price` of **3,208 lamports
+per upload**, ten uploads across both steps — roughly **0.000032 SOL** for all image and
+metadata storage. Arweave storage is not the expense.
+
+The expense is Solana account rent: one collection plus one candy machine per drop. Those
+signatures are in `deploy-collection.log` and `deploy-candy-machine.log`; read the wallet
+against them for the exact figure.
+
+## The duplicate-deploy hazard is not hypothetical — it already happened here
+
+`deploy-collection.log` records **four successful mainnet collection deploys across three
+slugs.** `test-mech` was deployed twice:
+
+```
+2026-08-11T15:18:11Z   GmKCivVHpjf8kQ3W3DZB4enZ4bs8cAHwX2ySAcbGVRM2
+2026-08-14T14:07:16Z   DWGTLJUEyGUH33dLut6JLLbPqpHnPm8tLW2ejnj6EEcw
+```
+
+`master.csv` records only the second. **The first is paid for, live on mainnet, and
+referenced by nothing** — orphaned three days later by a re-deploy that raised no error,
+because there is no error to raise: deploying twice simply produces two collections.
+
+This is what `not_already_deployed` exists to prevent and what `--force` silences. It is
+also the single best argument in this file for the rule the guide states — treat
+`--force` on preflight as an incident, not a flag.
+
 ---
 
 # Template-level fixes still outstanding
@@ -67,23 +95,37 @@ a name that cannot be changed. One drop, to bound the cost.
 These are changes to `TEMPLATE-OPEN-EDITION` itself. Each is worse after ten collections
 have inherited it. None blocks a launch; the guide documents the mitigation for each.
 
-## 1. `deployer_not_treasury` can be downgraded, and passes when it cannot check
+## 1. ~~`deployer_not_treasury` can be downgraded, and passes when it cannot check~~ — **fixed 2026-08-28**
 
-Verified in `backend/scripts/preflight.js`, 2026-08-28.
-
-`CONTENT_CHECK_NAMES` (preflight.js:344) — the set `--allow-warnings` downgrades — has
-**six** members, and the sixth is `deployer_not_treasury`, an **Environment** check. An
-earlier revision of this file said *"An Environment failure is never a warning."* That is
+**The defect.** `CONTENT_CHECK_NAMES` — the set `--allow-warnings` downgrades — held
+**six** members, and the sixth was `deployer_not_treasury`, an **Environment** check. An
+earlier revision of this file said *"An Environment failure is never a warning."* That was
 false, and false about the one check standing between the deploy key and the sale
-proceeds.
+proceeds. Separately, three paths returned `{ pass: true, detail: "Skipped — …" }` — no
+`DEPLOYER_PRIVATE_KEY`, a key that is not 64 bytes, a key that will not decode — so a
+clean exit was not proof the wallets were separate.
 
-Separately, three paths return `{ pass: true, detail: "Skipped — …" }`: no
-`DEPLOYER_PRIVATE_KEY`, a key that is not 64 bytes, a key that will not decode. So a clean
-exit is not proof the wallets are separate.
+**The fix.** `deployer_not_treasury` is out of `CONTENT_CHECK_NAMES`, with a comment
+saying why and not to put it back. The three skip paths now return `unknown: true` and
+read `COULD NOT VERIFY — …`. Unknowns are logged as `check_unknown`, shown as
+`? UNVERIFIED` on the category line, listed under *"Could not verify (these did not run —
+do not read them as passes)"*, and carried in the success log line as `unknowns`.
 
-**Fix:** remove `deployer_not_treasury` from `CONTENT_CHECK_NAMES`, and give the three
-skip paths a distinct `unknown` state rather than a pass. **Mitigation until then:** the
-guide's Stage 6 tells you to read the detail line.
+**They do not block** — an underivable key format is not itself a reason to refuse a
+deploy — **but they suppress the `READY — all checks passed` line.** That matters because
+that exact string is the pass condition the guide tells operators to look for, so the
+existing instruction now catches the case with no change to the instruction.
+
+**Verified by running it, not by reading it.** Same inputs — a deployer wallet that *is*
+the treasury, with `--allow-warnings`:
+
+| | Verdict | Exit |
+|---|---|---|
+| Pre-fix | `READY WITH WARNINGS — proceeding is your explicit decision` | **0** |
+| Post-fix | `NOT READY — 1 failure(s) must be resolved` | **1** |
+
+And with an undecodable key and everything else clean: pre-fix `READY — all checks
+passed`; post-fix `READY — but 1 check(s) could not be verified`, exit 0.
 
 ## 2. Unguarded placeholder in the on-chain path
 
