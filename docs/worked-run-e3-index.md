@@ -173,6 +173,14 @@ no paste box, no Sport/Event label, and **re-running rebuilds rather than append
     @QuietCarl, IDX_30D_0923, COMMODITY_5, , reply, ,
     ```
 
+    **The parser pads and truncates silently, so the seven-field rule is a
+    convention the tool does not enforce.** `leaderboard.py` rejects a row with
+    fewer than 3 fields and names the reason; **3 to 6 fields are padded with
+    empties, and 8 or more are truncated to 7 — both without a word.** So a row
+    that dropped `Virtual Trade` scores with the stake quietly gone, and a stray
+    comma costs the last field. Count the fields before pasting; nothing
+    downstream will.
+
     - **There is no result column, and that is the defining difference from the Ledger
       path.** The project records every index level and constituent price daily, so the
       script reads the real return over the window and settles the contest itself.
@@ -323,5 +331,5 @@ Not yet applied.
 | E3, shared coverage bullets | The `capture.complete` bullet is written as applying to both paths. **It does not exist in Index Portfolio** — no file, script or doc there mentions it. The bullet should be scoped to the collection path, or E3 should say what stands in for it here (`lock_at` plus the run report, neither of which can see an uncaptured reply). |
 | E3, new `X POST` field | **Settled and applied.** The contest JSON's `post_url` is the single home on this path — written by `compose_post.py --record-url`, read by `leaderboard.py`, linked from the dashboard, and protected by a refusal to overwrite a differing url without `--force`. E3's `X POST` is copied from there, never a second copy. The rule is now stated in E3's gloss, in E2's record-url bullet, and once in § "The draft is not the post" alongside `postUrl` for the collection path. |
 | E3 header, `LOCK TIME` | Same shape of problem: `lock_at` in the JSON is what the engine enforces. E3 should say the header value must equal it. |
-| Worked headers appendix / CONTEST_RUNBOOK | The live contest JSON for `IDX_30D_0923` has **six** field members. `CONTEST_RUNBOOK.md` Phase 1 and E2's worked header both show **four** for that same id. E3's appendix note (six) matches reality; the two shorter lists are illustrative snippets wearing a real contest's id, which is how someone ends up pasting a four-member whitelist into a six-member contest and silently skipping two indices' worth of replies. Give the illustrative examples a distinct id. |
+| **Settled 2026-08-28.** The illustrative examples in `leaderboard-paste-prompt.md` and `CONTEST_RUNBOOK.md` Phase 1 now use `IDX_30D_EXAMPLE` and `EXAMPLE_INDEX_A/B/C`, so neither can be pasted as a live contest's field. | The live contest JSON for `IDX_30D_0923` has **six** field members. `CONTEST_RUNBOOK.md` Phase 1 and E2's worked header both show **four** for that same id. E3's appendix note (six) matches reality; the two shorter lists are illustrative snippets wearing a real contest's id, which is how someone ends up pasting a four-member whitelist into a six-member contest and silently skipping two indices' worth of replies. Give the illustrative examples a distinct id. |
 | `leaderboard-paste-prompt.md` vs `leaderboard-worked-example-numeric.md` | The prompt says to **skip** a reply naming something outside the field; the worked example extracts `@Confused`'s `SPY` row and lets the engine reject it with a reason. Both are defensible — visible rejection beats silent skipping — but they cannot both be the rule. Worth settling in the prompt. |
