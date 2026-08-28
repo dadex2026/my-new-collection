@@ -1,0 +1,90 @@
+{
+  "_note": "TEMPLATE DEFAULT prose for the public methodology page — the same in every collection. Facts that change (the ruleset changelog, which boards exist, which files the standings were built from) are NOT written here; generate-methodology.js derives those from the data so they cannot go stale.",
+  "_overrides": "Two sections are domain-specific and expected to be overridden per collection: 'how-scored' (a categorical contest compares against the most-predicted answer, a numeric one against a median with a max-error distance) and 'boards' (which boards exist at all). Put the precise wording in methodology/overrides.json, merged by section id. Leave this file alone so template improvements to the shared sections keep arriving on version bump.",
+  "title": "How these rankings are produced",
+  "intro": "Every number on this site is computed from predictions people posted publicly, and every one of them can be checked. This page explains where the figures come from, what each board measures, who is and is not ranked, and how to verify any position yourself.",
+  "sections": [
+    {
+      "id": "where-numbers-come-from",
+      "heading": "Where the numbers come from",
+      "body": [
+        "Predictions are posted publicly as replies and quote posts. They are collected by hand at the close of each round, scored in a separate Ledger tool, and exported. This site publishes those exports — it does not recalculate anything.",
+        "That separation is deliberate. The site cannot quietly disagree with the tool that produced the scores, because it never reproduces the arithmetic. What it publishes is what was computed, plus the evidence behind it."
+      ]
+    },
+    {
+      "id": "how-scored",
+      "heading": "How a prediction is scored",
+      "body": [
+        "A prediction earns points for being close to the actual result. Exactly right scores full marks; the further off, the less it earns, down to nothing beyond a set distance. How closeness is measured depends on what is being predicted, and is described for this collection below where it differs.",
+        "Three things then adjust that base score. Difficulty raises a call that few others got right, and leaves an obvious call unchanged — so agreeing with everyone earns nothing extra. A virtual bet raises both the reward and the penalty, and the penalty side is deliberately twice as steep: a confident wrong call costs more than a confident right one gains. Engagement adds a small fixed bonus for posting as a quote rather than a plain reply, and more again for doing both.",
+        "Difficulty applies to the pick, never to the bet. Compounding them would mean a large losing bet hurt less in a hard category than an easy one, which is backwards."
+      ]
+    },
+    {
+      "id": "boards",
+      "heading": "What each board measures",
+      "body": [
+        "Points is the total across every settled prediction, so it rewards accuracy and volume together. Someone who predicts often and well will top it.",
+        "The other three are volume-independent and read quite differently. Skill Edge compares each pick against a baseline drawn from the other predictions in the same contest, so it measures pick quality rather than activity. Average Per Pick divides prediction points by settled picks. Hit Rate is the share of predictions that landed close enough to count.",
+        "They are published separately rather than combined, because a single blended number would hide which kind of performance produced it."
+      ]
+    },
+    {
+      "id": "who-is-ranked",
+      "heading": "Who is ranked",
+      "body": [
+        "Anyone who posts a prediction is scored. A participant with fewer settled predictions than the minimum is marked provisional and sorts to the bottom of the three skill boards — visible, but never topping a rate board on one lucky call. Provisional participants rank normally on Points, where volume is part of what is being measured.",
+        "Positions use competition ranking: tied participants share a position and the next position skips, so two people tied at 6th are followed by 8th."
+      ]
+    },
+    {
+      "id": "not-ranked",
+      "heading": "What is not ranked, and why",
+      "body": [
+        "Nothing is dropped silently. Every rule that can stop a prediction counting toward a board is stated here.",
+        "A prediction with no result yet is pending. It is stored and shown but never scored — including never scored as zero, since zero is a legitimate result. A prediction posted after the outcome was already known is late, and forfeits everything, including the engagement bonus. A prediction older than the ranking window is kept in the record but no longer counts toward a board.",
+        "On the Skill Edge board specifically, a participant whose predictions had no crowd consensus to compare against is left off entirely rather than scored zero — no comparison was possible, which is not the same as scoring nothing."
+      ],
+      "bodyWhenEvidence": [
+        "Each excluded prediction is published with its reason attached, so an omission can be checked rather than taken on trust."
+      ],
+      "bodyWhenNoEvidence": [
+        "This collection publishes totals without the individual predictions behind them, so these rules are stated rather than shown case by case."
+      ]
+    },
+    {
+      "id": "verify",
+      "heading": "How to check a position yourself",
+      "body": [
+        "Every figure on this page comes from a Ledger export committed alongside it, so a published number can always be traced back to the file it came from.",
+        "Each board also records the ruleset version that produced it, so a figure can always be traced to the rules in force when it was computed."
+      ],
+      "bodyWhenEvidence": [
+        "Every ranked participant’s individual predictions are published alongside their total: the pick, the actual result, the points it earned, and a link to the original post.",
+        "Add up the predictions marked as counting and you get the published total. That is checked automatically on every build — if a breakdown does not reconcile with its total, the standings are not published at all."
+      ],
+      "bodyWhenNoEvidence": [
+        "The individual predictions behind a total are not published for this collection, so a total cannot be added up from its parts here. What is published is what the Ledger computed and nothing else — this site never recalculates a score."
+      ]
+    },
+    {
+      "id": "movement",
+      "heading": "Position changes",
+      "body": [
+        "Movement compares a participant's position against the previous round, not against the previous time the site was rebuilt — so arrows only change when something competitive actually happened.",
+        "A participant appearing for the first time shows as new rather than as a jump from nowhere. Someone returning after a missed round is marked as returning. Neither gets a number, because there is no honest one to give."
+      ]
+    },
+    {
+      "id": "corrections",
+      "heading": "Corrections and rule changes",
+      "body": [
+        "A bug fix restores what the stated rules always meant, so history is recomputed and republished as a correction.",
+        "A rule change is a new rule. It applies forward from a stated date, and earlier rounds keep the scoring they were published under — they are never restated. Where a round sits either side of a rule change, position movement is not shown for it, because a change in position would measure the rule change as much as the participant."
+      ],
+      "bodyWhenChangelog": "Every version is listed below, with what changed and when it took effect.",
+      "bodyWhenNoChangelog": "This collection is running its first ruleset, so there are no changes to list yet."
+    }
+  ]
+}

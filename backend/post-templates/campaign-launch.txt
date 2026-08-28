@@ -1,0 +1,7 @@
+#source: campaigns
+{headline}
+
+{eligibilityText}
+{rewardText} · {priceText} · {allocationText}
+
+{claimText} → {siteUrl}

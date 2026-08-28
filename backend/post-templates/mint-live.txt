@@ -1,0 +1,7 @@
+#source: master
+{collectionName} — {itemName} is live.
+
+{itemDescription}
+
+{price} SOL · {maxSupply} supply
+Mint → {itemExternalUrl}

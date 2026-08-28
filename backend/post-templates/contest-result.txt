@@ -1,0 +1,9 @@
+#source: standings
+{title}
+
+{entry[0].rank}. {entry[0].name} — called {entry[0].Called} on {entry[0].Pick}
+{entry[1].rank}. {entry[1].name} ({entry[1].Called})
+{entry[2].rank}. {entry[2].name} ({entry[2].Called})
+
+{entryCount} entries · ruleset {rulesetVersion}
+Rules → {methodologyUrl}
