@@ -200,10 +200,22 @@ function main() {
     out(`  check: ${h.rule.truth}\n\n`);
   };
 
+  // Advisories are a standing, unchanging list — they are known-stale fixtures
+  // that nobody intends to rewrite. Printing them in full on every push is how
+  // a guard turns into wallpaper, and a guard people scroll past has stopped
+  // guarding. One line, expandable on request.
   if (advisories.length > 0) {
     const o = (t) => process.stdout.write(t);
-    o(`\n— advisory: ${advisories.length} in worked runs (historical records, not failing) —\n\n`);
-    advisories.forEach((h) => report(h, o));
+    if (process.argv.includes("--advisory")) {
+      o(`\n— advisory: ${advisories.length} in worked runs (historical records, not failing) —\n\n`);
+      advisories.forEach((h) => report(h, o));
+    } else {
+      const files = [...new Set(advisories.map((h) => h.rel))];
+      o(
+        `\n— ${advisories.length} advisory in ${files.length} worked run(s), not failing ` +
+          `(node scripts/check-docs.js --advisory to list) —\n`
+      );
+    }
   }
 
   const hook = hookStatus();
