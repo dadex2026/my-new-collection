@@ -133,6 +133,14 @@ passed`; post-fix `READY — but 1 check(s) could not be verified`, exit 0.
 `uri: "https://example.com/metadata.json"`. `collectionName` beside it is guarded and
 documented as permanent; the metadata URI is neither.
 
+> **Resolved 2026-08-28 — and this heading was wrong.** `deployCoreAsset.ts` is invoked by
+> nothing, so its hardcoded `uri` was never on the on-chain path. The permanent collection
+> `uri` comes from `master.csv`'s `collectionImage`, first matching row
+> (`deploy-collection.js:350`), and is now gated by `no_placeholder_collection_image`. The
+> script was **deleted**, which closes this item by removal rather than by fix. Recorded
+> rather than edited away: the finding was real about the file and wrong about its
+> reach, and that distinction is the point.
+
 ## 3. Two apparent sources of truth for price
 
 `config.json`'s `price` is **required to be present** (`deploy-collection.js:171`) but
@@ -146,16 +154,16 @@ same number.
 - `backend/scripts/get-holders.js` — 0 bytes. Produces the holder snapshot that reward
   campaigns consume. Fill it or delete it.
 - `scripts/audit-production.ps1` — 0 bytes, dated June, named like a production check. An
-  empty file with that name is worse than no file.
+  empty file with that name is worse than no file. **Deleted 2026-08-28.**
 
 Together these mean **there is currently no scripted post-mint chain audit.**
 
 ## 5. The cheap ones
 
-- `frontend/src/styles.css` — dead, not imported anywhere. Deleting it stops someone
-  editing it and wondering why nothing changes.
-- `scripts/utils/` — empty directory.
-- `project-files.txt` — stale; lists files that do not exist. Regenerate or delete.
+- `frontend/src/styles.css` — dead, not imported anywhere. **Deleted 2026-08-28.**
+- `scripts/utils/` — empty directory. **Still open:** git never tracked it, so `git rm`
+  cannot remove it; it needs a manual `rmdir` on the machine holding the clone.
+- `project-files.txt` — stale; listed files that do not exist. **Deleted 2026-08-28.**
 - `backend/_to_delete/` in `my-new-collection` — two staging CSVs awaiting a manual `rm`.
 
 ## 6. The public surface you already have

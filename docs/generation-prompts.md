@@ -568,9 +568,10 @@ Cover, in order:
  5. git remote -v, the checkpoint commit, the new empty repo, remote set-url,
     push -u.
  6. Setting collectionName BEFORE any mint, and why that ordering is not
-    negotiable. Say what happens if it is simply absent: deployCoreAsset.ts
-    falls back to templateVersion.templateName, so an unset collectionName
-    mints on chain as "TEMPLATE-OPEN-EDITION" — permanently, with no error.
+    negotiable. Say what happens if it is simply absent: deploy-collection.js
+    falls back to the collection slug, so the slug is what mints on chain —
+    permanently, with no error. The name comes from master.csv, first matching
+    row; template-version.json's collectionName drives only the site title.
  7. Pointing every rpc field at the Worker proxy — deployment.json,
     backend/config.json, frontend/.env, backend/.env.
  8. The Netlify project: base directory frontend, build npm run build,
@@ -599,8 +600,8 @@ the output — is in `docs/runs/worked-run-a1.md`.
 **Traps this prompt exists to catch:** `deployment.json` ships pointing at the
 template's own on-chain asset and nothing errors if you leave it; `origin`
 still points at the template repo, so a plain `git push` corrupts the template
-for every future collection; and `collectionName` is written on-chain by
-`scripts/deployCoreAsset.ts` and cannot be renamed after a mint.
+for every future collection; and the on-chain name is `master.csv`'s
+`collectionName`, first matching row, which cannot be renamed after a mint.
 
 ---
 
@@ -736,10 +737,10 @@ should become.
 the output — is in `docs/runs/worked-run-a3.md`. It was written and not executed:
 the prerequisites it turns on cannot be verified without spending.
 
-**Note:** `scripts/audit-production.ps1` and `backend/scripts/get-holders.js` are
-currently **empty files**. Do not build a runbook step on either until they
-have contents. `backend/metadata/` does not exist in a fresh checkout either —
-`generate-metadata.js` creates it.
+**Note:** `backend/scripts/get-holders.js` is currently an **empty file**. Do not
+build a runbook step on it until it has contents. `scripts/audit-production.ps1`
+was empty in the same way and was deleted on 2026-08-28. `backend/metadata/` does
+not exist in a fresh checkout either — `generate-metadata.js` creates it.
 
 ---
 
@@ -2547,9 +2548,10 @@ SEASON ID (only if rankings):                     2026-NFL
 RULESET PREFIX (only if rankings):                nfl-ledger
 ```
 
-*`COLLECTION NAME` is the one with a deadline — it is written on-chain by
-`deployCoreAsset.ts` and cannot be renamed after a mint. Answer it as the
-name you want permanently, not a working title.*
+*`COLLECTION NAME` is the one with a deadline — it becomes `master.csv`'s
+`collectionName` on the first matching row, which is what is written on chain
+and cannot be renamed after a mint. Answer it as the name you want
+permanently, not a working title.*
 
 ---
 

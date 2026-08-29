@@ -44,11 +44,12 @@ are silently ignored.
 
 > **Correction, 2026-08-28.** Every earlier version of this guide said the on-chain name
 > came from `template-version.json` via `scripts/deployCoreAsset.ts`, falling back to
-> `templateName`. That is wrong. `template-version.json`'s `collectionName` is read by
-> exactly two things — `frontend/vite.config.ts`, which sets the site title and `<h1>`,
-> and `deployCoreAsset.ts`, **which nothing invokes**: no npm script, no code reference,
-> no root `package.json`. Set `template-version.json` for the website. Set `master.csv`
-> for the chain. They should agree, and only one of them is permanent.
+> `templateName`. That is wrong. `template-version.json`'s `collectionName` is now read
+> by exactly one thing — `frontend/vite.config.ts`, which sets the site title and `<h1>`.
+> The other reader, `deployCoreAsset.ts`, was invoked by nothing — no npm script, no code
+> reference, no root `package.json` — and was **deleted on 2026-08-28**, so the confusion
+> cannot recur. Set `template-version.json` for the website. Set `master.csv` for the
+> chain. They should agree, and only one of them is permanent.
 
 `collectionImage` on that same first row becomes the collection's permanent on-chain
 `uri` (`deploy-collection.js:350`), defaulting to an empty string if blank.
@@ -844,8 +845,9 @@ genuinely evaluated — not a hole — but don't go looking for sixteen ticks.
 - **A 404 on `standings.json` or `methodology.json`** before you've published any boards.
   Expected empty state, handled in the frontend.
 - **`backend/metadata/` missing** in a fresh checkout. `generate-metadata.js` creates it.
-- **`scripts/audit-production.ps1` and `backend/scripts/get-holders.js` are empty files.**
-  Do not build a step on either. There is currently no scripted post-mint chain audit.
+- **`backend/scripts/get-holders.js` is an empty file, 0 bytes.** Do not build a step on
+  it. `scripts/audit-production.ps1` was empty in the same way and was deleted on
+  2026-08-28. There is currently no scripted post-mint chain audit.
 
 ---
 

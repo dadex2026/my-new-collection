@@ -77,7 +77,15 @@ const RULES = [
   },
   {
     id: "undefined-symptom",
-    pattern: /literally named `?\/undefined/i,
+    // Deliberately broad: any mention of the path at all. The claim travels in
+    // more shapes than the sentence it was first written in — a1 asserts it in
+    // prose, a1's findings table recommends adding it *to* a prompt, a7 puts it
+    // in a diagnostic table mapping it to a cause, and again in a verification
+    // checklist. A pattern matching only "literally named `/undefined`" found
+    // three of the ten and reported a number that made the drift look a third
+    // its real size, which is worse than not counting. The RETRACTION exemption
+    // is what keeps the guide's and open-items' own corrections quiet.
+    pattern: /\/undefined\b/i,
     why: "A missing VITE_REGISTRY_URL 404s on /registry/registry.json. Nothing requests a literal /undefined.",
     truth: "frontend/src/config.ts",
   },
@@ -89,13 +97,19 @@ const RULES = [
   },
   {
     id: "corecollection-name-source",
-    pattern: /collectionName[^.\n]{0,60}(written on.?chain|on.?chain name)[^.\n]{0,60}deployCoreAsset/i,
+    // "collectionName", "COLLECTION NAME" and "collection name" are the same
+    // claim; the prompt library uses the spaced, upper-case form in its answer
+    // sheets and the camel-case form in its prose. A rule that only knew one
+    // spelling passed the other for months.
+    pattern: /collection[ _-]?name[^.\n]{0,80}(written on.?chain|on.?chain name|on.?chain by)[^.\n]{0,80}deployCoreAsset/i,
     why: "deployCoreAsset.ts is invoked by nothing. The on-chain name is master.csv's collectionName, first matching row.",
     truth: "backend/scripts/deploy-collection.js — name: firstRow.collectionName || collectionSlug",
   },
   {
     id: "template-name-fallback",
-    pattern: /falls back to `?templateName`?[^.\n]{0,80}(mint|on.?chain|permanent)/i,
+    // The fallback is written both as `templateName` and as the fully qualified
+    // `templateVersion.templateName`. Both name the same dead code path.
+    pattern: /falls back to `?(templateVersion\.)?templateName`?[^.\n]{0,80}(mint|on.?chain|permanent)/i,
     why: "That fallback is in deployCoreAsset.ts, which nothing runs. deploy-collection.js falls back to collectionSlug.",
     truth: "backend/scripts/deploy-collection.js",
   },
@@ -105,6 +119,25 @@ const RULES = [
     why: "CONTENT_CHECK_NAMES holds seven entries as of 2026-08-28, and deployer_not_treasury is deliberately not one of them.",
     truth: "backend/scripts/preflight.js — CONTENT_CHECK_NAMES",
   },
+];
+
+// Files the documentation now states are gone.
+//
+// "X was deleted on <date>" is a claim about the tree like any other, and it is
+// the one class this guard could not check, because it is not a pattern in a
+// doc — it is the absence of a file. The deletion and the doc edits that
+// describe it ship in one commit; if the `git rm` is forgotten, or a later
+// merge resurrects the file, every one of those sentences is quietly false
+// again. That is precisely the failure this file exists to stop, so it is
+// checked rather than trusted.
+//
+// Removing an entry here is a real decision: it means the docs no longer say
+// the file is gone.
+const DELETED_FILES = [
+  "scripts/deployCoreAsset.ts",
+  "scripts/audit-production.ps1",
+  "frontend/src/styles.css",
+  "project-files.txt",
 ];
 
 // A line is exempt if it is visibly retracting the claim rather than making it.
@@ -175,19 +208,60 @@ function main() {
     process.exit(2);
   }
 
+  // Markdown in this repo is hard-wrapped at ~78 columns, so a claim routinely
+  // spans two or three lines. A line-by-line scan misses every one of those.
+  //
+  // This is not hypothetical. On 2026-08-28 this guard reported a clean run while
+  // `generation-prompts.md` — the library every generated runbook is seeded from,
+  // and a BLOCKING file, not an advisory fixture — asserted in three separate
+  // places that `deployCoreAsset.ts` writes the on-chain name. Each time the wrap
+  // fell between "written on-chain by" and the filename, so `corecollection-name-
+  // source` never saw a line to match. The guard had never been validated against
+  // text known to be false, so its green tick meant only that its regexes had not
+  // been tested.
+  //
+  // Scan windows of one, two and three consecutive lines. The smallest window
+  // that matches wins; a hit is reported at the line the match actually starts
+  // on, not at the start of the window; and once a rule fires, windows
+  // overlapping that hit are suppressed so one claim is reported once.
+  const WINDOW = 3;
+
   const hits = [];
   for (const file of files) {
     const rel = path.relative(ROOT, file).replace(/\\/g, "/");
     const advisory = ADVISORY_ONLY.some((re) => re.test(rel));
     const lines = fs.readFileSync(file, "utf8").split(/\r?\n/);
-    lines.forEach((line, i) => {
-      if (RETRACTION.test(line)) return;
-      for (const rule of RULES) {
-        if (rule.pattern.test(line)) {
-          hits.push({ rel, line: i + 1, text: line.trim(), rule, advisory });
+    const firedThrough = new Map(); // rule.id -> last line index already accounted for
+
+    for (let i = 0; i < lines.length; i++) {
+      for (let w = 1; w <= WINDOW && i + w <= lines.length; w++) {
+        const win = lines.slice(i, i + w);
+
+        // A window is exempt if any line in it is visibly retracting the claim,
+        // so a doc may quote a falsehood in order to correct it. A claim sitting
+        // alone on a clean line is still caught by the w = 1 window, so this
+        // cannot be used — accidentally or otherwise — to hide one.
+        if (win.some((l) => RETRACTION.test(l))) continue;
+
+        const offsets = [];
+        let text = "";
+        win.forEach((l, k) => {
+          if (k > 0) text += " ";
+          offsets.push(text.length);
+          text += l.trim();
+        });
+
+        for (const rule of RULES) {
+          if ((firedThrough.get(rule.id) ?? -1) >= i) continue;
+          const m = rule.pattern.exec(text);
+          if (!m) continue;
+          let k = 0;
+          while (k + 1 < offsets.length && offsets[k + 1] <= m.index) k++;
+          hits.push({ rel, line: i + k + 1, text, rule, advisory });
+          firedThrough.set(rule.id, i + w - 1);
         }
       }
-    });
+    }
   }
 
   const blocking = hits.filter((h) => !h.advisory);
@@ -225,6 +299,22 @@ function main() {
         `  Arm it:  git config core.hooksPath .githooks\n` +
         `  Until then this check only runs when you type it.\n`
     );
+  }
+
+  // Deleted-file check — see DELETED_FILES.
+  const resurrected = DELETED_FILES.filter((f) => fs.existsSync(path.join(ROOT, f)));
+  if (resurrected.length > 0) {
+    const e = (t) => process.stderr.write(t);
+    e(
+      `\n✗ check-docs: ${resurrected.length} file(s) the docs say were deleted still exist.\n\n`
+    );
+    resurrected.forEach((f) => e(`  ${f}\n`));
+    e(
+      "\nThe docs describing these as deleted are in the tree, so right now they are wrong.\n" +
+        "Either run `git rm` on the file(s), or take them out of DELETED_FILES in\n" +
+        "scripts/check-docs.js and correct the docs that say they are gone.\n\n"
+    );
+    process.exit(1);
   }
 
   if (blocking.length === 0) {
