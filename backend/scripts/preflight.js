@@ -230,17 +230,17 @@ function checkDeployerNotTreasury(config) {
   if (!secret || !config.treasury) {
     // Can't check without both values — other checks already cover
     // their individual presence/validity, so just pass here silently.
-    return { pass: true, detail: "Skipped — DEPLOYER_PRIVATE_KEY or config.treasury not available to compare" };
+    return { pass: true, unknown: true, detail: "COULD NOT VERIFY — DEPLOYER_PRIVATE_KEY or config.treasury not available to compare" };
   }
   let derivedDeployerAddress;
   try {
     const secretKeyBytes = decodeBase58(secret.trim());
     if (secretKeyBytes.length !== 64) {
-      return { pass: true, detail: "Skipped — DEPLOYER_PRIVATE_KEY is not a standard 64-byte secret key, cannot derive its address" };
+      return { pass: true, unknown: true, detail: "COULD NOT VERIFY — DEPLOYER_PRIVATE_KEY is not a standard 64-byte secret key, cannot derive its address" };
     }
     derivedDeployerAddress = encodeBase58(secretKeyBytes.slice(32, 64));
   } catch (err) {
-    return { pass: true, detail: `Skipped — could not decode DEPLOYER_PRIVATE_KEY to compare: ${err.message}` };
+    return { pass: true, unknown: true, detail: `COULD NOT VERIFY — could not decode DEPLOYER_PRIVATE_KEY to compare: ${err.message}` };
   }
 
   if (derivedDeployerAddress === config.treasury) {
@@ -316,6 +316,83 @@ function checkNoPlaceholderUris(rows) {
   return { pass: true, detail: "All drops have a real metadata uri" };
 }
 
+// ---- Values that become permanent on chain -----------------------------
+// Everything below guards a value that deploy-collection.js or
+// deploy-candy-machine.js writes to the chain, where it cannot be changed.
+// They exist because an enumeration of those writes (2026-08-28) found that
+// preflight covered itemImage and uri and nothing else — so a project could
+// pass every check and still mint under the name "Sample Collection", at a
+// price of zero, with a supply of unlimited, none of it intended.
+
+// Word-boundary, not prefix: the four collections deployed to mainnet in
+// August were named "Mechanics Test A".."D" — a prefix match misses every
+// one of them. \b keeps "Contest Winners" and "Protest Archive" clean.
+const PLACEHOLDER_NAME = /\b(sample|test|testing|demo|template|untitled|placeholder|example|foo|bar)\b|^your /i;
+
+// deploy-collection.js:349 — name: firstRow.collectionName || collectionSlug
+function checkNoPlaceholderCollectionName(rows) {
+  const name = (rows[0] && rows[0].collectionName || "").trim();
+  if (!name) {
+    return { pass: false, detail: 'master.csv has no collectionName — the on-chain collection would be named after the slug instead' };
+  }
+  if (PLACEHOLDER_NAME.test(name) || name === "Template Open Edition") {
+    return { pass: false, detail: `collectionName "${name}" looks like placeholder text — this is the name written on chain and it cannot be changed` };
+  }
+  const disagree = [...new Set(rows.map((r) => (r.collectionName || "").trim()))];
+  if (disagree.length > 1) {
+    return { pass: false, detail: `Rows disagree on collectionName (${disagree.map((d) => JSON.stringify(d)).join(", ")}). The first row's value is the one minted.` };
+  }
+  return { pass: true, detail: `On-chain collection name will be "${name}"` };
+}
+
+// deploy-collection.js:350 — uri: firstRow.collectionImage || ""
+function checkNoPlaceholderCollectionImage(rows) {
+  const img = rows[0] && rows[0].collectionImage;
+  if (isPlaceholder(img)) {
+    return { pass: false, detail: `collectionImage is missing or a placeholder ("${img || ""}") — it becomes the collection's permanent on-chain uri` };
+  }
+  return { pass: true, detail: "Collection has a real collectionImage" };
+}
+
+// deploy-candy-machine.js:281 — solPayment from Number(row.price) || 0
+function checkPricesParse(rows) {
+  const bad = rows.filter((r) => {
+    const raw = (r.price || "").trim();
+    return raw === "" || !Number.isFinite(Number(raw)) || Number(raw) < 0;
+  });
+  if (bad.length > 0) {
+    return { pass: false, detail: `${bad.length} drop(s) have a price that is missing or does not parse: ${bad.map((r) => `${r.dropItemId}="${r.price}"`).join(", ")} — Number(price) || 0 would mint these FREE, permanently` };
+  }
+  const free = rows.filter((r) => Number(r.price) === 0).map((r) => r.dropItemId);
+  const note = free.length ? ` (${free.length} priced at 0 — free mint, intended?)` : "";
+  return { pass: true, detail: `All drop prices parse${note}` };
+}
+
+// deploy-candy-machine.js:323 — hiddenSettings.name is .slice(0, 32)
+function checkItemNamesFitOnChain(rows) {
+  const over = rows
+    .map((r) => ({ id: r.dropItemId, name: r.itemName || r.dropItemId }))
+    .filter((x) => x.name.length > 32);
+  if (over.length > 0) {
+    return { pass: false, detail: `${over.length} item name(s) exceed the 32-character on-chain limit and would be SILENTLY TRUNCATED: ${over.map((x) => `${x.id} (${x.name.length})`).join(", ")}` };
+  }
+  return { pass: true, detail: "All item names fit the 32-character on-chain limit" };
+}
+
+// deploy-candy-machine.js:278 — parseMaxSupply falls back to UNLIMITED
+function checkMaxSupplyParses(rows) {
+  const bad = rows.filter((r) => {
+    const raw = (r.maxSupply || "").trim().toLowerCase();
+    if (raw === "" || raw === "unlimited") return false;
+    const n = Number(raw);
+    return !(Number.isFinite(n) && n > 0);
+  });
+  if (bad.length > 0) {
+    return { pass: false, detail: `${bad.length} drop(s) have a maxSupply that does not parse: ${bad.map((r) => `${r.dropItemId}="${r.maxSupply}"`).join(", ")} — these would silently become UNLIMITED open editions` };
+  }
+  return { pass: true, detail: "All maxSupply values parse (or are deliberately unlimited)" };
+}
+
 function checkNotAlreadyDeployed(rows, network, force) {
   const alreadyDeployed = rows.filter((r) => r.collectionAddress && r.network === network);
   if (alreadyDeployed.length > 0 && !force) {
@@ -347,13 +424,20 @@ const CONTENT_CHECK_NAMES = new Set([
   "no_placeholder_images",
   "no_placeholder_uris",
   "no_reserved_campaign_ids",
-  "deployer_not_treasury",
+  "no_placeholder_collection_name",
+  "no_placeholder_collection_image",
 ]);
+// deployer_not_treasury was in this set until 2026-08-28. It is an ENVIRONMENT
+// check — it is what stands between the deploy key and the sale proceeds — and
+// listing it here meant --allow-warnings could downgrade it, contradicting
+// every doc that said an Environment failure is never a warning. Do not add it
+// back.
 
 const CATEGORIES = [
   { name: "Project Structure", checks: ["config_exists", "config_valid_json", "collection_slug_present", "collection_has_rows"] },
   { name: "Environment", checks: ["env_admin_exists", "env_admin_gitignored", "deployer_key_present", "treasury_valid", "rpc_valid", "deployer_not_treasury"] },
   { name: "Content Validation", checks: ["no_reserved_slug", "no_reserved_drop_ids", "no_placeholder_images", "no_placeholder_uris"] },
+  { name: "Permanent Values", checks: ["no_placeholder_collection_name", "no_placeholder_collection_image", "prices_parse", "item_names_fit_on_chain", "max_supply_parses"] },
   { name: "Campaign Validation", checks: ["no_reserved_campaign_ids"] },
   { name: "Deployment State", checks: ["not_already_deployed"] },
 ];
@@ -428,6 +512,11 @@ function main() {
         results.push({ name: "no_reserved_drop_ids", ...checkNoReservedDropIds(matchingRows, reservedIdPrefixes) });
         results.push({ name: "no_placeholder_images", ...checkNoPlaceholderImages(matchingRows) });
         results.push({ name: "no_placeholder_uris", ...checkNoPlaceholderUris(matchingRows) });
+        results.push({ name: "no_placeholder_collection_name", ...checkNoPlaceholderCollectionName(matchingRows) });
+        results.push({ name: "no_placeholder_collection_image", ...checkNoPlaceholderCollectionImage(matchingRows) });
+        results.push({ name: "prices_parse", ...checkPricesParse(matchingRows) });
+        results.push({ name: "item_names_fit_on_chain", ...checkItemNamesFitOnChain(matchingRows) });
+        results.push({ name: "max_supply_parses", ...checkMaxSupplyParses(matchingRows) });
         results.push({ name: "not_already_deployed", ...checkNotAlreadyDeployed(matchingRows, config.network, force) });
       }
     } else {
@@ -442,8 +531,15 @@ function main() {
   const hardFailures = results.filter((r) => !r.pass && !(allowWarnings && CONTENT_CHECK_NAMES.has(r.name)));
   const warnings = results.filter((r) => !r.pass && allowWarnings && CONTENT_CHECK_NAMES.has(r.name));
 
+  // A check that could not run is not a check that passed. It does not block —
+  // an underivable key format is not itself a reason to refuse a deploy — but it
+  // must never be reported as a pass, and it suppresses the "all checks passed"
+  // line that operators are told to look for.
+  const unknowns = results.filter((r) => r.unknown);
+
   for (const r of results) {
-    log({ status: r.pass ? "check_passed" : "check_failed", check: r.name, detail: r.detail });
+    const status = r.unknown ? "check_unknown" : r.pass ? "check_passed" : "check_failed";
+    log({ status, check: r.name, detail: r.detail });
   }
 
   // ---- Categorized report -------------------------------------------------
@@ -461,10 +557,21 @@ function main() {
       (r) => !r.pass && !(allowWarnings && CONTENT_CHECK_NAMES.has(r.name))
     );
     const categoryWarn = inCategory.some((r) => !r.pass && allowWarnings && CONTENT_CHECK_NAMES.has(r.name));
-    const status = categoryHardFail ? "✗ FAIL" : categoryWarn ? "⚠ WARN" : "✓ PASS";
+    const categoryUnknown = inCategory.some((r) => r.unknown);
+    const status = categoryHardFail
+      ? "✗ FAIL"
+      : categoryWarn
+      ? "⚠ WARN"
+      : categoryUnknown
+      ? "? UNVERIFIED"
+      : "✓ PASS";
 
     console.log(`${category.name.padEnd(24)}${status}`);
     for (const r of inCategory) {
+      if (r.unknown) {
+        console.log(`  ? ${r.detail}`);
+        continue;
+      }
       if (!r.pass) {
         const isWarning = allowWarnings && CONTENT_CHECK_NAMES.has(r.name);
         console.log(`  ${isWarning ? "⚠" : "✗"} ${r.detail}`);
@@ -491,12 +598,32 @@ function main() {
     process.exit(1);
   }
 
+  if (unknowns.length > 0) {
+    console.log("\nCould not verify (these did not run — do not read them as passes):");
+    for (const u of unknowns) {
+      console.log(`  ? ${u.name}: ${u.detail}`);
+    }
+  }
+
   if (warnings.length > 0) {
     console.log(`  READY WITH WARNINGS — proceeding is your explicit decision (--allow-warnings was set).\n`);
     log({
       status: "success",
       message: `Preflight passed with ${warnings.length} warning(s) downgraded via --allow-warnings.`,
       warnings: warnings.map((r) => r.name),
+      unknowns: unknowns.map((r) => r.name),
+    });
+    process.exit(0);
+  }
+
+  if (unknowns.length > 0) {
+    console.log(
+      `  READY — but ${unknowns.length} check(s) could not be verified. Resolve them, or proceed knowing what was not checked.\n`
+    );
+    log({
+      status: "success",
+      message: `Preflight passed, but ${unknowns.length} check(s) could not be verified.`,
+      unknowns: unknowns.map((r) => r.name),
     });
     process.exit(0);
   }

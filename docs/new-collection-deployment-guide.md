@@ -168,12 +168,19 @@ automatically present on Netlify.** They must be added manually:
 exist in `frontend/.env` locally, at minimum:
 
 - `VITE_SOLANA_RPC_URL`
-- `VITE_REGISTRY_URL` — set this to `/registry.json`. Unlike
-  `VITE_CAMPAIGNS_URL` and `VITE_CONTENT_REGISTRY_URL`, this one has **no
-  fallback default in code** — if it's missing, the deployed app tries to
-  fetch a URL literally named `/undefined`, which 404s and silently breaks
-  the whole collections/drops display. This is the single most common cause
-  of "the site loads but shows nothing."
+- `VITE_REGISTRY_URL` — set this to `/registry.json`. If it is missing you get
+  a **404 on `/registry/registry.json`**, and the collections/drops display is
+  silently empty. This is the single most common cause of "the site loads but
+  shows nothing."
+
+  > **Correction, 2026-08-28.** Earlier revisions of this guide said this
+  > variable has *no* fallback and that a missing value fetches a URL literally
+  > named `/undefined`. Both were wrong. `frontend/src/config.ts:8` reads
+  > `import.meta.env.VITE_REGISTRY_URL || "/registry/registry.json"`, and the
+  > generator publishes to `frontend/public/registry.json` — there is no
+  > `public/registry/` directory, so the fallback resolves to a path that does
+  > not exist. The symptom is identical, but if you go looking for `/undefined`
+  > in the console you will not find it and will chase the wrong thing.
 - `VITE_SOLANA_RPC_URL_DEVNET`, `VITE_CAMPAIGNS_URL`,
   `VITE_CONTENT_REGISTRY_URL` if set locally.
 
@@ -196,9 +203,10 @@ https://<your-site>.netlify.app/content-registry.json
 A 404 on `campaigns.json` or `content-registry.json` is *normal* if that
 collection has no campaigns or text cards published yet (both are handled
 as an expected empty state, not an error, in the frontend code). A 404 on
-`registry.json`, or a request to a literal `/undefined` URL, means something
-is actually broken — almost always the missing `VITE_REGISTRY_URL`
-environment variable from Step 6.
+`registry.json` — or on `/registry/registry.json`, which is where the code
+falls back when the variable is unset — means something is actually broken,
+almost always the missing `VITE_REGISTRY_URL` environment variable from
+Step 6.
 
 Also check the browser console (F12 → Console) on the live site for any
 `Failed to load resource` lines and cross-reference them against the
