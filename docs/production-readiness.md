@@ -161,8 +161,8 @@ Together these mean **there is currently no scripted post-mint chain audit.**
 ## 5. The cheap ones
 
 - `frontend/src/styles.css` — dead, not imported anywhere. **Deleted 2026-08-28.**
-- `scripts/utils/` — empty directory. **Still open:** git never tracked it, so `git rm`
-  cannot remove it; it needs a manual `rmdir` on the machine holding the clone.
+- `scripts/utils/` — empty directory. **Removed 2026-08-28** by a manual `rmdir`; git
+  never tracked it, so nothing in the history records that it is gone.
 - `project-files.txt` — stale; listed files that do not exist. **Deleted 2026-08-28.**
 - `backend/_to_delete/` in `my-new-collection` — two staging CSVs awaiting a manual `rm`.
 

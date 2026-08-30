@@ -11,9 +11,45 @@ Its second job is to stop a stale claim being repeated. Several entries below
 correct something an earlier handoff — or an earlier revision of this file —
 asserted confidently and wrongly. Re-verify before quoting any of it.
 
-**Anchored at:** `template-open-edition` @ `fc337a7`. The anchor names the last
+**Anchored at:** `template-open-edition` @ `3b504b8`. The anchor names the last
 commit whose code was checked, which is never the commit containing this file —
 a doc cannot cite itself.
+
+### A handoff written before `3b504b8` misleads on three points
+
+Recorded here rather than left in a chat, because the previous handoff was
+accurate when it was written and wrong within the day. Check anything inherited
+against these before quoting it.
+
+1. **State.** The template is at `3b504b8`, not `a69faf9`. The `check-docs.js`
+   change that handoff described as uncommitted landed as `e5358d4`, and a
+   second commit followed it. `scripts/deployCoreAsset.ts`,
+   `scripts/audit-production.ps1`, `frontend/src/styles.css`,
+   `project-files.txt` and `scripts/utils/` are gone. `my-new-collection` is at
+   `1bc22bc` and now runs **21** preflight checks, not 15 — "forks do not
+   inherit fixes" is no longer true of that fork's preflight, and remains true
+   of everything else in it.
+2. **The preflight count.** A handoff said *"preflight registers 20 checks via
+   `results.push`; three more are failure-only, so the documented total is 21"*.
+   That does not add up, and both halves are wrong: `grep -c results.push`
+   returns **21**, and the report prints **six** groups. Count it, do not quote
+   it.
+3. **What is blocking, and what is closed.** The "delete `deployCoreAsset.ts` or
+   wire it up" decision is closed by deletion. That also closed
+   `production-readiness.md` §2, whose heading was itself wrong — the
+   placeholder it named was never on the on-chain path. Three false
+   `deployCoreAsset.ts` claims in `generation-prompts.md` — a **blocking** file,
+   not an advisory fixture — are corrected. Real art and Stage 0's four
+   decisions still set the launch date; nothing else does.
+
+**Why the guard did not catch those three claims:** it scanned line by line
+while this repo hard-wraps markdown at ~78 columns, so any claim split across a
+wrap was invisible and the run reported clean. It now scans one-, two- and
+three-line windows. Its own advisory count was understated for the same class of
+reason — the `undefined-symptom` rule matched a single phrasing and reported 4
+where `open-items` had enumerated 10. Neither regex had ever been run against text
+known to be false, so "green" meant only that nothing had been tested. A count
+nobody has recounted is not evidence.
 
 **When forking this template into a new collection: delete this file.** It
 tracks template maintenance, not collection content. Same rule as
@@ -141,7 +177,7 @@ Still open at the end of the review pass:
 | 2 | `backend/scripts/get-holders.js` — 0 bytes | both | Every sibling script is 7–33 KB. Fill or delete. Produces a holder snapshot — **one reward input among several, not a blocker.** An earlier revision of this file called it the thing standing between a contest and paying its winners; that was wrong. Rewards are expected to be opt-in discounted mints and similar, for which rewards are ordinary holder campaigns — see the verified-state table. |
 | 3 | ~~`scripts/audit-production.ps1`~~ — **deleted 2026-08-28** | template | Was 0 bytes, dated June 28; forgotten rather than deferred. |
 | 4 | ~~`frontend/src/styles.css`~~ — **deleted 2026-08-28** | template | Was dead, see verified state. |
-| 5 | `scripts/utils/` — empty directory | template | Cosmetic, and **still open**: git never tracked it (git does not track empty directories), so `git rm` cannot remove it. Needs a manual `rmdir` on the machine that has the clone. |
+| 5 | ~~`scripts/utils/`~~ — **removed 2026-08-28** | template | Empty directory; git never tracked it, so `git rm` could not touch it and it took a manual `rmdir`. Nothing records its removal in git history — if it reappears in a clone, it was never gone. |
 | 6 | `backend/_to_delete/` — two staging CSVs | my-new-collection | Needs a manual `rm`; the device bridge cannot delete files on Windows. |
 | 22 | A4 assumes a fork point that not every fork has | template | A4's method opens with *"finding the fork-point commit the two repos share"* and the per-file `git diff <fork-point>`. `TEMPLATE-TEST-LEDGER` shares no commit with the template, so that instruction is unrunnable against the project's own test rig. A4 needs a branch for unrelated histories — the substitute recorded in the verified-state table above, including the caveat that a zero commit count means "unchanged since fork" rather than "identical to the template". **The substitute has now been validated end to end** by item 9 — cross-tree diff, per-file "has the fork touched it since root", wholesale replacement where the rig-only line count is zero, and the baseline as the regression gate. Write A4's new branch from that. H1 step 5 applies: check *What must already exist* (A4's row says "The fork-point commit, found with `git log`") and the worked-headers appendix. |
 | 23 | Sync `new-collection-deployment-guide.md` into the rig | TEMPLATE-TEST-LEDGER | Left out of item 9 deliberately, to keep that merge to the scope that was measured. Differs by 297 lines; the rig's 36 own lines are an older *Step 1–4* structure the template has since restructured — stale, not customization. One-line `cp` plus a commit. |
