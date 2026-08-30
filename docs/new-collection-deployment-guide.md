@@ -253,3 +253,32 @@ Simple cards (NEWS/UPDATE/ANNOUNCEMENT/ANALYSIS) are ordered for display by
   fine in an actual browser (including incognito) — some hosts apply
   different handling to non-browser/automated requests at the edge. Trust
   real browser verification over an automated fetch in this case.
+
+## Maintenance, 2026-08-28
+
+Five things were removed from this repo as dead. Nothing referenced any of them
+— they were fork leftovers carried over from the template.
+
+- `scripts/deployCoreAsset.ts` — invoked by nothing: no npm script, no code
+  reference, no root `package.json`. It read as though it wrote the collection's
+  on-chain name, and three documents in the template repeated that for months.
+  The name that actually reaches the chain is `master.csv`'s `collectionName`,
+  first matching row (`deploy-collection.js:349`).
+- `scripts/audit-production.ps1` — 0 bytes, named like a production check. An
+  empty file with that name is worse than no file.
+- `frontend/src/styles.css` — not imported anywhere. All real styling is the
+  inline `<style>` block in `index.html`.
+- `project-files.txt` — a stale directory dump listing files that do not exist.
+- `scripts/utils/` — an empty directory, removed with `rmdir`. Git does not track
+  empty directories, so nothing in the history records that it is gone; if it
+  reappears in a fresh clone, it was never really removed.
+
+`scripts/check-docs.js` was ported from the template at the same time. It fails a
+push when a doc in this repo asserts something the code contradicts, and it holds
+the four file names above so that a later template merge cannot quietly bring
+them back. It is **inert until armed**, once per clone:
+
+    git config core.hooksPath .githooks
+
+Run `node scripts/check-docs.js` by hand at any time — it reports whether the
+hook is armed, which the hook itself cannot do.
