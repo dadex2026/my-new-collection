@@ -451,7 +451,7 @@ source tree.
 | **Entertainment Ledger** | `Desktop\Dashboards\Entertainment Ledger` | `entertainment-ledger-v1.5.html` | Same, different column labels — needs `columnMap` |
 | **Index Portfolio** | `Desktop\Dashboards\Index Portfolio` | `dashboard/` (needs a build) | Its own contest + leaderboard pipeline, in Python |
 | **VC Fund Evaluator** | `Desktop\Dashboards\VC Fund Evaluator` | `vc-fund-evaluator-v2.1.html` | Standalone evaluation; six paired prompts |
-| **Github Evaluator** | `Desktop\Dashboards\Github Evaluator` | `github-evaluator-v2.1.html` | Standalone. Scores one software asset (repo/commit/PR/developer/org/npm package) 0-100. Copy-out/paste-back: the tool builds the audit prompt, you run it in a chat with web search, it parses the report back. System rubric also in `prompts/github-evaluator-system-prompt.txt` |
+| **Github Evaluator** | `Desktop\Dashboards\Github Evaluator` | `github-evaluator-v2.2.html` | Standalone. Scores one software asset (repo/commit/PR/developer/org/npm package) 0-100. Copy-out/paste-back: the tool builds the audit prompt, you run it in a chat with web search, it parses the report back. System rubric also in `prompts/github-evaluator-system-prompt.txt` |
 | **YouTube Ranker** | `Desktop\Dashboards\YouTube Ranker` | `youtube-ranker-v2.7.html` | Standalone. Channel relevance ranking, any category. Ranked exports use the logical column names, so **no `columnMap`**; one category per file; `AppVersion` joins to a collection's `rulesetPrefix`. No collection has adopted it yet |
 | *(add new rows here)* | | | |
 
