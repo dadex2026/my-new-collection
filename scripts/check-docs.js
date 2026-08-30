@@ -190,6 +190,16 @@ function hookStatus() {
   return { armed: true };
 }
 
+// Is the claim on line `idx` visibly being retracted rather than asserted?
+// Looks at the line itself and its immediate neighbours, the same reach as the
+// scan window, because a correction is routinely split across a wrap.
+function retractedNear(lines, idx, radius = 2) {
+  const from = Math.max(0, idx - radius);
+  const to = Math.min(lines.length - 1, idx + radius);
+  for (let j = from; j <= to; j++) if (RETRACTION.test(lines[j])) return true;
+  return false;
+}
+
 function main() {
   if (process.argv.includes("--list")) {
     for (const r of RULES) {
@@ -237,12 +247,6 @@ function main() {
       for (let w = 1; w <= WINDOW && i + w <= lines.length; w++) {
         const win = lines.slice(i, i + w);
 
-        // A window is exempt if any line in it is visibly retracting the claim,
-        // so a doc may quote a falsehood in order to correct it. A claim sitting
-        // alone on a clean line is still caught by the w = 1 window, so this
-        // cannot be used — accidentally or otherwise — to hide one.
-        if (win.some((l) => RETRACTION.test(l))) continue;
-
         const offsets = [];
         let text = "";
         win.forEach((l, k) => {
@@ -257,6 +261,17 @@ function main() {
           if (!m) continue;
           let k = 0;
           while (k + 1 < offsets.length && offsets[k + 1] <= m.index) k++;
+
+          // Exemption is judged around the line the claim is ON, not around the
+          // line the scan happened to start from. Judging it per window was a
+          // bug: a window opening two lines above a claim could reach it while
+          // excluding the retraction just below it, so the same sentence was
+          // exempt or not depending on where the scan began. It fired on a
+          // correction note in my-new-collection that reads as a retraction to
+          // any human. A doc may quote a falsehood in order to withdraw it, and
+          // the withdrawal does not always share its line.
+          if (retractedNear(lines, i + k)) continue;
+
           hits.push({ rel, line: i + k + 1, text, rule, advisory });
           firedThrough.set(rule.id, i + w - 1);
         }
