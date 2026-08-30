@@ -442,17 +442,26 @@ Copies of `TEMPLATE-OPEN-EDITION`. Same layout, same scripts, own data.
 
 ### Dashboards and ledgers
 
-Scoring and evaluation tools. Four are single-file HTML; Index Portfolio is a
+Scoring and evaluation tools. Five are single-file HTML; Index Portfolio is a
 source tree.
 
 | Target | Folder | Live file | Feeds |
 |---|---|---|---|
-| **Sports Ledger** | `Desktop\Dashboards\Sports Ledger` | `sports-ledger-v3.5.html` | Ranked + community exports → any collection's `backend/standings/` |
-| **Entertainment Ledger** | `Desktop\Dashboards\Entertainment Ledger` | `entertainment-ledger-v1.4.html` | Same, different column labels — needs `columnMap` |
+| **Sports Ledger** | `Desktop\Dashboards\Sports Ledger` | `sports-ledger-v3.6.html` | Ranked + community exports → any collection's `backend/standings/` |
+| **Entertainment Ledger** | `Desktop\Dashboards\Entertainment Ledger` | `entertainment-ledger-v1.5.html` | Same, different column labels — needs `columnMap` |
 | **Index Portfolio** | `Desktop\Dashboards\Index Portfolio` | `dashboard/` (needs a build) | Its own contest + leaderboard pipeline, in Python |
-| **VC Fund Evaluator** | `Desktop\Dashboards\VC Fund Evaluator` | `vc-fund-evaluator.html` | Standalone evaluation; six paired prompts |
-| **Github Evaluator** | `Desktop\Dashboards\Github Evaluator` | `github-evaluator-2026-08-17.html` | Standalone. No build stamp — date the filename |
+| **VC Fund Evaluator** | `Desktop\Dashboards\VC Fund Evaluator` | `vc-fund-evaluator-v2.1.html` | Standalone evaluation; six paired prompts |
+| **Github Evaluator** | `Desktop\Dashboards\Github Evaluator` | `github-evaluator-v2.1.html` | Standalone. Scores one software asset (repo/commit/PR/developer/org/npm package) 0-100. Copy-out/paste-back: the tool builds the audit prompt, you run it in a chat with web search, it parses the report back. System rubric also in `prompts/github-evaluator-system-prompt.txt` |
+| **YouTube Ranker** | `Desktop\Dashboards\YouTube Ranker` | `youtube-ranker-v2.7.html` | Standalone. Channel relevance ranking, any category. Ranked exports use the logical column names, so **no `columnMap`**; one category per file; `AppVersion` joins to a collection's `rulesetPrefix`. No collection has adopted it yet |
 | *(add new rows here)* | | | |
+
+**The YouTube Ranker row breaks no prompt assumption**, checked when it was added:
+logical column names so no `columnMap`, settled positions so it is a **D1**/**D2**
+source like the two Ledgers, one dated ranked CSV which **G4** covers, and its own
+`prompts/` folder so **G3** needs nothing. It carries only the ordinary precondition
+on any source — whichever collection adopts it declares the version its exports
+stamp as `<prefix>-<build>` in `_input/rulesets.json` before the first import, or
+the import stops. None has adopted it yet. Detail lives in that tool's folder.
 
 ### Shared infrastructure
 
@@ -2076,11 +2085,11 @@ Cover:
    the previous build moves to _superseded/ the same day. Explain the failure
    this prevents — a document describing a newer build than the file on disk,
    with nothing making that visible.
- - A build stamp in the masthead, printing version and date. Two of the five
-   existing tools have none, and the Github Evaluator has already misled once
-   because of it — a _1 suffix that read like a stale duplicate was actually
-   the newer build. If this tool will not stamp itself, the date goes in the
-   filename.
+ - A build stamp in the masthead, printing version and date. All five existing
+   tools now stamp themselves, but the Github Evaluator shipped without one
+   through v1 and has already misled once because of it — a _1 suffix that read
+   like a stale duplicate was actually the newer build. If this tool will not
+   stamp itself, the date goes in the filename.
  - Files land in the project folder directly, never routed through Downloads.
    Two reasons: a browser resolves a filename collision by appending _1, and
    Downloads is the one folder Windows Storage Sense may auto-empty — where
@@ -3082,6 +3091,9 @@ The related documents, in the order you usually need them:
 | `docs/open-items.md` | Backlog, plus a verified-state table. **Delete when forking** |
 | `Dashboards\README.md` | The dashboard conventions and the AI/tool boundary |
 | `Dashboards\new-dashboard-build-guide.md` | Building a new dashboard: kind and shape, the non-negotiables, ranking and snapshot timing, re-run semantics, build order. **Prompt G5 drives it** |
+| `Dashboards\check-fsdest.js` | Drift check for `window.FSDEST`, the export-destination module carried inline by all five single-file tools. Run `node check-fsdest.js` from `Dashboards\`. No prompt drives it |
+| `Dashboards\YouTube Ranker\*.md` | The YouTube Ranker document set — folder guide, user guide, calculations reference, migration document, session handoff. Indexed from that folder's own `README.md`; no prompt drives them |
+| `Dashboards\YouTube Ranker\youtube-ranker-duplicator-handoff.md` | Reusing that architecture for other subjects: turning a dashboard's ranking tab into a standalone single-purpose Evaluator without losing its function or its pipeline into a collection. **YouTube Ranker itself is never forked** — YouTube influencer rankings for every dashboard are categories in its one ledger. Converted rankers keep their own shape, usually the X contest flow (**E1**-**E6**, **F1**). Sits under **G5**; no prompt drives it |
 | `Dashboards\Index Portfolio\CONTEST_RUNBOOK.md` | The X-side contest loop, phase by phase |
 | `Dashboards\Index Portfolio\POST_GENERATOR.md` | The Python post generator |
 
