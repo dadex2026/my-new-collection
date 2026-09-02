@@ -241,9 +241,13 @@ export async function mint(dropId: string): Promise<void> {
 
 // ---- Holder eligibility check (DAS query, browser-side) -----------------
 // Checks whether the connected wallet holds at least one asset from the
-// required collection, using the same Helius DAS getAssetsByOwner method
-// already used server-side elsewhere in this project (get-holders.js
-// uses the sibling getAssetsByGroup method). This is a UI convenience
+// required collection, using the Helius DAS getAssetsByOwner method. The
+// same call is made in campaign.ts for campaign eligibility.
+//
+// Corrected 2026-09-02: an earlier version of this comment said that
+// get-holders.js used the sibling getAssetsByGroup method. That was false.
+// get-holders.js is 0 bytes and getAssetsByGroup appears nowhere in this
+// repo — see open-items 30. This is a UI convenience
 // only — the real, trustless enforcement is the on-chain assetGate guard
 // itself; a wallet that doesn't actually qualify would have its mint
 // rejected by the program even if this check were somehow bypassed.
