@@ -652,9 +652,19 @@ Cover:
    one config.json names active, so I can confirm my choice.
  - Which columns must be left empty at this stage because a script writes
    them, and name the script for each: itemImage (upload-images.js), uri
-   (upload-metadata.js), collectionAddress and network (deploy-collection.js),
-   candyMachineAddress / candyGuardAddress / treasury
+   (upload-metadata.js), candyMachineAddress / candyGuardAddress / treasury
    (deploy-candy-machine.js).
+ - collectionAddress and network are the exception, and getting this wrong
+   costs a mainnet deploy. If my COLLECTION SLUG has never been deployed,
+   leave both empty and let deploy-collection.js write them. If it HAS been
+   deployed, copy both from an existing row in that slug and do NOT run
+   deploy-collection.js: its idempotency check is
+   matchingRows.every(r => r.collectionAddress && r.network === config.network),
+   so one blank row makes a live collection look undeployed, and it will
+   deploy a second collection and overwrite the address on every row sharing
+   the slug. Tell me which case I am in, from the rows you actually read.
+   Either way, run node backend/scripts/preflight.js --slug <slug> before any
+   deploy — not_already_deployed is the check that catches this.
  - Whether collectionExternalUrl is populated on the existing rows. If it is
    empty, warn me that {siteUrl} and {methodologyUrl} cannot resolve and every
    compose-post.js run will need --site.
