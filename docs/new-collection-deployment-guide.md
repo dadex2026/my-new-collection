@@ -173,7 +173,7 @@ exist in `frontend/.env` locally, at minimum:
   silently empty. This is the single most common cause of "the site loads but
   shows nothing."
 
-  > **Correction, 2026-08-28.** Earlier revisions of this guide said this
+  > **Correction, 2026-08-29.** Earlier revisions of this guide said this
   > variable has *no* fallback and that a missing value fetches a URL literally
   > named `/undefined`. Both were wrong. `frontend/src/config.ts:8` reads
   > `import.meta.env.VITE_REGISTRY_URL || "/registry/registry.json"`, and the
@@ -254,7 +254,7 @@ Simple cards (NEWS/UPDATE/ANNOUNCEMENT/ANALYSIS) are ordered for display by
   different handling to non-browser/automated requests at the edge. Trust
   real browser verification over an automated fetch in this case.
 
-## Maintenance, 2026-08-28
+## Maintenance, 2026-08-29
 
 Five things were removed from this repo as dead. Nothing referenced any of them
 — they were fork leftovers carried over from the template.
