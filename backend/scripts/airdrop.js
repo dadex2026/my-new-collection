@@ -12,9 +12,20 @@
  *      itemsRedeemed — an airdropped asset and a publicly-minted asset
  *      both belong to the same on-chain Collection, but only public
  *      mints run through the candy machine's supply tracking.
- *   2. The DEPLOYER pays every transaction fee + asset rent — there is
- *      no payment step, by design. Budget accordingly (a few thousand
- *      lamports per recipient, not the drop's listed price).
+ *   2. The DEPLOYER pays every transaction fee + asset rent - there is
+ *      no payment step, by design.
+ *
+ *      MEASURED on mainnet 2026-09-02, one recipient, signature 5wCokZgz:
+ *        payer net cost   3,479,680 lamports = 0.00347968 SOL
+ *          transaction fee    10,000 lamports   (0.3%)
+ *          asset rent      3,469,680 lamports  (99.7%)
+ *
+ *      An earlier version of this comment said "a few thousand lamports
+ *      per recipient". That described the FEE and omitted the rent, so it
+ *      understated the real cost by roughly 350x. Rent dominates, and it
+ *      scales linearly: 500 recipients is ~1.74 SOL, 5,000 is ~17.4 SOL.
+ *      Re-measure rather than quoting this if rent parameters change -
+ *      scripts/tx-cost.js <signature> prints it.
  *
  * Every airdropped asset shares the same name/uri as the drop's other
  * items, matching the open-edition "everyone gets the same metadata"
