@@ -62,6 +62,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { parseCsvRecords, serializeRow } = require("./lib/csv");
 
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 require("dotenv").config({ path: path.join(__dirname, "..", ".env.admin") });
@@ -148,27 +149,26 @@ function isPlaceholder(url) {
 
 // ---- CSV helpers ------------------------------------------------------
 
+// RFC4180 via lib/csv.js. This was an inline split(",") in eleven scripts until
+// 2026-09-02 - no quote handling, and quoting did not help, because `"a, b"`
+// split into `"a` and ` b"` with the quotes retained. One comma in any prose
+// column shifted every field after it: a comma added to a campaigns.csv
+// description made eligibilityDropItemId read "All Bronze Pennants have been
+// claimed." and price read "REWARD-001". Signature and return shape are
+// unchanged, so no call site moved. See open-items 28.
 function readCsv(filePath) {
   if (!fs.existsSync(filePath)) return { header: [], rows: [] };
-  const raw = fs.readFileSync(filePath, "utf8").replace(/\r\n/g, "\n");
-  const lines = raw.split("\n").filter((l) => l.trim().length > 0);
-  if (lines.length === 0) return { header: [], rows: [] };
-  const header = lines[0].split(",").map((h) => h.trim());
-  return {
-    header,
-    rows: lines.slice(1).map((line) => {
-      const cols = line.split(",");
-      const row = {};
-      header.forEach((key, i) => { row[key] = cols[i] !== undefined ? cols[i].trim() : ""; });
-      return row;
-    }),
-  };
+  const { header, records } = parseCsvRecords(fs.readFileSync(filePath, "utf8"));
+  return { header, rows: records };
 }
 
+// serializeField quotes only when a value would otherwise change meaning, so
+// existing comma-free files round-trip byte-identical. Without it, the first
+// write-back would flatten any quoting the reader had just honoured.
 function writeCsv(filePath, header, rows) {
-  const lines = [header.join(",")];
+  const lines = [serializeRow(header)];
   for (const row of rows) {
-    lines.push(header.map((key) => (row[key] !== undefined ? row[key] : "")).join(","));
+    lines.push(serializeRow(header.map((key) => (row[key] !== undefined ? row[key] : ""))));
   }
   fs.writeFileSync(filePath, lines.join("\n") + "\n", "utf8");
 }

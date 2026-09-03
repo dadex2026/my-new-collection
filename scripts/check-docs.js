@@ -325,6 +325,36 @@ function main() {
     );
   }
 
+  // Naive-CSV check. open-items 28: eleven scripts on the mint path each carried
+  // an inline `line.split(",")` with no quote handling, while lib/csv.js sat in
+  // the same directory doing it correctly. They were fixed on 2026-09-02. This is
+  // not a claim in a doc, so no rule can catch it coming back — a copy-pasted
+  // helper in a twelfth script would simply be wrong again, silently.
+  const scriptsDir = path.join(ROOT, "backend", "scripts");
+  const naive = [];
+  const walkScripts = (dir) => {
+    let entries = [];
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) walkScripts(full);
+      else if (e.name.endsWith(".js") && fs.readFileSync(full, "utf8").includes('.split(",")')) {
+        naive.push(path.relative(ROOT, full).replace(/\\/g, "/"));
+      }
+    }
+  };
+  walkScripts(scriptsDir);
+  if (naive.length > 0) {
+    const e = (t) => process.stderr.write(t);
+    e(`\n✗ check-docs: ${naive.length} script(s) parse CSV with a naive split(",").\n\n`);
+    naive.forEach((f) => e(`  ${f}\n`));
+    e(
+      "\nUse backend/scripts/lib/csv.js instead. A split(\",\") has no quote handling, and quoting\n" +
+        "does not help it: \"a, b\" splits into \"a and  b\" with the quotes retained. See open-items 28.\n\n"
+    );
+    process.exit(1);
+  }
+
   // Deleted-file check — see DELETED_FILES.
   const resurrected = DELETED_FILES.filter((f) => fs.existsSync(path.join(ROOT, f)));
   if (resurrected.length > 0) {
