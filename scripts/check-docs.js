@@ -114,6 +114,15 @@ const RULES = [
     truth: "backend/scripts/deploy-collection.js",
   },
   {
+    id: "get-holders-empty",
+    // Added the same day the file was written, because writing it made eight
+    // documents wrong at once and nothing would have said so. A guard earns its
+    // place by catching the drift its own change creates.
+    pattern: /get-holders(\.js)?[^.\n]{0,60}(0 bytes|empty file|is empty|currently empty)/i,
+    why: "get-holders.js was written on 2026-09-02, 312 lines. It is no longer empty.",
+    truth: "backend/scripts/get-holders.js",
+  },
+  {
     id: "allow-warnings-count",
     pattern: /--allow-warnings[^.\n]{0,60}\bsix\b[^.\n]{0,30}checks/i,
     why: "CONTENT_CHECK_NAMES holds seven entries as of 2026-08-28, and deployer_not_treasury is deliberately not one of them.",

@@ -73,8 +73,8 @@ the wrong one.
 The deployer wallet is the collection's authority. Back it up somewhere that survives
 this machine, **before** Stage 7. No check covers this, and it is unrecoverable.
 
-> Also decide, if the launch will have them: **rewards** (holder campaigns need
-> `backend/scripts/get-holders.js`, which is **0 bytes** today — see Stage 10) and
+> Also decide, if the launch will have them: **rewards** (holder campaigns draw a
+> snapshot from `backend/scripts/get-holders.js` — see Stage 10) and
 > **rankings** (`rulesetPrefix` ships as `CHANGE ME`; the feature is undeclared, not
 > broken). Neither blocks a mint. Both block promising them.
 
@@ -770,10 +770,12 @@ rules is worse than none, because readers trust it.
 ## Rewards
 
 Holder campaigns — hold this, buy that at a discount — run from `backend/campaigns.csv`
-via `deploy-campaign.js`. **`backend/scripts/get-holders.js` is 0 bytes**, so the holder
-snapshot that feeds a reward campaign does not exist yet. If a launch promises anything to
-holders, that file has to be written first. If it promises nothing, confirm the site says
-nothing that implies otherwise.
+via `deploy-campaign.js`. `backend/scripts/get-holders.js` produces the holder snapshot
+that feeds a reward campaign — `--drop <dropItemId>` narrows it to one edition, which is
+the only way to target a single drop inside a shared collection, since `assetGate` sees
+only collection membership. **Written 2026-09-02 and not yet run against a live RPC**, so
+verify its output before a launch depends on it. If a launch promises nothing to holders,
+confirm the site says nothing that implies otherwise.
 
 ---
 
@@ -845,9 +847,9 @@ genuinely evaluated — not a hole — but don't go looking for sixteen ticks.
 - **A 404 on `standings.json` or `methodology.json`** before you've published any boards.
   Expected empty state, handled in the frontend.
 - **`backend/metadata/` missing** in a fresh checkout. `generate-metadata.js` creates it.
-- **`backend/scripts/get-holders.js` is an empty file, 0 bytes.** Do not build a step on
-  it. `scripts/audit-production.ps1` was empty in the same way and was deleted on
-  2026-08-28. There is currently no scripted post-mint chain audit.
+- **`scripts/audit-production.ps1`** was an empty file and was deleted on 2026-08-28.
+  There is currently no scripted post-mint chain audit. (`get-holders.js`, empty until
+  2026-09-02, is no longer in this list — it was written.)
 
 ---
 

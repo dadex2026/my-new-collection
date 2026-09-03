@@ -152,7 +152,9 @@ same number.
 ## 4. Empty files that read as features
 
 - `backend/scripts/get-holders.js` — 0 bytes. Produces the holder snapshot that reward
-  campaigns consume. Fill it or delete it.
+  campaigns consume. Fill it or delete it. **Resolved 2026-09-02: written, not deleted —
+  this finding was true when recorded and is no longer.** Kept rather than edited away,
+  because a record of what was found is this file's job.
 - `scripts/audit-production.ps1` — 0 bytes, dated June, named like a production check. An
   empty file with that name is worse than no file. **Deleted 2026-08-28.**
 

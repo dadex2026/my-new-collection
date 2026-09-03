@@ -757,10 +757,12 @@ should become.
 the output — is in `docs/runs/worked-run-a3.md`. It was written and not executed:
 the prerequisites it turns on cannot be verified without spending.
 
-**Note:** `backend/scripts/get-holders.js` is currently an **empty file**. Do not
-build a runbook step on it until it has contents. `scripts/audit-production.ps1`
-was empty in the same way and was deleted on 2026-08-28. `backend/metadata/` does
-not exist in a fresh checkout either — `generate-metadata.js` creates it.
+**Note:** `backend/scripts/get-holders.js` was written on 2026-09-02 and produces
+a holder snapshot, collection-wide or for one drop via `--drop`. Its DAS query has
+not yet been run against a live RPC, so treat its output as unverified until it
+has. `scripts/audit-production.ps1` was empty in the same way and was deleted on
+2026-08-28. `backend/metadata/` does not exist in a fresh checkout either —
+`generate-metadata.js` creates it.
 
 ---
 
@@ -2715,8 +2717,8 @@ NETWORK:      devnet
 ```
 
 *`RECIPIENTS` must already be a written file — `recipients.csv` does not exist
-in a fresh checkout. Note that `get-holders.js` is currently an empty file, so
-the list has to come from somewhere else until it is written.*
+in a fresh checkout. `get-holders.js` writes one: `node scripts/get-holders.js
+--slug <slug> [--drop <dropItemId>]`, which snapshots current holders.*
 
 ---
 
