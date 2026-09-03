@@ -526,7 +526,7 @@ async function main() {
     dropItemId: dropItemId || null,
     burnCollection: burnCollection || null,
     holderPrice,
-    mode: readOnly ? "read-only" : write ? "write" : "plan",
+    mode: readOnly ? "read-only" : verifyOnly ? "verify" : write ? "write" : "plan",
   });
 
   const { umi, umiCore, mplCandyMachine, signer } = await getUmi(config.rpc, !readOnly);
