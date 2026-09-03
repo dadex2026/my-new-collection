@@ -174,6 +174,31 @@ function ok(label, detail) {
   assert.ok(gate.some((x) => /no assetBurn/.test(x)));
   ok("catches assetGate in the holder group", "nothing would be consumed");
 
+  // ---- 4b. --set-holder-price -------------------------------------------
+  // Repricing edits a guard that already has groups, so it runs with
+  // assertMigratable deliberately skipped. Everything protecting a live guard
+  // therefore has to live in buildRepricePlan, and these are those guards.
+  const priced = m.buildRepricePlan(migrated, { holderPrice: 0.005, treasury: TREASURY, umiCore });
+  assert.deepStrictEqual(priced.guards, {});
+  assert.deepStrictEqual(Object.keys(priced.groups[1].guards).sort(), ["assetBurn", "solPayment"]);
+  assert.strictEqual(
+    String(priced.groups[1].guards.assetBurn.requiredCollection),
+    BURN_COLLECTION,
+    "repricing must not change which collection is burned"
+  );
+  assert.deepStrictEqual(Object.keys(priced.groups[0].guards), ["solPayment"], "public group untouched");
+  ok("buildRepricePlan adds a holder price", "burn collection and public group unchanged");
+
+  const backToFree = m.buildRepricePlan(
+    { guards: {}, groups: [priced.groups[0], { label: "holder", guards: {
+        assetBurn: { __option: "Some", value: { requiredCollection: BURN_COLLECTION } },
+        solPayment: { __option: "Some", value: {} },
+      } }] },
+    { holderPrice: 0, treasury: TREASURY, umiCore }
+  );
+  assert.deepStrictEqual(Object.keys(backToFree.groups[1].guards), ["assetBurn"]);
+  ok("a price of 0 REMOVES solPayment", "not a zero-lamport guard, which still needs a destination");
+
   // ---- 5. unwrapGroups --------------------------------------------------
   // The chain returns all 31 guard slots per group, 29 of them None. The
   // first real run printed them raw: two hundred lines of noise around the
