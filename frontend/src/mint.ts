@@ -171,13 +171,25 @@ export async function mint(dropId: string): Promise<void> {
 
     const asset = generateSigner(umi);
 
-    // ---- Holder-discount branch --------------------------------------
-    // drop.holderRequiredCollection is only ever set (by generate-
-    // registry.js, carrying it from deploy-candy-machine.js) for drops
-    // deployed WITH guard groups. Drops deployed the original way (no
-    // groups) leave this empty — for those, `group` must be omitted
-    // entirely below, not set to some("public"), since a candy machine
-    // with an empty groups array has no group named "public" to match.
+    // ---- Holder-redemption branch ------------------------------------
+    // drop.holderRequiredCollection comes from master.csv's
+    // holderRequiredCollection column via generate-registry.js, and is
+    // written there by deploy-candy-machine.js --holder-collection (new
+    // machines) or update-candy-guard.js (machines already deployed).
+    // Drops with no holder route leave it empty — for those, `group`
+    // must be omitted entirely below, not set to some("public"), since a
+    // candy machine with an empty groups array has no group named
+    // "public" to match.
+    //
+    // The guard is assetBurn, not assetGate. assetGate only checks that
+    // the wallet still holds a qualifying asset, so one asset admits an
+    // unlimited number of mints across an unlimited number of campaigns.
+    // assetBurn consumes it, which is the only way this codebase can
+    // express "choose one of N" — see docs/open-items.md.
+    //
+    // The mintArgs below must name exactly the guards the chosen group
+    // has active on chain. A mismatch does not fall back to something
+    // safe; the instruction fails to deserialize against that group.
     let group: string | undefined;
     const mintArgs: any = {};
 
@@ -187,20 +199,20 @@ export async function mint(dropId: string): Promise<void> {
 
       if (qualifyingAsset) {
         group = "holder";
-        mintArgs.assetGate = some({ asset: umiPublicKey(qualifyingAsset) });
-        // Only include assetMintLimit args if this drop's holder group
-        // actually has that guard active (tracked via holderMintLimitId,
-        // set at deploy time) — sending mismatched guard args would
-        // desync the serialized instruction from what the on-chain
-        // program expects to deserialize for this group.
-        if (drop.holderMintLimitId) {
-          mintArgs.assetMintLimit = some({ id: Number(drop.holderMintLimitId), asset: umiPublicKey(qualifyingAsset) });
+        mintArgs.assetBurn = some({
+          requiredCollection: umiPublicKey(drop.holderRequiredCollection),
+          asset: umiPublicKey(qualifyingAsset),
+        });
+        // solPayment is in the holder group only when the drop was
+        // configured with a non-zero holder price — mirroring what
+        // update-candy-guard.js and deploy-candy-machine.js write.
+        const holderPrice = drop.holderPrice != null ? Number(drop.holderPrice) : 0;
+        if (holderPrice > 0) {
+          mintArgs.solPayment = some({ destination: umiPublicKey(drop.treasury) });
+          setStatus(`Holder price applied — minting at ${holderPrice} SOL. Your voucher will be burned.`);
+        } else {
+          setStatus("Redeeming — your voucher will be burned to mint this...");
         }
-        setStatus(
-          drop.holderPrice != null
-            ? `Holder discount applied — minting at ${drop.holderPrice} SOL...`
-            : "Holder discount applied..."
-        );
       } else {
         group = "public";
         mintArgs.solPayment = some({ destination: umiPublicKey(drop.treasury) });
@@ -241,12 +253,20 @@ export async function mint(dropId: string): Promise<void> {
 
 // ---- Holder eligibility check (DAS query, browser-side) -----------------
 // Checks whether the connected wallet holds at least one asset from the
-// required collection, using the same Helius DAS getAssetsByOwner method
-// already used server-side elsewhere in this project (get-holders.js
-// uses the sibling getAssetsByGroup method). This is a UI convenience
-// only — the real, trustless enforcement is the on-chain assetGate guard
-// itself; a wallet that doesn't actually qualify would have its mint
-// rejected by the program even if this check were somehow bypassed.
+// required collection, using the Helius DAS getAssetsByOwner method. The
+// same call is made in campaign.ts for campaign eligibility.
+//
+// This is a UI convenience only. The real, trustless enforcement is the
+// on-chain assetBurn guard: a wallet that does not hold a qualifying
+// asset has its mint rejected by the program even if this check is
+// bypassed entirely.
+//
+// Two corrections have already been made to this comment, both because
+// it asserted things about get-holders.js that stopped being true —
+// that it used getAssetsByGroup (it never did), and that it was 0 bytes
+// (it was written on 2026-09-02 and is not). Neither was caught by
+// check-docs, which only scanned docs/ until 2026-09-03. It scans
+// source now.
 async function findQualifyingHolderAsset(walletAddress: string, requiredCollection: string): Promise<string | null> {
   const MAX_PAGES = 3; // bounded — checking a personal wallet, not building a full holder list
   const PAGE_LIMIT = 1000;

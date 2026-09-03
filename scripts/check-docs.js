@@ -46,8 +46,16 @@ const path = require("path");
 const { execFileSync } = require("child_process");
 
 const ROOT = path.join(__dirname, "..");
-const SEARCH_DIRS = ["docs", "backend/standings"];
-const EXTENSIONS = new Set([".md"]);
+// Source is searched alongside docs as of 2026-09-03. Restricting this to
+// `docs/` was itself the hole: four false capability claims found on
+// 2026-09-02 lived in code comments, where no rule could see them
+// (open-items 30). Two more were sitting in frontend/src/mint.ts on the
+// day this widened - one asserting generate-registry.js emits holder
+// fields it has never emitted, one asserting get-holders.js is 0 bytes
+// after it had been written. A comment is a claim about the code with
+// exactly the same shelf life as a sentence in a document.
+const SEARCH_DIRS = ["docs", "backend/standings", "backend/scripts", "frontend/src", "scripts"];
+const EXTENSIONS = new Set([".md", ".js", ".ts"]);
 
 // Worked runs are historical records — a run reports what it saw on the day,
 // and a fixture is judged against the code of its own commit. Rewriting one to
@@ -65,8 +73,13 @@ const ADVISORY_ONLY = [/^docs\/runs\//];
 const RULES = [
   {
     id: "preflight-check-count",
-    pattern: /\b(ten|10)\s+checks\b/i,
-    why: "preflight.js runs 21 checks in six groups, not ten.",
+    // Widened 2026-09-03 from /(ten|10) checks/. The guide's own appendix was
+    // titled "The sixteen preflight checks" while its first line said
+    // twenty-one, and this rule watched only for "ten" — so the stale count
+    // sat in a heading through every run of the guard that was supposed to
+    // catch stale counts. Match every wrong number, not the last one seen.
+    pattern: /\b(ten|10|eleven|11|twelve|12|sixteen|16|seventeen|17|eighteen|18|nineteen|19|twenty|20)\s+checks\b/i,
+    why: "preflight.js registers 21 checks in six groups. A clean run prints 18 of them (17 without campaigns.csv), because three are recorded only on failure.",
     truth: "backend/scripts/preflight.js — count the results.push({ name: ... }) calls",
   },
   {
@@ -114,8 +127,19 @@ const RULES = [
     truth: "backend/scripts/deploy-collection.js",
   },
   {
+    id: "get-holders-empty",
+    // Added the same day the file was written, because writing it made eight
+    // documents wrong at once and nothing would have said so. A guard earns its
+    // place by catching the drift its own change creates.
+    pattern: /get-holders(\.js)?[^.\n]{0,60}(0 bytes|empty file|is empty|currently empty)/i,
+    why: "get-holders.js was written on 2026-09-02, 312 lines. It is no longer empty.",
+    truth: "backend/scripts/get-holders.js",
+  },
+  {
     id: "allow-warnings-count",
-    pattern: /--allow-warnings[^.\n]{0,60}\bsix\b[^.\n]{0,30}checks/i,
+    // Same widening, same reason: this watched for "six", so when the guide
+    // said "five" it passed. Everything but "seven" is wrong.
+    pattern: /--allow-warnings[^.\n]{0,60}\b(one|two|three|four|five|six|eight|nine|ten|\d+)\b[^.\n]{0,30}checks/i,
     why: "CONTENT_CHECK_NAMES holds seven entries as of 2026-08-28, and deployer_not_treasury is deliberately not one of them.",
     truth: "backend/scripts/preflight.js — CONTENT_CHECK_NAMES",
   },
@@ -143,6 +167,12 @@ const DELETED_FILES = [
 // A line is exempt if it is visibly retracting the claim rather than making it.
 const RETRACTION = /\b(wrong|false|untrue|incorrect|corrected|correction|stale|outdated|until 20\d\d|earlier (version|revision|draft|doc)|no longer|used to (say|read)|previously (said|read)|do not (say|write)|must not appear|said|claimed)\b/i;
 
+// This file necessarily contains every banned claim - that is what a rule
+// is - so scanning itself reports each rule as a violation of itself. It is
+// the one file that must be skipped, and skipping it costs nothing: a rule
+// here is never a claim anybody reads as true.
+const SELF = path.join(ROOT, "scripts", "check-docs.js");
+
 function walk(dir, out) {
   let entries;
   try {
@@ -153,7 +183,7 @@ function walk(dir, out) {
   for (const e of entries) {
     const full = path.join(dir, e.name);
     if (e.isDirectory()) walk(full, out);
-    else if (EXTENSIONS.has(path.extname(e.name))) out.push(full);
+    else if (EXTENSIONS.has(path.extname(e.name)) && full !== SELF) out.push(full);
   }
   return out;
 }
@@ -213,7 +243,7 @@ function main() {
 
   if (files.length === 0) {
     process.stderr.write(
-      "\n✗ check-docs: found no markdown to check. Nothing was compared — this is not a pass.\n\n"
+      "\n✗ check-docs: found no files to check. Nothing was compared — this is not a pass.\n\n"
     );
     process.exit(2);
   }
@@ -314,6 +344,36 @@ function main() {
         `  Arm it:  git config core.hooksPath .githooks\n` +
         `  Until then this check only runs when you type it.\n`
     );
+  }
+
+  // Naive-CSV check. open-items 28: eleven scripts on the mint path each carried
+  // an inline `line.split(",")` with no quote handling, while lib/csv.js sat in
+  // the same directory doing it correctly. They were fixed on 2026-09-02. This is
+  // not a claim in a doc, so no rule can catch it coming back — a copy-pasted
+  // helper in a twelfth script would simply be wrong again, silently.
+  const scriptsDir = path.join(ROOT, "backend", "scripts");
+  const naive = [];
+  const walkScripts = (dir) => {
+    let entries = [];
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) walkScripts(full);
+      else if (e.name.endsWith(".js") && fs.readFileSync(full, "utf8").includes('.split(",")')) {
+        naive.push(path.relative(ROOT, full).replace(/\\/g, "/"));
+      }
+    }
+  };
+  walkScripts(scriptsDir);
+  if (naive.length > 0) {
+    const e = (t) => process.stderr.write(t);
+    e(`\n✗ check-docs: ${naive.length} script(s) parse CSV with a naive split(",").\n\n`);
+    naive.forEach((f) => e(`  ${f}\n`));
+    e(
+      "\nUse backend/scripts/lib/csv.js instead. A split(\",\") has no quote handling, and quoting\n" +
+        "does not help it: \"a, b\" splits into \"a and  b\" with the quotes retained. See open-items 28.\n\n"
+    );
+    process.exit(1);
   }
 
   // Deleted-file check — see DELETED_FILES.
