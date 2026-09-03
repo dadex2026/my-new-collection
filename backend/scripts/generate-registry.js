@@ -223,6 +223,13 @@ async function main() {
       candyMachineAddress: row.candyMachineAddress || "",
       treasury: row.treasury || "",
       network: row.network || "",
+      // Set only for drops whose candy machine has a `holder` guard group.
+      // The frontend uses its PRESENCE to decide whether to look for a
+      // voucher at all: empty means "this drop has no holder route", and
+      // mint.ts then omits the group parameter entirely rather than
+      // guessing a label the machine does not have.
+      holderRequiredCollection: row.holderRequiredCollection || "",
+      holderPrice: row.holderPrice ? Number(row.holderPrice) : null,
       minted: null, // populated below if --fetch-minted, otherwise unknown — frontend should treat null as "check on-chain"
     };
   }

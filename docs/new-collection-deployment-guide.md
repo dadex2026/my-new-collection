@@ -25,7 +25,7 @@ the chain permanently.** The boundary is marked, and it is the only one that mat
 | **9** | Verify — chain, site, and drift | yes |
 | **10** | Ongoing: text cards, rankings, methodology | yes |
 
-Appendix A — the sixteen preflight checks · Appendix B — known non-issues ·
+Appendix A — the twenty-one preflight checks · Appendix B — known non-issues ·
 Appendix C — reference documents (none of which you need to finish a launch)
 
 ---
@@ -779,10 +779,11 @@ confirm the site says nothing that implies otherwise.
 
 ---
 
-# Appendix A — The sixteen preflight checks
+# Appendix A — The twenty-one preflight checks
 
-Twenty-one as of 2026-08-28 — sixteen, plus the five added when the permanent-value
-surface was enumerated (see below).
+Sixteen until 2026-08-28, plus the five added when the permanent-value surface was
+enumerated (see below). Twenty-one is what `grep -c results.push backend/scripts/preflight.js`
+reports; recount it rather than trusting this sentence.
 
 | Group | Check | Notes |
 |---|---|---|
@@ -822,16 +823,30 @@ through "D". The new checks, run against that same `master.csv`, refuse it on bo
 The lesson generalises: the question to ask of this pipeline is not *"does it run?"* — it
 demonstrably runs — but *"is every value it makes permanent one somebody chose?"*
 
-**`--allow-warnings` downgrades five checks.** Until 2026-08-28 it downgraded six: the
+**`--allow-warnings` downgrades seven checks** — every row marked *Downgradable* in the
+table above, which is exactly `CONTENT_CHECK_NAMES`. (This paragraph said *five* until
+2026-09-03, having been written when the set was smaller and never recounted after the
+permanent-value checks were added; the guard rule that now catches it was watching for the
+word *six* and let *five* straight through.) Until 2026-08-28 it downgraded an eighth: the
 sixth was `deployer_not_treasury`, an *Environment* check, which made the long-standing
 claim that "an Environment failure is never a warning" false — and false about the check
 protecting the deploy key. It has been removed from `CONTENT_CHECK_NAMES`, with a comment
 saying not to put it back. Same date, its three un-runnable paths stopped reporting
 `pass` and started reporting `COULD NOT VERIFY`.
 
-**Three checks are pushed to results only on failure**, so a clean run records about
-twelve named results and still prints `READY — all checks passed`. The conditions are
-genuinely evaluated — not a hole — but don't go looking for sixteen ticks.
+**A category can pass without evaluating anything.** Every content, permanent-value and
+deployment check runs inside the block that `collection_has_rows` guards, so a slug with no
+matching rows skips nine checks — including both art gates. Until 2026-09-03 the report
+printed `Content Validation ✓ PASS` in that state and omitted the Permanent Values group
+from the output altogether. It now marks a partly-skipped category `(partial)`, prints
+`- NOT EVALUATED` for one that ran nothing, and names the checks that did not run in both
+cases. **Read that line before you read the ticks.**
+
+**Three checks are pushed to results only on failure** — `config_valid_json`,
+`collection_slug_present` and `collection_has_rows`. So a clean run records **eighteen**
+named results, or seventeen when `campaigns.csv` is absent and `no_reserved_campaign_ids`
+never runs, and still prints `READY — all checks passed`. The conditions are genuinely
+evaluated — not a hole — but don't go looking for twenty-one ticks.
 
 ---
 

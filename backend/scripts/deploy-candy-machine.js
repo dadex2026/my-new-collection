@@ -48,6 +48,15 @@
  *                                                          spam; also enforces the mint instruction
  *                                                          must be last in its transaction, blocking
  *                                                          a common bundling attack pattern)
+ *   node scripts/deploy-candy-machine.js --holder-collection <address>
+ *                                                        (adds a `holder` guard group that mints by
+ *                                                         BURNING an asset from <address> - the
+ *                                                         voucher mechanic. Public mints keep paying
+ *                                                         through a `public` group. Omit and the
+ *                                                         machine deploys ungrouped, as before.)
+ *   node scripts/deploy-candy-machine.js --holder-collection <address> --holder-price 0.005
+ *                                                        (holders burn a voucher AND pay 0.005;
+ *                                                         default 0 means burn only)
  *   node scripts/deploy-candy-machine.js --mutable       (allow metadata changes after deploy —
  *                                                          OFF by default; once real buyers have
  *                                                          minted, deployer-editable metadata is a
@@ -67,6 +76,12 @@
 const fs = require("fs");
 const path = require("path");
 const { parseCsvRecords, serializeRow } = require("./lib/csv");
+// The holder/public group shape is defined once, in update-candy-guard.js,
+// and imported here. Two copies of it - one for new machines, one for the
+// migration of deployed ones - is exactly the arrangement that lets a
+// deployed drop and a freshly deployed drop enforce different terms while
+// both look correct in isolation.
+const { buildPlan } = require("./update-candy-guard.js");
 const crypto = require("crypto");
 
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
@@ -272,7 +287,7 @@ async function getUmi(rpc) {
 // ---- Deploy one drop's Candy Machine + Candy Guard ------------------------
 
 async function deployDropCandyMachine({ umi, umiCore, mplCandyMachine }, row, config, options) {
-  const { mintLimitPerWallet, startDateIso, botTaxSol, mutable } = options;
+  const { mintLimitPerWallet, startDateIso, botTaxSol, mutable, holderCollection, holderPrice } = options;
 
   const candyMachineSigner = umiCore.generateSigner(umi);
   const itemsAvailable = parseMaxSupply(row.maxSupply);
@@ -324,8 +339,13 @@ async function deployDropCandyMachine({ umi, umiCore, mplCandyMachine }, row, co
       uri: row.uri,
       hash: new Uint8Array(32), // hash of the (single, shared) metadata file — not required to be verified on-chain for hidden settings to function
     },
-    guards,
-    groups: [],
+    // Without --holder-collection this is the original shape: every guard
+    // at the top level, no groups. With it, the default set is emptied and
+    // every guard is restated per group - see "the default trap" in
+    // update-candy-guard.js for why nothing is left to inherit.
+    ...(holderCollection
+      ? buildPlan(guards, { burnCollection: holderCollection, holderPrice, treasury: config.treasury, umiCore })
+      : { guards, groups: [] }),
   });
 
   const { signature } = await builder.sendAndConfirm(umi);
@@ -342,6 +362,8 @@ async function main() {
   const args = process.argv.slice(2);
   const slugFlagIndex = args.indexOf("--slug");
   const dropFlagIndex = args.indexOf("--drop");
+  const holderCollectionFlagIndex = args.indexOf("--holder-collection");
+  const holderPriceFlagIndex = args.indexOf("--holder-price");
   const mintLimitFlagIndex = args.indexOf("--mint-limit");
   const startDateFlagIndex = args.indexOf("--start-date");
   const botTaxFlagIndex = args.indexOf("--bot-tax");
@@ -355,6 +377,21 @@ async function main() {
     mintLimitFlagIndex !== -1 && args[mintLimitFlagIndex + 1] ? Number(args[mintLimitFlagIndex + 1]) : null;
   const startDateIso =
     startDateFlagIndex !== -1 && args[startDateFlagIndex + 1] ? args[startDateFlagIndex + 1] : null;
+  const holderCollection =
+    holderCollectionFlagIndex !== -1 && args[holderCollectionFlagIndex + 1]
+      ? args[holderCollectionFlagIndex + 1]
+      : null;
+  const holderPrice =
+    holderPriceFlagIndex !== -1 && args[holderPriceFlagIndex + 1] ? Number(args[holderPriceFlagIndex + 1]) : 0;
+  if (holderCollection && !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(holderCollection)) {
+    fail("invalid_holder_collection", `--holder-collection "${holderCollection}" does not look like a Solana address`, 1);
+  }
+  if (holderPriceFlagIndex !== -1 && !Number.isFinite(holderPrice)) {
+    fail("invalid_holder_price", `--holder-price "${args[holderPriceFlagIndex + 1]}" is not a number`, 1);
+  }
+  if (holderPrice > 0 && !holderCollection) {
+    fail("holder_price_without_collection", "--holder-price does nothing without --holder-collection", 1);
+  }
   const botTaxSol =
     botTaxFlagIndex !== -1 && args[botTaxFlagIndex + 1] ? Number(args[botTaxFlagIndex + 1]) : null;
 
@@ -371,6 +408,8 @@ async function main() {
     onlyDropId,
     mintLimitPerWallet,
     startDateIso,
+    holderCollection,
+    holderPrice,
     botTaxSol,
     mutable,
   });
@@ -385,7 +424,7 @@ async function main() {
     fail("empty_master_csv", "backend/master.csv has no data rows", 1);
   }
 
-  for (const col of ["candyMachineAddress", "candyGuardAddress", "treasury", "network"]) {
+  for (const col of ["candyMachineAddress", "candyGuardAddress", "treasury", "network", "holderRequiredCollection", "holderPrice"]) {
     if (!header.includes(col)) {
       header.push(col);
       rows.forEach((r) => { r[col] = r[col] || ""; });
@@ -475,12 +514,17 @@ async function main() {
         umiContext,
         row,
         config,
-        { mintLimitPerWallet, startDateIso, botTaxSol, mutable }
+        { mintLimitPerWallet, startDateIso, botTaxSol, mutable, holderCollection, holderPrice }
       );
 
       row.candyMachineAddress = candyMachineAddress;
       row.treasury = config.treasury;
       row.network = config.network;
+      // generate-registry.js reads these two columns to tell the frontend
+      // a holder route exists. A machine deployed with groups whose row
+      // does not say so is a holder route nobody can reach.
+      row.holderRequiredCollection = holderCollection || "";
+      row.holderPrice = holderCollection ? String(holderPrice) : "";
 
       // Save after every single deploy so a crash mid-run loses nothing
       // already confirmed on-chain.

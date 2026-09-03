@@ -2,7 +2,10 @@
 
 **What is in here.** Twenty-nine worked runs — one complete execution of each
 prompt in `docs/generation-prompts.md`, against real files — plus the two
-documents that govern how prompts get tested.
+documents that govern how prompts get tested, and one rehearsal record,
+`rehearsal-test-004.md`, which is not a prompt run at all: it is a planned
+mainnet exercise, filed here because it is a fixture of the same kind and is
+meant to be written back into after it runs.
 
 **What is not in here.** The prompt library itself. That is
 `docs/generation-prompts.md`, one level up, deliberately: it is the document you

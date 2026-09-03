@@ -430,6 +430,16 @@ const CONTENT_CHECK_NAMES = new Set([
 // every doc that said an Environment failure is never a warning. Do not add it
 // back.
 
+// Recorded only when they fail, by design - a passing config.json does not
+// push a config_valid_json result. Excluded from the "did not run" list so
+// a clean report does not accuse itself of skipping three checks it was
+// never going to print.
+const FAILURE_ONLY_CHECKS = new Set([
+  "config_valid_json",
+  "collection_slug_present",
+  "collection_has_rows",
+]);
+
 const CATEGORIES = [
   { name: "Project Structure", checks: ["config_exists", "config_valid_json", "collection_slug_present", "collection_has_rows"] },
   { name: "Environment", checks: ["env_admin_exists", "env_admin_gitignored", "deployer_key_present", "treasury_valid", "rpc_valid", "deployer_not_treasury"] },
@@ -548,7 +558,23 @@ function main() {
 
   for (const category of CATEGORIES) {
     const inCategory = category.checks.map((n) => byName.get(n)).filter(Boolean);
-    if (inCategory.length === 0) continue;
+
+    // A check that never ran is not a check that passed. Everything after
+    // collection_has_rows fails is skipped, so on 2026-09-03 this report
+    // printed "Content Validation  PASS" for a master.csv whose placeholder
+    // images had not been looked at once, and dropped the Permanent Values
+    // group from the output entirely rather than saying it was skipped.
+    // Name what was not evaluated; a tick that means "nothing was tested"
+    // is worse than no tick.
+    const notEvaluated = category.checks.filter((n) => !byName.has(n) && !FAILURE_ONLY_CHECKS.has(n));
+
+    if (inCategory.length === 0) {
+      console.log(`${category.name.padEnd(24)}- NOT EVALUATED`);
+      if (notEvaluated.length > 0) {
+        console.log(`  - did not run: ${notEvaluated.join(", ")}`);
+      }
+      continue;
+    }
 
     const categoryHardFail = inCategory.some(
       (r) => !r.pass && !(allowWarnings && CONTENT_CHECK_NAMES.has(r.name))
@@ -563,7 +589,10 @@ function main() {
       ? "? UNVERIFIED"
       : "✓ PASS";
 
-    console.log(`${category.name.padEnd(24)}${status}`);
+    console.log(`${category.name.padEnd(24)}${status}${notEvaluated.length > 0 ? "  (partial)" : ""}`);
+    if (notEvaluated.length > 0) {
+      console.log(`  - did not run: ${notEvaluated.join(", ")}`);
+    }
     for (const r of inCategory) {
       if (r.unknown) {
         console.log(`  ? ${r.detail}`);

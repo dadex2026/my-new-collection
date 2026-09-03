@@ -1,0 +1,134 @@
+#!/usr/bin/env node
+/**
+ * scripts/update-candy-guard.selftest.js
+ *
+ * Exercises the pure logic of update-candy-guard.js with no network, no
+ * RPC and no deploy key. Run it before and after touching that script.
+ *
+ *   node scripts/update-candy-guard.selftest.js
+ *
+ * WHAT IT PROVES
+ *   - unwrapGuardSet turns the Option-wrapped shape fetchCandyGuard
+ *     actually returns into the plain guard args updateCandyGuard takes.
+ *   - buildPlan writes an EMPTY default guard set, carries the machine's
+ *     existing guards into `public`, and puts assetBurn in `holder`.
+ *   - verifyReadBack catches the three ways this migration goes wrong:
+ *     a default set that was not emptied (every group inherits it, so a
+ *     free holder mint would still be charged), a group that did not
+ *     land, and assetGate written where assetBurn was meant.
+ *
+ * WHAT IT DOES NOT PROVE — and this is the important half
+ *   Nothing about how Candy Guard behaves on chain. Whether a group's
+ *   guards really override an inherited default, whether assetBurn
+ *   really consumes the asset, and who receives the burned asset's rent
+ *   are all questions no local test can answer. They are answered by
+ *   minting through each group on a machine nobody depends on and
+ *   watching the transactions settle.
+ *
+ * Exit codes:
+ *   0 = every assertion held
+ *   1 = an assertion failed
+ */
+"use strict";
+
+const assert = require("assert");
+const path = require("path");
+const m = require(path.join(__dirname, "update-candy-guard.js"));
+
+const TREASURY = "7XJJvj5N4aBMNyX9g5NZqSEzi9vY6vYxWydezMZvC4n9";
+const BURN_COLLECTION = "7DayQZfbEBZQV1YRcbUxCNfrJ3wSTU3EmvsCFqfrLqXV";
+
+function ok(label, detail) {
+  console.log(`  ok  ${label}${detail ? " — " + detail : ""}`);
+}
+
+(async () => {
+  const umiCore = await import("@metaplex-foundation/umi");
+
+  // ---- 1. The shape fetchCandyGuard returns ------------------------------
+  const fetched = {
+    botTax: { __option: "None" },
+    solPayment: {
+      __option: "Some",
+      value: { lamports: { basisPoints: 1000000n, identifier: "SOL", decimals: 9 }, destination: TREASURY },
+    },
+    startDate: { __option: "None" },
+    mintLimit: { __option: "None" },
+  };
+  const current = m.unwrapGuardSet(fetched);
+  assert.deepStrictEqual(Object.keys(current), ["solPayment"]);
+  ok("unwrapGuardSet drops the None slots", "solPayment survives, three None slots do not");
+
+  // ---- 2. The plan ------------------------------------------------------
+  const plan = m.buildPlan(current, {
+    burnCollection: BURN_COLLECTION,
+    holderPrice: 0,
+    treasury: TREASURY,
+    umiCore,
+  });
+  assert.deepStrictEqual(plan.guards, {}, "default guard set must be empty — groups inherit it");
+  assert.deepStrictEqual(plan.groups.map((g) => g.label), ["public", "holder"]);
+  assert.deepStrictEqual(Object.keys(plan.groups[0].guards), ["solPayment"]);
+  assert.deepStrictEqual(Object.keys(plan.groups[1].guards), ["assetBurn"]);
+  ok("buildPlan", "default={}, public=[solPayment], holder=[assetBurn]");
+
+  const paid = m.buildPlan(current, {
+    burnCollection: BURN_COLLECTION,
+    holderPrice: 0.005,
+    treasury: TREASURY,
+    umiCore,
+  });
+  assert.deepStrictEqual(Object.keys(paid.groups[1].guards).sort(), ["assetBurn", "solPayment"]);
+  ok("--holder-price", "adds solPayment to holder and nowhere else");
+
+  const busy = m.buildPlan(
+    {
+      solPayment: current.solPayment,
+      startDate: { date: 123n },
+      botTax: { lamports: {}, lastInstruction: true },
+      mintLimit: { id: 1, limit: 5 },
+    },
+    { burnCollection: BURN_COLLECTION, holderPrice: 0, treasury: TREASURY, umiCore }
+  );
+  assert.deepStrictEqual(Object.keys(busy.groups[0].guards).sort(), [
+    "botTax", "mintLimit", "solPayment", "startDate",
+  ]);
+  assert.deepStrictEqual(Object.keys(busy.groups[1].guards).sort(), ["assetBurn", "botTax", "startDate"]);
+  ok("guard carry-over", "startDate+botTax restated in holder; mintLimit deliberately not");
+
+  // ---- 3. The read-back check -------------------------------------------
+  const Some = { __option: "Some", value: {} };
+  const correct = {
+    guards: { solPayment: { __option: "None" } },
+    groups: [
+      { label: "public", guards: { solPayment: Some } },
+      { label: "holder", guards: { assetBurn: Some } },
+    ],
+  };
+  assert.deepStrictEqual(m.verifyReadBack(plan, correct), []);
+  ok("verifyReadBack", "a correct write reports nothing");
+
+  const leaked = JSON.parse(JSON.stringify(correct));
+  leaked.guards.solPayment = { __option: "Some", value: {} };
+  let problems = m.verifyReadBack(plan, leaked);
+  assert.strictEqual(problems.length, 1);
+  assert.match(problems[0], /default guard set should be empty/);
+  ok("catches a default set that was not emptied", "holders would still be charged");
+
+  problems = m.verifyReadBack(plan, { guards: {}, groups: [correct.groups[0]] });
+  assert.strictEqual(problems.length, 1);
+  assert.match(problems[0], /expected \[public, holder\]/);
+  ok("catches a group that did not land");
+
+  const gated = JSON.parse(JSON.stringify(correct));
+  gated.groups[1].guards = { assetGate: Some };
+  problems = m.verifyReadBack(plan, gated);
+  assert.strictEqual(problems.length, 1);
+  assert.match(problems[0], /group "holder".*assetGate.*assetBurn/);
+  ok("catches assetGate written where assetBurn was meant", "the unlimited-redemption bug");
+
+  console.log("\n  All local assertions held. No on-chain behaviour was tested.\n");
+})().catch((err) => {
+  console.error("\n  FAILED: " + err.message + "\n");
+  process.exit(1);
+});
