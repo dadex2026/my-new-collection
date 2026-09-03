@@ -105,6 +105,35 @@ async function fetchTransaction(rpc, signature) {
   return body.result;
 }
 
+// Per-account lamport movement, largest first. The payer's net cost answers
+// "what did this cost me" and nothing else - it cannot tell you WHERE the money
+// went, and on 2026-09-03 that was exactly the question: a mint had either
+// charged 0.001 SOL through a `public` guard group or burned a voucher through
+// a `holder` one, and the two are indistinguishable from a single net figure.
+// Who gained and who lost is in meta.preBalances/postBalances already; it was
+// simply never printed.
+//
+// An account that goes to zero lamports was closed - which is how a burn shows
+// up, and where the burned account's rent went is whoever gained it.
+function accountDeltas(tx) {
+  const meta = tx.meta;
+  const keys = tx.transaction.message.accountKeys;
+  const deltas = [];
+  for (let i = 0; i < keys.length; i++) {
+    const delta = meta.postBalances[i] - meta.preBalances[i];
+    if (delta === 0) continue;
+    const key = keys[i].pubkey || keys[i];
+    deltas.push({
+      account: typeof key === "string" ? key : String(key),
+      lamports: delta,
+      closed: meta.preBalances[i] > 0 && meta.postBalances[i] === 0,
+      opened: meta.preBalances[i] === 0 && meta.postBalances[i] > 0,
+    });
+  }
+  deltas.sort((a, b) => Math.abs(b.lamports) - Math.abs(a.lamports));
+  return deltas;
+}
+
 function describe(signature, tx) {
   const meta = tx.meta;
   const keys = tx.transaction.message.accountKeys;
@@ -119,6 +148,7 @@ function describe(signature, tx) {
     netSol: net / LAMPORTS_PER_SOL,
     feeLamports: meta.fee,
     rentLamports: net - meta.fee,
+    deltas: accountDeltas(tx),
   };
 }
 
@@ -152,6 +182,15 @@ status          ${r.status}
 payer net cost  ${r.netLamports.toLocaleString()} lamports  =  ${r.netSol.toFixed(9)} SOL
   transaction fee   ${r.feeLamports.toLocaleString()} lamports
   rent + remainder  ${r.rentLamports.toLocaleString()} lamports`);
+
+    console.log("\nwhere the lamports moved");
+    for (const d of r.deltas) {
+      const sign = d.lamports > 0 ? "+" : "-";
+      const note = d.closed ? "  (closed - burned or reclaimed)" : d.opened ? "  (created)" : "";
+      console.log(
+        `  ${sign}${Math.abs(d.lamports).toLocaleString().padStart(13)} lamports  ${d.account}${note}`
+      );
+    }
   }
 
   const total = results.reduce((sum, r) => sum + r.netLamports, 0);

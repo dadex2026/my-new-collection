@@ -1,11 +1,23 @@
 # Rehearsal — voucher redemption on TEST-004
 
-**Status: steps 0-2 run on mainnet 2026-09-03 and recorded below. Steps 3-5 not yet run.**
+**Status: complete. Steps 0-5 run on mainnet 2026-09-03, results recorded under each step.**
 Results are written underneath each step rather than ticked — a worked run is a fixture,
 and its value is that it reports the day it was made.
 
-> **Result so far.** The migration works and costs **422,600 lamports (0.0004226 SOL)** per
-> drop. The read-back reported a mismatch on a migration that had in fact succeeded
+> **Result. The voucher mechanic works end to end on mainnet.** Both routes verified on
+> one candy machine by watching transactions settle: `holder` burns the voucher and
+> charges nothing, `public` charges 0.001 SOL and burns nothing, and with the default
+> guard set written empty neither leaks into the other. Migration costs **422,600 lamports
+> (0.0004226 SOL)** per drop.
+>
+> Four defects were found doing it, none of them in the guard: the RPC proxy blocked every
+> browser mint (open-items 36), a deploy then deleted the proxy's origin allowlist while
+> the fallback was `*` (37), `get-holders.js` counted a spent voucher as held (38), and
+> `mint.ts` locked out every wallet that had redeemed (39). Three of the four were only
+> reachable *after* the previous one was fixed, which is the argument for running the
+> whole sequence rather than reasoning about it.
+>
+> The original migration cost note: The read-back reported a mismatch on a migration that had in fact succeeded
 > exactly as planned, because it re-fetched 124ms after `confirmed` and got a stale
 > account. That is a defect in the script, not in the write, and it is fixed — but it is
 > the more interesting result of the two, because a check that cries wolf trains the next
@@ -175,6 +187,52 @@ take effect and everything downstream is wrong. Check the balance change, not th
 
 Connect the wallet holding `Fth3h6SMeun3XDMQhc8FoSixFNtmfeAcLw4qmdA4LuUf` and mint again.
 
+> **Run 2026-09-03 21:22Z — it works.** Signature
+> `21EoYoYK7d24Y6eWEv1FkzdD5V4BVHawXQ9zFaGa4b1GRked9w3mYEtSyRALAP3VFSTboSQV3ezzcqpTnQ2TaXYY`,
+> slot 444072496, from `FDLfcGUG…` (a TEST-001 airdrop recipient, so the holder
+> path), minting asset `BpLRA1Sp…`. `itemsRedeemed` went 0 → 1.
+>
+> ```
+> +  3,469,680  BpLRA1Sp…  (created)
+> -  2,482,840  FDLfcGUG…
+> -  1,071,840  62FPZVzW…
+> ```
+>
+> **The treasury `7XJJvj5N…` does not appear at all.** No SOL was charged. With the
+> default guard set written empty, the `holder` group did not inherit `public`'s
+> `solPayment` — the question three sessions could not answer, settled by looking at
+> a settled transaction. The arithmetic closes exactly: 3,469,680 + 85,000 fee −
+> 1,071,840 refund = 2,482,840.
+>
+> **A burn refunds 1,071,840 lamports, about 31% — not the whole 3,469,680.** The
+> account is reallocated, not closed; it kept 2,397,840. A redemption does not pay
+> back what the airdrop cost, so the campaign arithmetic is airdrop cost minus a third,
+> not airdrop cost recovered.
+>
+> **Who receives that refund is still unknown, and this test cannot say.** `FDLfcGUG…`
+> was both the voucher's owner and the fee payer. Separating them needs a mint whose
+> payer is not the asset's owner, which this frontend cannot produce. The step below
+> asked the wrong question of the right transaction.
+>
+> **One defect, found only because a voucher had finally been spent.** A snapshot taken
+> straight afterwards still listed all three TEST-001 holders: `get-holders.js` read
+> `ownership.owner` and never checked DAS's `burnt` flag, so a spent voucher counted as
+> held and the next campaign would have airdropped a replacement to everyone who had
+> already redeemed. Fixed, and verified by naming the surviving two wallets before
+> running it. See open-items 38.
+>
+> Also measured: a candy-machine mint's asset rent is **3,469,680**, identical to an
+> airdropped asset. The mint route costs more only in price and transaction fee
+> (85,000 here against 10,000 for an airdrop), not in rent.
+>
+> Two earlier attempts are worth recording. The first failed with *"has expired: block
+> height exceeded"* — the mint carries no priority fee, so under load it can miss the
+> blockhash window. `itemsRedeemed` proved it never landed, which is the check to run
+> before retrying; `describeMintError` had a branch for exactly this case that matched
+> `timed out`/`timeout`/`blockhash not found` and not the wording Solana actually uses,
+> so the one message that should have said *don't blindly retry* printed the raw error
+> instead. Fixed.
+
 **Three things to confirm, each by looking at the chain and not at the interface:**
 
 1. The mint succeeded and cost **no** SOL beyond fees — proving the holder group did not
@@ -190,9 +248,45 @@ Connect the wallet holding `Fth3h6SMeun3XDMQhc8FoSixFNtmfeAcLw4qmdA4LuUf` and mi
 
 ## Step 5 — try to mint holder twice
 
-Same wallet, immediately. It must fail: the asset is gone, so there is nothing to burn.
-This is the "choose one of N" property the whole voucher design exists to get, and it is
-worth one failed transaction to see it enforced rather than assumed.
+Same wallet, immediately. **Not a failed transaction — a charged one.** `mint.ts` does
+not refuse when no qualifying asset is found; `findQualifyingHolderAsset` returns null and
+the code falls through to the `public` group. So the second mint should succeed and cost
+**0.001 SOL**, which is the "choose one of N" property enforced in the only place that
+matters: on chain, by `assetBurn` having nothing left to consume.
+
+This step is also the **only** remaining proof that `public` charges at all. Step 4
+established that the holder group does not inherit a payment; it did not establish that
+the public group applies one. If this mint is free, every mint on this machine is free.
+
+> **Run 2026-09-03 21:47Z — `public` charges.** Signature
+> `22KD95ty6X4AogfNLMFhus3AkwDesEsCHZKwWzCtj84bdNPnnhVht7iPiaCJ3GVMJEw8fj3GqUYyKVLyKAXsWWZL`,
+> slot 444077334, asset `6MN36yqV…`.
+>
+> ```
+> -  4,554,680  FDLfcGUG…
+> +  3,469,680  6MN36yqV…  (created)
+> +  1,000,000  7XJJvj5N…
+> ```
+>
+> The treasury gained exactly 1,000,000 lamports and no account was closed — the mint took
+> the `public` route, paid, and burned nothing. Every figure was predicted before the
+> command was run and every one matched, which is the standard this repo holds a
+> verification to.
+>
+> **Taken with step 4, this closes the question the rehearsal existed to ask.** The same
+> candy machine charged one wallet and not the other, on the same guard account, with an
+> empty default set. Nothing was inherited in either direction.
+>
+> The first attempt at this step was **rejected by Phantom's simulation** — *"this
+> transaction reverted during simulation"* — because `mint.ts` was still matching the
+> burned voucher and routing to `holder`. See open-items 39. Simulation caught it before
+> it cost anything, which is worth remembering as a check in its own right.
+
+**A note on the fallback, which is a design question and not a bug.** Because an
+ineligible wallet is silently routed to `public`, a holder whose DAS query merely blips —
+`findQualifyingHolderAsset` returns null on any network failure — pays full price instead
+of redeeming, and nothing tells them. For a real reward campaign that is a support ticket
+where the customer is right and there is no record. Worth deciding before this ships.
 
 ---
 
