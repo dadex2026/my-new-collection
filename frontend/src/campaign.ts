@@ -105,8 +105,16 @@ async function findQualifyingAsset(walletAddress: string, requiredCollection: st
 
     const body = await response.json();
     const items = body.result?.items || [];
-    const match = items.find((item: any) =>
-      (item.grouping || []).some((g: any) => g.group_key === "collection" && g.group_value === requiredCollection)
+    // !item.burnt, for the same reason as mint.ts and get-holders.js: DAS
+    // returns a burned asset with its ownership record intact and only this
+    // flag to say it is gone. Without it a wallet whose gating asset has been
+    // burned still reads as eligible, assetGate is handed an asset that no
+    // longer exists, and the claim reverts in simulation with no way forward.
+    // Third occurrence of one omission - see open-items 38 and 39.
+    const match = items.find(
+      (item: any) =>
+        !item.burnt &&
+        (item.grouping || []).some((g: any) => g.group_key === "collection" && g.group_value === requiredCollection)
     );
     if (match) return match.id;
 
