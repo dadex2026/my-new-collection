@@ -127,6 +127,63 @@ function ok(label, detail) {
   assert.match(problems[0], /group "holder".*assetGate.*assetBurn/);
   ok("catches assetGate written where assetBurn was meant", "the unlimited-redemption bug");
 
+  // ---- 4. --verify, the resume path -------------------------------------
+  // Added 2026-09-03 after the first real migration: the transaction landed
+  // exactly as planned and the read-back 124ms later got a stale account and
+  // called it a mismatch, so master.csv was never written. --verify is the
+  // way back from that, and it must not simply agree with whatever it finds.
+  const migrated = {
+    guards: { solPayment: { __option: "None" } },
+    groups: [
+      { label: "public", guards: { solPayment: { __option: "Some", value: {} }, botTax: { __option: "None" } } },
+      {
+        label: "holder",
+        guards: {
+          assetBurn: { __option: "Some", value: { requiredCollection: BURN_COLLECTION } },
+          solPayment: { __option: "None" },
+        },
+      },
+    ],
+  };
+  assert.deepStrictEqual(m.verifyMigrated(migrated, { burnCollection: BURN_COLLECTION, holderPrice: 0 }), []);
+  ok("verifyMigrated accepts a correctly migrated guard");
+
+  const wrongCollection = m.verifyMigrated(migrated, {
+    burnCollection: "7XJJvj5N4aBMNyX9g5NZqSEzi9vY6vYxWydezMZvC4n9",
+    holderPrice: 0,
+  });
+  assert.strictEqual(wrongCollection.length, 1);
+  assert.match(wrongCollection[0], /requiredCollection/);
+  ok("catches a holder group burning the wrong collection", "would redeem against the wrong voucher");
+
+  const shouldCharge = m.verifyMigrated(migrated, { burnCollection: BURN_COLLECTION, holderPrice: 0.005 });
+  assert.strictEqual(shouldCharge.length, 1);
+  assert.match(shouldCharge[0], /no solPayment/);
+  ok("catches a paid holder route that does not charge");
+
+  const freePublic = JSON.parse(JSON.stringify(migrated));
+  freePublic.groups[0].guards.solPayment = { __option: "None" };
+  const pub = m.verifyMigrated(freePublic, { burnCollection: BURN_COLLECTION, holderPrice: 0 });
+  assert.strictEqual(pub.length, 1);
+  assert.match(pub[0], /public mint is FREE/);
+  ok("catches a public group with no payment", "the expensive direction to get wrong");
+
+  const stillGated = JSON.parse(JSON.stringify(migrated));
+  stillGated.groups[1].guards = { assetGate: { __option: "Some", value: {} } };
+  const gate = m.verifyMigrated(stillGated, { burnCollection: BURN_COLLECTION, holderPrice: 0 });
+  assert.ok(gate.some((x) => /no assetBurn/.test(x)));
+  ok("catches assetGate in the holder group", "nothing would be consumed");
+
+  // ---- 5. unwrapGroups --------------------------------------------------
+  // The chain returns all 31 guard slots per group, 29 of them None. The
+  // first real run printed them raw: two hundred lines of noise around the
+  // two values that mattered.
+  const flattened = m.unwrapGroups(migrated.groups);
+  assert.deepStrictEqual(flattened.map((g) => g.label), ["public", "holder"]);
+  assert.deepStrictEqual(Object.keys(flattened[0].guards), ["solPayment"]);
+  assert.deepStrictEqual(Object.keys(flattened[1].guards), ["assetBurn"]);
+  ok("unwrapGroups collapses 31 slots to the ones that are set");
+
   console.log("\n  All local assertions held. No on-chain behaviour was tested.\n");
 })().catch((err) => {
   console.error("\n  FAILED: " + err.message + "\n");

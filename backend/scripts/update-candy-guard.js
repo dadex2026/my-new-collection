@@ -56,6 +56,11 @@
  *   node scripts/update-candy-guard.js --drop TEST-004 --burn-collection <address> --write --yes
  *   node scripts/update-candy-guard.js --candy-machine <address> --burn-collection <address>
  *   node scripts/update-candy-guard.js --drop TEST-004 --read-only     (just print current state)
+ *   node scripts/update-candy-guard.js --drop TEST-004 --burn-collection <a> --verify
+ *                                                                       (the resume path: confirm an
+ *                                                                        already-migrated guard and
+ *                                                                        record it in master.csv,
+ *                                                                        without touching the chain)
  *   node scripts/update-candy-guard.js --drop TEST-004 --burn-collection <a> --holder-price 0.005
  *
  * Dependencies (npm install):
@@ -294,6 +299,14 @@ function unwrapGuardSet(guardSet) {
   return out;
 }
 
+// The groups come back with all 31 guard slots present, 29 of them None.
+// Printing that raw buries the two that are set in 200 lines of noise -
+// which is what the first real run of this script did, at the exact moment
+// somebody needed to read the output carefully.
+function unwrapGroups(groups) {
+  return (groups || []).map((g) => ({ label: g.label, guards: unwrapGuardSet(g.guards) }));
+}
+
 function guardNames(guards) {
   const names = Object.keys(guards);
   return names.length > 0 ? names.join(", ") : "(none)";
@@ -398,6 +411,58 @@ function verifyReadBack(plan, refetched) {
   return problems;
 }
 
+// ---- --verify: confirm an already-migrated guard, then record it --------
+
+// The resume path. A confirmed transaction plus a stale read leaves the chain
+// correct and master.csv untouched, because the write of those columns sits
+// after the read-back check by design. Re-running --write is not the fix -
+// the script refuses a guard that already has groups, and rightly. This
+// checks the guard that is actually there against what the migration was
+// supposed to produce, and records it only if it holds.
+//
+// It re-derives the expectation from the arguments rather than from the
+// account, so it cannot rubber-stamp whatever it happens to find.
+function verifyMigrated(candyGuard, { burnCollection, holderPrice }) {
+  const problems = [];
+
+  const defaults = unwrapGuardSet(candyGuard.guards);
+  if (Object.keys(defaults).length > 0) {
+    problems.push(`default guard set is not empty: ${guardNames(defaults)} — every group inherits these`);
+  }
+
+  const groups = unwrapGroups(candyGuard.groups);
+  const labels = groups.map((g) => g.label);
+  if (labels.join("|") !== "public|holder") {
+    problems.push(`groups are [${labels.join(", ")}], expected [public, holder]`);
+    return problems;
+  }
+
+  const holder = groups.find((g) => g.label === "holder").guards;
+  if (!holder.assetBurn) {
+    problems.push(`holder group has [${guardNames(holder)}] — no assetBurn, so nothing is consumed on redemption`);
+  } else {
+    const required = String(holder.assetBurn.requiredCollection);
+    if (required !== burnCollection) {
+      problems.push(`holder assetBurn.requiredCollection is ${required}, expected ${burnCollection}`);
+    }
+  }
+
+  const holderCharges = Boolean(holder.solPayment);
+  if (holderPrice > 0 && !holderCharges) {
+    problems.push(`--holder-price ${holderPrice} was given but the holder group has no solPayment`);
+  }
+  if (holderPrice === 0 && holderCharges) {
+    problems.push(`holder group charges solPayment but --holder-price is 0 — redemption would not be free`);
+  }
+
+  const pub = groups.find((g) => g.label === "public").guards;
+  if (!pub.solPayment) {
+    problems.push(`public group has [${guardNames(pub)}] — no solPayment, so the public mint is FREE`);
+  }
+
+  return problems;
+}
+
 // ---- Main ---------------------------------------------------------------
 
 async function main() {
@@ -414,6 +479,7 @@ async function main() {
   const holderPriceRaw = flagValue("--holder-price");
   const treasuryFlag = flagValue("--treasury");
   const readOnly = args.includes("--read-only");
+  const verifyOnly = args.includes("--verify");
   const write = args.includes("--write");
   const confirmed = args.includes("--yes");
 
@@ -524,11 +590,33 @@ async function main() {
   console.log("GUARD AS IT STANDS ON CHAIN");
   console.log("=".repeat(72));
   console.log(`  default guards : ${guardNames(currentDefaultGuards)}`);
-  console.log(`  groups         : ${(candyGuard.groups || []).length === 0 ? "(none)" : candyGuard.groups.map((g) => g.label).join(", ")}`);
-  console.log("\n" + describe({ guards: currentDefaultGuards, groups: candyGuard.groups || [] }));
+  const currentGroups = unwrapGroups(candyGuard.groups);
+  console.log(
+    `  groups         : ${currentGroups.length === 0 ? "(none)" : currentGroups.map((g) => `${g.label} [${guardNames(g.guards)}]`).join("  ")}`
+  );
+  console.log("\n" + describe({ guards: currentDefaultGuards, groups: unwrapGroups(candyGuard.groups) }));
 
   if (readOnly) {
     log({ status: "success", message: "Read-only: printed current guard state, wrote nothing." });
+    process.exit(0);
+  }
+
+  if (verifyOnly) {
+    const problems = verifyMigrated(candyGuard, { burnCollection, holderPrice });
+    if (problems.length > 0) {
+      console.log("\n  This guard is NOT the migration it was asked to verify:\n");
+      problems.forEach((p) => console.log(`   - ${p}`));
+      console.log("\n  master.csv was not touched.\n");
+      log({ status: "failure", reason: "verify_mismatch", problems });
+      process.exit(3);
+    }
+    console.log("\n  Verified on chain: empty defaults, public charges, holder burns.\n");
+    if (row) {
+      writeHolderColumns(row.dropItemId, burnCollection, holderPrice);
+    } else {
+      console.log("  ! Target was given as --candy-machine, so master.csv was NOT updated.\n");
+    }
+    log({ status: "success", message: "Verified an already-migrated guard and recorded it." });
     process.exit(0);
   }
 
@@ -583,23 +671,56 @@ async function main() {
   // ---- Read back --------------------------------------------------------
   // Not a formality. A guard set can serialize, land, and still not be
   // what was intended; nothing errors until someone tries to mint.
+  // Retry, because "confirmed" does not mean "every read node has it".
+  // The first real run of this script re-fetched 124ms after the transaction
+  // confirmed, got the pre-write account back, and reported a mismatch on a
+  // migration that had in fact succeeded exactly as planned. A read-back that
+  // cries wolf is worse than none: the next operator learns to re-run
+  // --read-only and shrug, which is precisely the habit this check exists to
+  // prevent. Poll until it agrees, and only call it a mismatch once it has
+  // had long enough to be a real one.
+  const READ_BACK_ATTEMPTS = 6;
+  const READ_BACK_DELAY_MS = 2500;
+
   let refetched;
-  try {
-    refetched = await mplCandyMachine.fetchCandyGuard(umi, candyGuardPda);
-  } catch (err) {
-    fail("read_back_failed", `Wrote the guard but could not re-fetch it to verify: ${err.message}`, 2);
+  let problems = [];
+  for (let attempt = 1; attempt <= READ_BACK_ATTEMPTS; attempt++) {
+    if (attempt > 1) {
+      await new Promise((r) => setTimeout(r, READ_BACK_DELAY_MS));
+    }
+    try {
+      refetched = await mplCandyMachine.fetchCandyGuard(umi, candyGuardPda);
+    } catch (err) {
+      fail("read_back_failed", `Wrote the guard but could not re-fetch it to verify: ${err.message}`, 2);
+    }
+    problems = verifyReadBack(plan, refetched);
+    if (problems.length === 0) {
+      if (attempt > 1) {
+        console.log(`\n  (read-back agreed on attempt ${attempt} — earlier reads were stale, not wrong)`);
+      }
+      break;
+    }
+    if (attempt < READ_BACK_ATTEMPTS) {
+      console.log(`  read-back attempt ${attempt} disagrees; the node may not have the write yet, retrying...`);
+    }
   }
 
   console.log("\n" + "=".repeat(72));
   console.log("GUARD RE-FETCHED FROM CHAIN");
   console.log("=".repeat(72));
-  console.log(describe({ guards: unwrapGuardSet(refetched.guards), groups: refetched.groups || [] }));
+  console.log(describe({ guards: unwrapGuardSet(refetched.guards), groups: unwrapGroups(refetched.groups) }));
 
-  const problems = verifyReadBack(plan, refetched);
   if (problems.length > 0) {
-    console.log("\n  READ-BACK MISMATCH — the write landed but is not what was planned:\n");
+    console.log(
+      `\n  READ-BACK MISMATCH after ${READ_BACK_ATTEMPTS} attempts over ` +
+        `${((READ_BACK_ATTEMPTS - 1) * READ_BACK_DELAY_MS) / 1000}s — the write landed but is not what was planned:\n`
+    );
     problems.forEach((p) => console.log(`   - ${p}`));
-    console.log("\n  Do not mint against this machine until it is corrected.\n");
+    console.log(
+      "\n  Do not mint against this machine until it is corrected.\n" +
+        "  If a later --read-only shows the guard IS correct, this was a slow node, not a bad\n" +
+        "  write: re-run with --verify to record it in master.csv without touching the chain.\n"
+    );
     log({ status: "failure", reason: "read_back_mismatch", signature, problems });
     process.exit(3);
   }
@@ -639,4 +760,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { unwrapGuardSet, buildPlan, verifyReadBack, guardNames };
+module.exports = { unwrapGuardSet, unwrapGroups, buildPlan, verifyReadBack, verifyMigrated, guardNames };
