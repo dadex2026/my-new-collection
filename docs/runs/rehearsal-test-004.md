@@ -138,7 +138,34 @@ node scripts/generate-registry.js
 npm --prefix ..\frontend run build
 ```
 
-Deploy the site, connect a wallet holding **no** Mechanics Test A asset, and mint TEST-004.
+Run it on **localhost, not the deployed site** — three wallets hold a Mechanics Test A
+asset (`4hGRvfHb…`, `FDLfcGUG…`, `7XJJvj5N…`, per `airdrop-history.csv`), so publishing the
+holder route before testing it invites someone to redeem first. `npm run dev` gives the
+same mainnet transactions with no audience.
+
+> **Run 2026-09-03 20:00Z — blocked, and not by anything in this repo.** Every mint failed
+> with *"RPC unavailable — couldn't reach the Solana network"*. That message is
+> `describeMintError` mapping a `TypeError: Failed to fetch`, and the real error in the
+> console was:
+>
+> ```
+> Access to fetch at 'https://rpc-proxy.smallen1967.workers.dev/' from origin
+> 'http://localhost:5173' has been blocked by CORS policy: Request header field
+> solana-client is not allowed by Access-Control-Allow-Headers in preflight response.
+> ```
+>
+> The origin was allowed; the **header** was not. `@solana/web3.js` sends `solana-client`
+> on every RPC call, and the Worker's preflight named only `Content-Type, Authorization`.
+> `Access-Control-Allow-Headers` does not vary by origin, so **the deployed Netlify site
+> was blocked identically** — the browser mint path had never worked, for any drop, and
+> the failure mode reads as an RPC outage rather than a configuration error. Fixed in
+> `Desktop/rpc-proxy/src/index.ts`; see open-items 36. **Redo this step once that Worker
+> is deployed.**
+>
+> Also noted: the drops grid paginates at three (`PAGE_SIZE = 3`, `ui.engine.ts:24`), so
+> `TEST-004` is on page 2 and looks absent on page 1.
+
+Then, with a wallet holding **no** Mechanics Test A asset, mint TEST-004.
 
 **The question this answers:** does the `public` group still charge 0.001 SOL now that the
 default guard set is empty? If the public mint is free, the group's `solPayment` did not
