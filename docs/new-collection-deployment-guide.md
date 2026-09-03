@@ -773,8 +773,8 @@ Holder campaigns — hold this, buy that at a discount — run from `backend/cam
 via `deploy-campaign.js`. `backend/scripts/get-holders.js` produces the holder snapshot
 that feeds a reward campaign — `--drop <dropItemId>` narrows it to one edition, which is
 the only way to target a single drop inside a shared collection, since `assetGate` sees
-only collection membership. **Written 2026-09-02 and not yet run against a live RPC**, so
-verify its output before a launch depends on it. If a launch promises nothing to holders,
+only collection membership. **Written and verified 2026-09-02** against a collection whose holders
+were already known from `airdrop-history.csv`; it returned exactly them. If a launch promises nothing to holders,
 confirm the site says nothing that implies otherwise.
 
 ---

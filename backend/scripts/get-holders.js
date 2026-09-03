@@ -263,8 +263,31 @@ async function main() {
     out: dryRun ? null : outPath,
   });
 
+  // Scanning zero assets is ambiguous, and reporting it as a plain success is
+  // how a run that verified nothing gets mistaken for a run that verified
+  // something. The collection may genuinely have no mints, or the RPC may be
+  // answering DAS calls with an empty result rather than an error. Both look
+  // identical from here, so say so instead of picking one.
+  if (scanned === 0) {
+    log({
+      status: "success",
+      result: "no_assets_in_collection",
+      collectionAddress,
+      message:
+        `The RPC returned zero assets for collection ${collectionAddress}. Either nothing has been ` +
+        "minted from it, or this RPC answers DAS calls with an empty result. NOTHING WAS VERIFIED by " +
+        "this run. Re-run against a collection you know has mints before trusting the output of any other.",
+    });
+    process.exit(0);
+  }
+
   if (wallets.length === 0) {
-    log({ status: "success", message: "No holders found. Nothing written." });
+    log({
+      status: "success",
+      result: "no_holders",
+      assetsScanned: scanned,
+      message: `Scanned ${scanned} asset(s); none are currently held by anyone. Nothing written.`,
+    });
     process.exit(0);
   }
 

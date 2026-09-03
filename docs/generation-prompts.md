@@ -758,9 +758,9 @@ the output — is in `docs/runs/worked-run-a3.md`. It was written and not execut
 the prerequisites it turns on cannot be verified without spending.
 
 **Note:** `backend/scripts/get-holders.js` was written on 2026-09-02 and produces
-a holder snapshot, collection-wide or for one drop via `--drop`. Its DAS query has
-not yet been run against a live RPC, so treat its output as unverified until it
-has. `scripts/audit-production.ps1` was empty in the same way and was deleted on
+a holder snapshot, collection-wide or for one drop via `--drop`. Verified against a
+collection whose holders were already known, so its DAS query and field names are
+confirmed. `scripts/audit-production.ps1` was empty in the same way and was deleted on
 2026-08-28. `backend/metadata/` does not exist in a fresh checkout either —
 `generate-metadata.js` creates it.
 
