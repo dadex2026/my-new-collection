@@ -1,8 +1,15 @@
 # Rehearsal — voucher redemption on TEST-004
 
-**Status: written 2026-09-03, not yet run.** Nothing below has been observed. When it
-runs, record what actually happened underneath each step rather than ticking it — a
-worked run is a fixture, and its value is that it reports the day it was made.
+**Status: steps 0-2 run on mainnet 2026-09-03 and recorded below. Steps 3-5 not yet run.**
+Results are written underneath each step rather than ticked — a worked run is a fixture,
+and its value is that it reports the day it was made.
+
+> **Result so far.** The migration works and costs **422,600 lamports (0.0004226 SOL)** per
+> drop. The read-back reported a mismatch on a migration that had in fact succeeded
+> exactly as planned, because it re-fetched 124ms after `confirmed` and got a stale
+> account. That is a defect in the script, not in the write, and it is fixed — but it is
+> the more interesting result of the two, because a check that cries wolf trains the next
+> operator to ignore it.
 
 This is the mainnet rehearsal for item 34. It exists because devnet SOL is currently
 unobtainable, so the alternative to rehearsing here is deploying the voucher mechanic to
@@ -51,6 +58,13 @@ the derived candy guard PDA, and prints the guard exactly as it stands.
 migration assumes, and writing to the derived PDA would edit an account that controls
 nothing.
 
+> **Run 2026-09-03 17:20Z.** As expected. `itemsRedeemed 0`, so nothing had ever minted
+> from this machine whatever `TEST-003` did with the shared collection. Candy guard
+> `GoKBUfw5ex9H89xxLh6LgVRUbLovDjpqLD7YytEj2cVT`, matching the machine's `mintAuthority`.
+> `authority` equalled the signer (`HGNBqMWorgwuaHqzZrXtwUcv5PjMfEotxthasxLoB3MK`), and
+> `solPayment` was 1,000,000 lamports to `7XJJvj5N…` — the chain and `master.csv` agreeing
+> on the price, which is not something to assume.
+
 ## Step 1 — see the plan, still spend nothing
 
 ```powershell
@@ -59,6 +73,10 @@ node scripts/update-candy-guard.js --drop TEST-004 --burn-collection 7DayQZfbPCX
 
 **Expect:** default guards empty, `public` carrying the `solPayment` that was at the top
 level, `holder` carrying `assetBurn` and nothing else.
+
+> **Run 2026-09-03 17:21Z.** Exactly that, with `public`'s `solPayment` byte-identical to
+> the one it was carried from — same lamports, same destination — so a public mint's terms
+> did not change, they only moved somewhere a group can address them.
 
 The empty default set is the whole safety argument: with groups present a group inherits
 any guard left at the top level and cannot remove it, so leaving `solPayment` there would
@@ -82,6 +100,36 @@ On success it also writes `holderRequiredCollection` and `holderPrice` onto the 
 row of `master.csv`. Record what `tx-cost.js` reports: the fee plus whatever the guard
 account's growth costs in rent is the per-drop price of this migration, and it is the
 number that decides whether migrating a real launch is worth it.
+
+> **Run 2026-09-03 17:21Z.** Signature
+> `5S9uCJ1TMmevRrY2sF8HPWButabb5oFk3MdnmLPNG61GY8yvD1waeMeN8tPT8LxfpYoaz5XHo2M8rsi76db2CgEP`,
+> slot 444027048, confirmed.
+>
+> **Cost: 422,600 lamports = 0.0004226 SOL.** 5,000 lamports transaction fee, **417,600
+> lamports rent** for the guard account growing from one guard to two labelled groups.
+> Rent is 98.8% of it. For scale, one airdrop recipient costs 3,469,680 lamports, so
+> migrating a drop is about **an eighth of one airdrop**, and migrating a hundred drops
+> costs less than 0.05 SOL. Migration cost is not a reason to avoid guard groups.
+>
+> **The script then reported a READ-BACK MISMATCH, and was wrong.** It re-fetched the
+> account 124ms after `sendAndConfirm` returned at `confirmed` commitment and got the
+> pre-write state — empty groups, `solPayment` still at the top level. A `--read-only` run
+> 42 seconds later showed the guard correct in every particular. Because the mismatch path
+> exits before the CSV write, `master.csv` was left untouched, so nothing downstream
+> believed in a holder route that did exist.
+>
+> **Three fixes, same commit as this record:** the read-back now polls up to six times over
+> 12.5s and only calls a mismatch once the account has had time to propagate; group guard
+> sets are unwrapped for display (the raw read printed all 31 slots per group, 29 of them
+> `None`, burying the two that mattered in two hundred lines); and a new `--verify` mode
+> is the resume path — it re-derives what the migration should have produced from the
+> arguments, checks the guard actually on chain against it, and records the CSV columns
+> only if it holds. It cannot rubber-stamp what it finds.
+>
+> **The lesson is about the check, not the chain.** A verification step that fires falsely
+> on its first real use is worse than no verification, because what it teaches is to
+> re-run `--read-only` and shrug — which is exactly the reflex that lets a genuine bad
+> write through later.
 
 ## Step 3 — publish the route, then mint through `public`
 
