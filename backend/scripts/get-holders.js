@@ -225,6 +225,7 @@ async function main() {
   const counts = new Map();
   let scanned = 0;
   let matched = 0;
+  let burned = 0;
 
   for (let page = 1; ; page++) {
     const items = await fetchPage(config.rpc, collectionAddress, page);
@@ -232,6 +233,20 @@ async function main() {
 
     for (const item of items) {
       if (dropUri && item.content?.json_uri !== dropUri) continue;
+
+      // A burned asset keeps its ownership record in DAS and is flagged
+      // `burnt: true`. Counting it is counting a voucher that has already been
+      // spent - and the whole point of redeeming by assetBurn rather than
+      // assetGate is that a spent voucher stops qualifying. Observed on mainnet
+      // 2026-09-03: a TEST-001 asset burned to mint TEST-004 was still returned
+      // here as held, so the next snapshot would have airdropped that wallet a
+      // replacement at 0.00347968 SOL, restoring exactly the unlimited
+      // redemption the burn was chosen to prevent.
+      if (item.burnt) {
+        burned += 1;
+        continue;
+      }
+
       const owner = item.ownership?.owner;
       if (!owner) continue;
       matched += 1;
@@ -244,7 +259,7 @@ async function main() {
   // Scanning assets but matching none, with a filter active, almost always means
   // the uri does not match what the chain actually carries — say so rather than
   // handing back an empty file that looks like a finished answer.
-  if (scanned > 0 && matched === 0 && dropUri) {
+  if (scanned > 0 && matched === 0 && burned === 0 && dropUri) {
     fail(
       "no_assets_matched_drop",
       `Scanned ${scanned} asset(s) in the collection and none carried "${dropUri}". ` +
@@ -253,11 +268,38 @@ async function main() {
     );
   }
 
+  // Every match burned is a real, correct answer - everyone eligible has
+  // already redeemed - and it must not be reported as a uri mismatch.
+  if (scanned > 0 && matched === 0 && burned > 0) {
+    log({
+      status: "success",
+      result: "all_matching_assets_burned",
+      burnedSkipped: burned,
+      message:
+        `All ${burned} matching asset(s) are burned. Every holder has redeemed; there is nobody left to snapshot. ` +
+        "This is a complete answer, not a failed lookup.",
+    });
+    process.exit(0);
+  }
+
   const wallets = [...counts.keys()];
+
+  // Reported, not just filtered. A snapshot that silently shrinks looks like a
+  // snapshot of a smaller collection; one that says how many burned assets it
+  // skipped is a record of redemptions having happened.
+  if (burned > 0) {
+    log({
+      status: "info",
+      burnedSkipped: burned,
+      message: `${burned} asset(s) matched but are burned — excluded. A burned voucher has been redeemed and no longer qualifies.`,
+    });
+  }
+
   log({
     status: "plan",
     assetsScanned: scanned,
     assetsMatched: matched,
+    burnedSkipped: burned,
     uniqueWallets: wallets.length,
     mode: withCounts ? "one row per wallet with quantity" : "one row per wallet",
     out: dryRun ? null : outPath,

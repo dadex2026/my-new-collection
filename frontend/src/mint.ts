@@ -92,8 +92,20 @@ function describeMintError(err: unknown): string {
   if (lower.includes("insufficient") || lower.includes("insufficient funds")) {
     return "Insufficient SOL — your wallet doesn't have enough SOL to cover the price and network fee.";
   }
-  if (lower.includes("blockhash not found") || lower.includes("timed out") || lower.includes("timeout")) {
-    return "Network timeout — the transaction didn't confirm in time. Check your wallet/explorer before retrying, in case it actually went through.";
+  // "has expired: block height exceeded" is the common shape of this on a busy
+  // mainnet, and it matched none of the substrings above until 2026-09-03 - so
+  // the one case where the advice not to retry blindly matters most fell
+  // through to the generic branch and printed the raw error instead. An
+  // expired blockhash means the client stopped waiting, NOT that the
+  // transaction failed; it may already have landed.
+  if (
+    lower.includes("blockhash not found") ||
+    lower.includes("block height exceeded") ||
+    lower.includes("has expired") ||
+    lower.includes("timed out") ||
+    lower.includes("timeout")
+  ) {
+    return "Network timeout — the transaction didn't confirm in time. It may still have gone through: check the signature in an explorer before retrying, or you may pay twice.";
   }
   if (lower.includes("failed to fetch") || lower.includes("network error") || lower.includes("503")) {
     return "RPC unavailable — couldn't reach the Solana network. Try again in a moment.";
@@ -293,8 +305,19 @@ async function findQualifyingHolderAsset(walletAddress: string, requiredCollecti
     const body = await response.json();
     const items = body.result?.items || [];
 
-    const match = items.find((item: any) =>
-      (item.grouping || []).some((g: any) => g.group_key === "collection" && g.group_value === requiredCollection)
+    // `!item.burnt` is load-bearing. DAS returns a burned asset with its
+    // ownership record intact and only this flag to say it is gone, so without
+    // the check a wallet that has already redeemed keeps matching: the mint is
+    // routed to the `holder` group, `assetBurn` is handed an asset that no
+    // longer exists, and the transaction reverts in simulation. The wallet can
+    // then never mint again — not through `holder`, because the voucher is
+    // spent, and not through `public`, because this function never lets it fall
+    // through. Observed on mainnet 2026-09-03, the first time anyone redeemed.
+    // The identical omission in get-holders.js is open-items 38.
+    const match = items.find(
+      (item: any) =>
+        !item.burnt &&
+        (item.grouping || []).some((g: any) => g.group_key === "collection" && g.group_value === requiredCollection)
     );
     if (match) return match.id;
 
