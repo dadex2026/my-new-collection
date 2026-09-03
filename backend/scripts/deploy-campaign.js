@@ -48,6 +48,8 @@
  *   3 = blockchain failure
  *
  * Usage:
+ *   node scripts/deploy-campaign.js --per-asset   (one claim per qualifying NFT instead of
+ *                                                   per wallet - the pre-2026-09-03 default)
  *   node scripts/deploy-campaign.js --campaign MYCOL-OE001-OE002-132
  *
  * Dependencies (npm install):
@@ -206,6 +208,29 @@ async function main() {
   const args = process.argv.slice(2);
   const campaignFlagIndex = args.indexOf("--campaign");
   const forceFlag = args.includes("--force");
+  // --per-wallet swaps the per-ASSET claim counter for a per-WALLET one.
+  // assetMintLimit's counter is seeded by the qualifying NFT, so a wallet
+  // holding five eligible editions gets five claims; mintLimit's counter is
+  // seeded by the payer, so it gets one however many it holds.
+  //
+  // Worth being honest about the ceiling: this enforces one per WALLET, and
+  // wallets are free. Someone can move each edition to a fresh wallet and
+  // claim once from each. Nothing on chain knows about people. If one per
+  // person is the actual requirement, the lever is an off-chain allowlist
+  // built from a snapshot you curate, not a guard.
+  // ONE CLAIM PER WALLET IS THE DEFAULT as of 2026-09-03. Pass --per-asset
+  // for the old behaviour, where the counter is keyed to the qualifying NFT
+  // and a wallet holding five eligible editions gets five claims.
+  //
+  // The default changed because "one reward per holder, first come" is what a
+  // campaign is normally for, and the per-asset counter quietly rewards
+  // whoever accumulated the most editions - which is a different campaign
+  // than the one most people think they are running.
+  //
+  // Campaigns already on chain are unaffected: their guards were written at
+  // deploy time and this only governs new ones. Their rows have no claimScope,
+  // which reads as "asset", which is what they are.
+  const perWallet = !args.includes("--per-asset");
   const claimLimitFlagIndex = args.indexOf("--claim-limit");
   const claimLimit = claimLimitFlagIndex !== -1 && args[claimLimitFlagIndex + 1] ? Number(args[claimLimitFlagIndex + 1]) : 1;
 
@@ -216,7 +241,7 @@ async function main() {
   }
 
   const config = loadConfig();
-  log({ status: "start", campaignId, network: config.network, claimLimit });
+  log({ status: "start", campaignId, network: config.network, claimLimit, claimScope: perWallet ? "wallet" : "asset" });
 
   // ---- Load campaign config -----------------------------------------------
   const { header: campaignHeader, rows: campaignRows } = readCsv(CAMPAIGNS_CSV_PATH);
@@ -324,7 +349,15 @@ async function main() {
       // (one claim per eligible wallet/asset) unless --claim-limit
       // overrides it — on by default, since the absence of this guard
       // is what caused the actual bug, not an opt-in hardening measure.
-      assetMintLimit: { id: 1, limit: claimLimit, requiredCollection: umiCore.publicKey(eligibilityDrop.collectionAddress) },
+      ...(perWallet
+        ? // Counter PDA is seeded ["mint_limit", id, PAYER, guard, machine] -
+          // one allowance per wallet, regardless of how many eligible assets
+          // that wallet holds.
+          { mintLimit: { id: 1, limit: claimLimit } }
+        : // Counter PDA is seeded per eligible ASSET, so this is one claim per
+          // qualifying NFT. The original behaviour, and still the default so
+          // that campaigns already deployed keep meaning what they meant.
+          { assetMintLimit: { id: 1, limit: claimLimit, requiredCollection: umiCore.publicKey(eligibilityDrop.collectionAddress) } }),
     };
     if (priceSol > 0) {
       guards.solPayment = { lamports: umiCore.sol(priceSol), destination: umiCore.publicKey(config.treasury) };
@@ -363,7 +396,7 @@ async function main() {
   }
 
   // ---- Persist results ----------------------------------------------------
-  const newFields = ["campaignCandyMachineAddress", "eligibilityCollection", "targetCollection", "network", "treasury", "claimLimitId", "claimLimit"];
+  const newFields = ["campaignCandyMachineAddress", "eligibilityCollection", "targetCollection", "network", "treasury", "claimLimitId", "claimScope", "claimLimit"];
   for (const f of newFields) {
     if (!campaignHeader.includes(f)) campaignHeader.push(f);
   }
@@ -373,6 +406,11 @@ async function main() {
   campaign.network = config.network;
   campaign.claimLimitId = "1";
   campaign.claimLimit = String(claimLimit);
+  // The frontend has to send mint args matching the guard that is actually
+  // deployed - mintLimit takes { id }, assetMintLimit takes { id, asset }, and
+  // sending the wrong one desyncs the instruction from what the program
+  // expects to deserialize. This column is how campaign.ts knows which.
+  campaign.claimScope = perWallet ? "wallet" : "asset";
   if (priceSol > 0) {
     campaign.treasury = config.treasury;
   }

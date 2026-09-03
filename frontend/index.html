@@ -222,6 +222,12 @@
       margin-bottom: 4px;
     }
 
+    .drop-holder-price {
+      color: #b39ddb;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
     .drop-minted {
       font-size: 12px;
       color: #666;
@@ -302,6 +308,34 @@
 
     .campaign-desc,
     .campaign-eligibility,
+    /* Emitted by ui.engine.ts since the campaign cards were written, and
+       unstyled until 2026-09-03 - both rendered as unstyled body text on
+       every live campaign card. */
+    .campaign-desc {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 6px;
+    }
+
+    .campaign-eligibility {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 6px;
+    }
+
+    /* The wallet actually holds a voucher that spends on this drop. Brighter
+       than the generic offer line, because it is an instruction rather than
+       an advertisement. */
+    .drop-voucher-held {
+      color: #7fd1a8;
+    }
+
+    .drop-claim-note {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 8px;
+    }
+
     .campaign-reward {
       font-size: 13px;
       color: #888;

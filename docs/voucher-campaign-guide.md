@@ -107,6 +107,102 @@ edition that qualified them.
 
 ---
 
+## Sample rows
+
+A worked example, `Founders Voucher`. Card previews of exactly these rows are in
+`Claude outputs/voucher-preview.html`.
+
+**`master.csv` — the voucher's own collection.** Its own slug, one drop, no candy machine.
+
+| column | value |
+|---|---|
+| `collectionSlug` | `founders-voucher` |
+| `collectionName` | `Founders Voucher` |
+| `collectionDescription` | One voucher, redeemable for any single edition in the Founders collection |
+| `collectionImage` | **pasted by hand** — becomes the permanent on-chain `uri`, and no script uploads it |
+| `dropItemId` | `VOUCHER-001` |
+| `itemName` | `Founders Voucher` |
+| `itemDescription` | Burn to mint any one edition. One voucher, one edition, your choice. |
+| `itemImage` | written by `upload-images.js` |
+| `sellerFeeBasisPoints` | `500` |
+| `attributes` | `Type:Voucher\|Redeems:Any one edition` |
+| `maxSupply` | `250` |
+| `price` | `0` — never publicly minted; the campaign sets what a claim costs |
+| `mintStatus` | `ready` |
+
+**`campaigns.csv` — the claim.** `allocation` is the first-come cap and the only thing
+enforcing it.
+
+| column | value |
+|---|---|
+| `campaignId` | `founders-voucher-claim` |
+| `title` | `Founders Voucher` |
+| `headline` | `Holder Reward` |
+| `description` | Hold a Founders Edition, claim a voucher redeemable for any one edition. |
+| `eligibilityText` | You must hold a Founders Edition to claim |
+| `rewardText` | Receive 1 Founders Voucher |
+| `priceText` | Free — network costs only |
+| `allocationText` | 250 available |
+| `claimText` | Claim voucher |
+| `soldOutText` | All 250 claimed |
+| `eligibilityDropItemId` | `OE-001` — **its whole collection qualifies**, not just this drop |
+| `targetDropItemId` | `VOUCHER-001` |
+| `price` | `0` |
+| `allocation` | `250` |
+
+**Per edition, written by the migration**, and readable in `master.csv` afterwards:
+`holderRequiredCollection` = the voucher collection's address, `holderPrice` = `0` for a
+free redemption or e.g. `0.005` for a discount.
+
+---
+
+## Free or discounted, and changing your mind
+
+`holderPrice` is the whole knob, per drop, independent of the public price on the same
+machine.
+
+| `holderPrice` | Holder group contains | Redeemer pays |
+|---|---|---|
+| `0` or blank | `assetBurn` alone — **no `solPayment` guard at all** | 2,482,840 lamports ≈ 0.0025 SOL |
+| `0.005` | `assetBurn` + `solPayment` 0.005 | ≈ 0.0025 + 0.005 SOL |
+
+Zero **removes** the guard rather than setting it to zero. A zero-lamport `solPayment` is
+still a live guard with a destination account to satisfy, which is not the same thing.
+
+Set it at migration with `--holder-price`, or at create time with
+`deploy-candy-machine.js --holder-collection <a> --holder-price 0.005`.
+
+**Changing it afterwards** needs `--set-holder-price`, because the migration deliberately
+refuses a guard that already has groups:
+
+```
+node scripts/update-candy-guard.js --drop OE-001 --set-holder-price 0.005 --write --yes
+node scripts/update-candy-guard.js --drop OE-001 --set-holder-price 0 --write --yes    # back to free
+```
+
+That mode edits **only** the holder group's `solPayment`. It reads the burn collection off
+the chain rather than taking it from an argument, refuses a guard whose groups are not
+exactly `[public, holder]`, refuses one whose holder group has no `assetBurn`, and refuses
+one whose default set is not empty — so it cannot turn a paid drop into a redeemable one,
+cannot repoint the burn, and cannot quietly reprice something that was never a voucher
+route. Same read-back as the migration, same exit 3 on a mismatch.
+
+---
+
+## The voucher's own card
+
+The voucher needs a `master.csv` row, and `generate-registry.js` emits every row, so the
+voucher appears in the drop grid as its own card with a Mint button that cannot work —
+`mint.ts` answers *"This drop hasn't been deployed on-chain yet"*, which is true and
+unhelpful. A voucher is never meant to be minted directly.
+
+Giving the voucher its own `collectionSlug` (which you should anyway) means the collection
+filter hides it. Making the grid skip drops with no `candyMachineAddress` would fix it
+properly and would also hide editions that are genuinely not deployed yet. **That is a
+decision, not an oversight** — it has not been made.
+
+---
+
 ## What it costs, and who pays
 
 Every figure measured on mainnet 2026-09-03.
@@ -137,9 +233,22 @@ enforced as "holders of anything in X's *collection*" — `deploy-campaign.js` r
 sibling drops, their holders qualify too. `TEST-003` and `TEST-004` share one today, which
 is a live example rather than a hypothetical. Give any gating edition its own slug.
 
-**`assetMintLimit` is per qualifying asset, not per wallet.** A wallet holding five open
-editions claims five vouchers, one against each. One-per-person is not expressible on
-chain: `mintLimit` is per wallet, and wallets are free.
+**One claim per wallet is the default; one per person is not achievable.** Since
+2026-09-03 `deploy-campaign.js` deploys `mintLimit { id: 1, limit: 1 }`, whose counter PDA
+is seeded by the **payer**, so a wallet holding five eligible editions still gets one
+claim. `--per-asset` restores the old `assetMintLimit`, keyed to the qualifying NFT, where
+five editions means five claims.
+
+The ceiling is worth stating plainly: this enforces one per **wallet**, and wallets are
+free. Someone can move each edition to a fresh wallet and claim once from each. Nothing on
+chain knows about people. If one per person is the real requirement, the lever is an
+off-chain allowlist built from a snapshot you curate, not a guard.
+
+Campaigns already deployed are unaffected — their guards were fixed at deploy time. Their
+rows carry no `claimScope`, which reads as `asset`, which is what they are. The frontend
+must send mint args matching the guard actually deployed (`mintLimit` takes `{ id }`,
+`assetMintLimit` takes `{ id, asset }`), and `claimScope` in the registry is how
+`campaign.ts` knows which.
 
 **There are no cross-campaign limits.** Two voucher campaigns means two vouchers per
 holder. If "one voucher ever" matters, that is one campaign.
@@ -147,6 +256,13 @@ holder. If "one voucher ever" matters, that is one campaign.
 **Migration rewrites a live machine.** Each `update-candy-guard.js --write` changes the
 terms of a drop people may already be minting. Run `--read-only` first, every time; the
 script re-reads the account afterwards and exits 3 if it disagrees with the plan.
+
+**Until 2026-09-03 the card never showed the holder price.** `ui.engine.ts` rendered
+`price` alone, so an edition that was free to a voucher holder advertised the full price
+and said otherwise only in the status line, after they had decided not to click. It now
+renders "Free with a voucher" or "<n> SOL with a voucher" whenever the drop has a holder
+route — shown to everyone, not only to wallets holding one, because the offer is the
+argument for claiming a voucher in the first place.
 
 **The silent fallback is an unmade decision.** `mint.ts` routes a wallet with no
 qualifying asset to the `public` group and charges full price, and

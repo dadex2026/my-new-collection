@@ -2,6 +2,7 @@ import { state, subscribe } from "./state";
 import { clearNodes } from "./domDiff";
 import { batch } from "./batch";
 import { RegistryDrop, Campaign, TextCard, Methodology } from "./types";
+import { CONFIG } from "./config";
 
 let activeCollectionSlug = "all";
 let activeFilters: Record<string, string> = {};
@@ -17,6 +18,85 @@ const FILTER_TRAITS = ["Category", "Market", "Tier", "Element", "Series"];
 // currently scrolled into view" — the input lives in a sticky bar above all
 // three sections, so it naturally re-filters all of them at once.
 let searchQuery = "";
+
+// ----------------------------
+// VOUCHERS THE CONNECTED WALLET ACTUALLY HOLDS
+// ----------------------------
+// Which voucher collections this wallet holds a live asset from. Empty until a
+// wallet connects and the lookup returns, and never a reason to block a render.
+//
+// The useful signal is not "you have a voucher" in the abstract - it is WHICH
+// editions it spends on. Every drop already carries holderRequiredCollection,
+// so once this set is known the answer is a string comparison per card, and a
+// card can say "redeem with your voucher" instead of advertising a price its
+// reader is not going to pay.
+//
+// One DAS call per wallet, not per card: the request is by owner, and every
+// voucher collection referenced anywhere in the registry is answered out of the
+// same response.
+let heldVoucherCollections = new Set<string>();
+
+async function refreshVoucherHoldings(): Promise<void> {
+  const previous = heldVoucherCollections;
+  heldVoucherCollections = new Set<string>();
+
+  const wanted = new Set(
+    getAllDrops()
+      .map((d) => d.holderRequiredCollection)
+      .filter((c): c is string => Boolean(c))
+  );
+
+  if (!state.wallet.connected || !state.wallet.address || wanted.size === 0) {
+    if (previous.size > 0) renderDropPanel();
+    return;
+  }
+
+  const MAX_PAGES = 3;
+  const PAGE_LIMIT = 1000;
+
+  try {
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const response = await fetch(CONFIG.rpcUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: "voucher-holdings",
+          method: "getAssetsByOwner",
+          params: { ownerAddress: state.wallet.address, page, limit: PAGE_LIMIT },
+        }),
+      });
+      if (!response.ok) break;
+
+      const body = await response.json();
+      const items = body.result?.items || [];
+
+      for (const item of items) {
+        // A burned asset keeps its ownership record and is flagged only by
+        // this. Counting one would tell a holder an edition is free to them
+        // when their voucher is already spent - see open-items 38 and 39.
+        if (item.burnt) continue;
+        for (const g of item.grouping || []) {
+          if (g.group_key === "collection" && wanted.has(g.group_value)) {
+            heldVoucherCollections.add(g.group_value);
+          }
+        }
+      }
+
+      if (items.length < PAGE_LIMIT) break;
+    }
+  } catch {
+    // A failed lookup means "we do not know", not "you hold nothing". The cards
+    // fall back to advertising the offer, which is what they show everyone
+    // anyway, so a network blip understates and never overstates.
+    heldVoucherCollections = new Set<string>();
+  }
+
+  const changed =
+    previous.size !== heldVoucherCollections.size ||
+    [...heldVoucherCollections].some((c) => !previous.has(c));
+  if (changed) renderDropPanel();
+}
 
 // Shared substring matcher: does `query` appear in any of the given fields,
 // case-insensitively? Reused by all three sections so they can't drift into
@@ -217,8 +297,62 @@ function getActiveDrops(): RegistryDrop[] {
   return col?.drops ?? [];
 }
 
+// The voucher line is shown to EVERYONE, not only to wallets holding one: the
+// offer is the argument for claiming a voucher in the first place, so hiding it
+// from people who have not got one hides it from its audience. Until
+// 2026-09-03 the card showed only `price`, so an edition that was free to a
+// voucher holder advertised the full price and said otherwise in the status
+// line, after they had decided not to click.
 function buildDropCard(d: RegistryDrop): string {
   const walletConnected = state.wallet.connected;
+
+  // A drop with no candy machine cannot be minted, and its card used to offer a
+  // Mint button that answered "this drop hasn't been deployed on-chain yet" -
+  // true, and useless. A voucher is the case that makes it obvious: it is
+  // deliberately never publicly mintable, because the only way to get one is to
+  // claim it through a gated campaign. So when a campaign rewards this exact
+  // drop, the card offers THAT claim, reusing the campaign's own handler and
+  // its own guards - live button, gating untouched.
+  //
+  // What this deliberately does NOT do is give the voucher its own candy
+  // machine. That would make a Mint button work and destroy the point: anyone
+  // could mint a voucher directly and redeem it for any edition. Worse, with
+  // both a campaign and a public machine there are two supply pools, and
+  // assetMintLimit does not span them, so one holder could take from each.
+  const claimCampaign = d.candyMachineAddress
+    ? undefined
+    : state.campaigns.find((c) => c.targetDropItemId === d.dropItemId);
+
+  // Holds a voucher that spends HERE - not merely a voucher.
+  const holdsVoucherForThis = Boolean(
+    d.holderRequiredCollection && heldVoucherCollections.has(d.holderRequiredCollection)
+  );
+
+  // On the voucher's own card. A claimed voucher is never minted again, so this
+  // card has nothing to offer its holder but the count of editions to go spend
+  // it on.
+  const redeemableHere =
+    d.collectionAddress && heldVoucherCollections.has(d.collectionAddress)
+      ? getAllDrops().filter((x) => x.holderRequiredCollection === d.collectionAddress).length
+      : 0;
+
+  const actionButton = d.candyMachineAddress
+    ? `<button
+        class="drop-mint-btn"
+        data-action="mint"
+        data-drop-id="${d.key}"
+        ${!walletConnected ? "disabled" : ""}>
+        Mint
+      </button>`
+    : claimCampaign
+    ? `<button
+        class="drop-mint-btn"
+        data-action="claim-campaign"
+        data-campaign-id="${claimCampaign.campaignId}"
+        ${!walletConnected ? "disabled" : ""}>
+        ${claimCampaign.claimText}
+      </button>`
+    : `<button class="drop-mint-btn" disabled>Not yet available</button>`;
   return `
     <div class="drop" id="drop-${d.key}">
       ${d.itemImage ? `<img src="${d.itemImage}" alt="${d.itemName}" />` : ""}
@@ -233,17 +367,21 @@ function buildDropCard(d: RegistryDrop): string {
         </div>
       ` : ""}
       <div class="drop-price">${d.price} SOL</div>
+      ${d.holderRequiredCollection ? `
+        <div class="drop-holder-price${holdsVoucherForThis ? " drop-voucher-held" : ""}">
+          ${holdsVoucherForThis
+            ? (!d.holderPrice ? "Redeem free with your voucher" : `Redeem for ${d.holderPrice} SOL with your voucher`)
+            : (!d.holderPrice ? "Free with a voucher" : `${d.holderPrice} SOL with a voucher`)}
+        </div>
+      ` : ""}
       <div class="drop-minted">
         ${d.minted ?? 0} / ${d.maxSupply ?? "Unlimited"} minted
       </div>
       ${d.status ? `<div class="drop-status">${d.status}</div>` : ""}
-      <button
-        class="drop-mint-btn"
-        data-action="mint"
-        data-drop-id="${d.key}"
-        ${!walletConnected ? "disabled" : ""}>
-        Mint
-      </button>
+      ${redeemableHere > 0
+        ? `<div class="drop-claim-note drop-voucher-held">You hold one - redeemable on ${redeemableHere} edition${redeemableHere === 1 ? "" : "s"} below</div>`
+        : claimCampaign ? `<div class="drop-claim-note">${claimCampaign.eligibilityText}</div>` : ""}
+      ${actionButton}
     </div>
   `;
 }
@@ -1016,6 +1154,8 @@ export function initUIEngine() {
   subscribe("wallet", renderMintButtons);
   subscribe("wallet", renderWallet);
   subscribe("wallet", () => renderDropPanel());
+  subscribe("wallet", () => { void refreshVoucherHoldings(); });
+  subscribe("registry", () => { void refreshVoucherHoldings(); });
   subscribe("wallet", () => renderCampaigns());
   subscribe("registry", () => {
     batch(() => {

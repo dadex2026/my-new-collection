@@ -34,6 +34,14 @@ export type RegistryDrop = {
   attributes: RegistryAttribute[];
   uri: string;
   collectionAddress: string;
+  // Empty for a drop with no candy machine of its own - a voucher, or an
+  // edition not deployed yet. The card decides what its button does on this.
+  candyMachineAddress?: string;
+  // Set only for drops whose candy machine carries a `holder` guard group.
+  // Presence is what says a voucher route exists; holderPrice of 0 or null
+  // means redeeming is free, matching a holder group with no solPayment.
+  holderRequiredCollection?: string;
+  holderPrice?: number | null;
 };
 
 export type RegistryCollection = {
@@ -65,6 +73,7 @@ export type Campaign = {
   claimText: string;
   soldOutText: string;
   eligibilityCollection: string;
+  targetDropItemId: string;
   targetCollection: string;
   targetImage: string;
   campaignCandyMachineAddress: string;
@@ -74,6 +83,8 @@ export type Campaign = {
   treasury: string;
   claimed: number | null;
   claimLimitId?: string;
+  /** "wallet" (mintLimit) or "asset" (assetMintLimit). Empty means asset. */
+  claimScope?: string;
   claimLimit?: number | null;
 };
 

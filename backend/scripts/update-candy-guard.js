@@ -56,6 +56,13 @@
  *   node scripts/update-candy-guard.js --drop TEST-004 --burn-collection <address> --write --yes
  *   node scripts/update-candy-guard.js --candy-machine <address> --burn-collection <address>
  *   node scripts/update-candy-guard.js --drop TEST-004 --read-only     (just print current state)
+ *   node scripts/update-candy-guard.js --drop TEST-004 --set-holder-price 0.005 --write --yes
+ *                                                                       (change what redemption costs on a
+ *                                                                        drop that is ALREADY migrated -
+ *                                                                        0 makes it free. Touches only the
+ *                                                                        holder group's solPayment; the burn
+ *                                                                        collection and the public price are
+ *                                                                        left exactly as found.)
  *   node scripts/update-candy-guard.js --drop TEST-004 --burn-collection <a> --verify
  *                                                                       (the resume path: confirm an
  *                                                                        already-migrated guard and
@@ -411,6 +418,70 @@ function verifyReadBack(plan, refetched) {
   return problems;
 }
 
+// ---- --set-holder-price: change what redemption costs, after the fact ----
+
+// The migration is deliberately one-shot: assertMigratable refuses a guard that
+// already has groups, because blindly rewriting a live guard is how you charge
+// the wrong people. That left the holder price undecidable after the first
+// write, which is wrong in the other direction - a discount is the offer, and
+// an offer you cannot change is a launch you cannot correct.
+//
+// So this mode does the one edit that is safe to make on a grouped guard:
+// it takes the guard AS IT STANDS ON CHAIN, changes nothing but the holder
+// group's solPayment, and leaves every other guard - including which collection
+// gets burned - exactly as it found it. It never invents an assetBurn, so it
+// cannot silently turn a paid drop into a redeemable one.
+function buildRepricePlan(candyGuard, { holderPrice, treasury, umiCore }) {
+  const defaults = unwrapGuardSet(candyGuard.guards);
+  const groups = unwrapGroups(candyGuard.groups);
+  const labels = groups.map((g) => g.label);
+
+  if (labels.join("|") !== "public|holder") {
+    fail(
+      "not_repriceable",
+      `Expected groups [public, holder] and found [${labels.join(", ") || "none"}]. ` +
+        "--set-holder-price edits an existing holder route; it does not create one. Run the migration first.",
+      1
+    );
+  }
+  if (Object.keys(defaults).length > 0) {
+    fail(
+      "defaults_not_empty",
+      `The default guard set is not empty (${guardNames(defaults)}). Every group inherits it, so repricing the ` +
+        "holder group would not have the effect you expect. Fix the guard before repricing it.",
+      1
+    );
+  }
+
+  const holder = { ...groups.find((g) => g.label === "holder").guards };
+  if (!holder.assetBurn) {
+    fail(
+      "holder_group_has_no_burn",
+      `The holder group has [${guardNames(holder)}] and no assetBurn. This is not a voucher route; refusing to reprice it.`,
+      1
+    );
+  }
+
+  if (holderPrice > 0) {
+    holder.solPayment = {
+      lamports: umiCore.sol(holderPrice),
+      destination: umiCore.publicKey(treasury),
+    };
+  } else {
+    // Zero means REMOVE the guard, not charge nothing. A zero-lamport
+    // solPayment is still a live guard with a destination to satisfy.
+    delete holder.solPayment;
+  }
+
+  return {
+    guards: {},
+    groups: [
+      { label: "public", guards: groups.find((g) => g.label === "public").guards },
+      { label: "holder", guards: holder },
+    ],
+  };
+}
+
 // ---- --verify: confirm an already-migrated guard, then record it --------
 
 // The resume path. A confirmed transaction plus a stale read leaves the chain
@@ -480,6 +551,8 @@ async function main() {
   const treasuryFlag = flagValue("--treasury");
   const readOnly = args.includes("--read-only");
   const verifyOnly = args.includes("--verify");
+  const setHolderPriceRaw = flagValue("--set-holder-price");
+  const reprice = setHolderPriceRaw !== null;
   const write = args.includes("--write");
   const confirmed = args.includes("--yes");
 
@@ -502,12 +575,29 @@ async function main() {
   }
 
   const treasury = treasuryFlag || (row && row.treasury) || config.treasury;
-  const holderPrice = holderPriceRaw === null ? 0 : Number(holderPriceRaw);
-  if (holderPriceRaw !== null && !Number.isFinite(holderPrice)) {
-    fail("invalid_holder_price", `--holder-price "${holderPriceRaw}" is not a number`, 1);
+  const priceRaw = reprice ? setHolderPriceRaw : holderPriceRaw;
+  const holderPrice = priceRaw === null ? 0 : Number(priceRaw);
+  if (priceRaw !== null && !Number.isFinite(holderPrice)) {
+    fail("invalid_holder_price", `"${priceRaw}" is not a number`, 1);
+  }
+  if (holderPrice < 0) {
+    fail("negative_holder_price", `A holder price of ${holderPrice} is not a price. Use 0 for a free redemption.`, 1);
+  }
+  if (reprice && holderPrice > 0 && !ADDRESS_PATTERN.test(treasuryFlag || "")) {
+    // Deliberately not falling back to config.treasury here. Repricing points
+    // real money at an address; it should be the one on the drop's own row or
+    // one typed on purpose, never a default picked up from a config file.
+    if (!row || !ADDRESS_PATTERN.test(row.treasury || "")) {
+      fail(
+        "no_treasury_for_reprice",
+        "Repricing to a non-zero amount needs a payment destination. Pass --treasury <address>, " +
+          "or use --drop so the address comes from that row of master.csv.",
+        1
+      );
+    }
   }
 
-  if (!readOnly) {
+  if (!readOnly && !reprice) {
     if (!burnCollection) {
       fail("missing_burn_collection", "Pass --burn-collection <address> (the collection whose asset is burned to redeem), or --read-only to just inspect", 1);
     }
@@ -526,7 +616,7 @@ async function main() {
     dropItemId: dropItemId || null,
     burnCollection: burnCollection || null,
     holderPrice,
-    mode: readOnly ? "read-only" : verifyOnly ? "verify" : write ? "write" : "plan",
+    mode: readOnly ? "read-only" : verifyOnly ? "verify" : reprice ? (write ? "reprice" : "reprice-plan") : write ? "write" : "plan",
   });
 
   const { umi, umiCore, mplCandyMachine, signer } = await getUmi(config.rpc, !readOnly);
@@ -620,9 +710,31 @@ async function main() {
     process.exit(0);
   }
 
-  assertMigratable(candyGuard);
+  // Repricing edits a guard that already has groups, which is precisely what
+  // assertMigratable exists to refuse - so it is skipped, and buildRepricePlan
+  // does its own, stricter checking instead.
+  if (!reprice) assertMigratable(candyGuard);
 
-  const plan = buildPlan(currentDefaultGuards, { burnCollection, holderPrice, treasury, umiCore });
+  const plan = reprice
+    ? buildRepricePlan(candyGuard, { holderPrice, treasury, umiCore })
+    : buildPlan(currentDefaultGuards, { burnCollection, holderPrice, treasury, umiCore });
+
+  // In reprice mode the collection being burned is whatever is already on
+  // chain, read back off the plan rather than taken from an argument - the
+  // caller never named one, and inventing it here is how you point a live
+  // redemption at the wrong collection.
+  const effectiveBurnCollection = reprice
+    ? String(plan.groups.find((g) => g.label === "holder").guards.assetBurn.requiredCollection)
+    : burnCollection;
+
+  if (reprice) {
+    const before = unwrapGroups(candyGuard.groups).find((g) => g.label === "holder").guards;
+    const wasCharging = Boolean(before.solPayment);
+    console.log(
+      `\n  Repricing the holder route only. Burn collection stays ${effectiveBurnCollection}.\n` +
+        `  ${wasCharging ? "was: charging" : "was: free"}  ->  ${holderPrice > 0 ? `now: ${holderPrice} SOL` : "now: free"}`
+    );
+  }
 
   console.log("\n" + "=".repeat(72));
   console.log("GUARD AS IT WOULD BE WRITTEN");
@@ -732,7 +844,7 @@ async function main() {
   // Skipped when the target was named by --candy-machine, because
   // there is then no row to attribute it to.
   if (row) {
-    writeHolderColumns(row.dropItemId, burnCollection, holderPrice);
+    writeHolderColumns(row.dropItemId, effectiveBurnCollection, holderPrice);
   } else {
     console.log(
       "  ! Target was given as --candy-machine, so master.csv was NOT updated.\n" +
@@ -760,4 +872,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { unwrapGuardSet, unwrapGroups, buildPlan, verifyReadBack, verifyMigrated, guardNames };
+module.exports = { unwrapGuardSet, unwrapGroups, buildPlan, buildRepricePlan, verifyReadBack, verifyMigrated, guardNames };

@@ -140,6 +140,11 @@ async function main() {
         claimText: r.claimText || "Claim",
         soldOutText: r.soldOutText || "Sold out",
         eligibilityCollection: r.eligibilityCollection || "",
+        // Emitted since 2026-09-03 so the frontend can tell WHICH drop a
+        // campaign rewards, not just which collection. A voucher's own drop
+        // card uses it to offer the gated claim instead of a mint that
+        // cannot work - see docs/voucher-campaign-guide.md.
+        targetDropItemId: r.targetDropItemId || "",
         targetCollection: r.targetCollection || "",
         targetImage: targetRow?.itemImage || "",
         campaignCandyMachineAddress: r.campaignCandyMachineAddress,
@@ -148,6 +153,10 @@ async function main() {
         network: r.network || "",
         treasury: r.treasury || "",
         claimLimitId: r.claimLimitId || "",
+        // "wallet" or "asset". Absent on every campaign deployed before
+        // 2026-09-03, and those all used the per-asset counter, so an empty
+        // value must read as "asset" and not as "unknown".
+        claimScope: r.claimScope || "asset",
         claimLimit: r.claimLimit ? Number(r.claimLimit) : null,
         claimed: null,
       };
