@@ -78,8 +78,8 @@ const RULES = [
     // twenty-one, and this rule watched only for "ten" — so the stale count
     // sat in a heading through every run of the guard that was supposed to
     // catch stale counts. Match every wrong number, not the last one seen.
-    pattern: /\b(ten|10|eleven|11|twelve|12|sixteen|16|seventeen|17|eighteen|18|nineteen|19|twenty|20)\s+checks\b/i,
-    why: "preflight.js registers 21 checks in six groups. A clean run prints 18 of them (17 without campaigns.csv), because three are recorded only on failure.",
+    pattern: /\b(ten|10|eleven|11|twelve|12|sixteen|16|seventeen|17|eighteen|18|nineteen|19|twenty|20|twenty-one|21)\s+checks\b/i,
+    why: "preflight.js registers 22 checks in six groups. A clean run prints 19 of them (18 without campaigns.csv), because three are recorded only on failure.",
     truth: "backend/scripts/preflight.js — count the results.push({ name: ... }) calls",
   },
   {

@@ -432,6 +432,55 @@ async function main() {
     }
   }
 
+  // ---- Refuse to make a burn currency publicly mintable -------------------
+  //
+  // A voucher collection must never get a candy machine. In this pipeline a
+  // candy machine IS the public mint path - mint.ts refuses a drop without one
+  // and the card only offers a Mint button when one exists - so the empty
+  // candyMachineAddress cell is the entire gate. Deploy one here and anyone
+  // can mint vouchers (at `price`, which for a voucher row is 0), then burn
+  // each for an edition of their choosing. The open edition becomes free, and
+  // nothing errors: it gets more permissive, which is the direction nobody
+  // notices.
+  //
+  // Two signals, because they cover different moments:
+  //
+  //   EXPLICIT - mintStatus "voucher" on the row. True from the moment the row
+  //   is typed, before anything exists on chain. This is the one that matters,
+  //   because the realistic accident is running the deploy scripts down the
+  //   list on day one, when no edition points at the voucher yet.
+  //
+  //   DERIVED - the collection is named as some drop's holderRequiredCollection.
+  //   Only true after the first edition is migrated, so it cannot protect day
+  //   one - but it catches a voucher collection nobody remembered to mark.
+  //
+  // Neither can undo a candy machine already deployed; this pipeline has no way
+  // to undeploy one.
+  const allSlugRows = rows.filter((r) => r.collectionSlug === collectionSlug);
+  const declaredVoucher = allSlugRows.filter(
+    (r) => (r.mintStatus || "").trim().toLowerCase() === "voucher"
+  );
+  const slugCollectionAddresses = new Set(
+    allSlugRows.map((r) => (r.collectionAddress || "").trim()).filter(Boolean)
+  );
+  const burnedBy = rows.filter((r) => {
+    const target = (r.holderRequiredCollection || "").trim();
+    return target && slugCollectionAddresses.has(target);
+  });
+
+  if (declaredVoucher.length > 0 || burnedBy.length > 0) {
+    const why = declaredVoucher.length > 0
+      ? `${declaredVoucher.length} row(s) declare mintStatus "voucher": ${declaredVoucher.map((r) => r.dropItemId).join(", ")}`
+      : `it is named as holderRequiredCollection by ${burnedBy.map((r) => r.dropItemId).join(", ")}`;
+    fail(
+      "voucher_collection_not_mintable",
+      `"${collectionSlug}" is a burn currency - ${why}. Deploying a candy machine for it ` +
+        "would make vouchers publicly mintable, and each voucher redeems for an edition. " +
+        "Vouchers are minted only by their claim campaign (deploy-campaign.js), never here. Refusing.",
+      1
+    );
+  }
+
   let matchingRows = rows.filter((r) => r.collectionSlug === collectionSlug);
   if (onlyDropId) {
     matchingRows = matchingRows.filter((r) => r.dropItemId === onlyDropId);
