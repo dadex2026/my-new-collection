@@ -236,11 +236,24 @@ enforced as "holders of anything in X's *collection*" — `deploy-campaign.js` r
 sibling drops, their holders qualify too. `TEST-003` and `TEST-004` share one today, which
 is a live example rather than a hypothetical. Give any gating edition its own slug.
 
-**One claim per wallet is the default; one per person is not achievable.** Since
-2026-09-03 `deploy-campaign.js` deploys `mintLimit { id: 1, limit: 1 }`, whose counter PDA
-is seeded by the **payer**, so a wallet holding five eligible editions still gets one
-claim. `--per-asset` restores the old `assetMintLimit`, keyed to the qualifying NFT, where
-five editions means five claims.
+**Both counters by default; one per person is still not achievable.** Since 2026-09-03
+`deploy-campaign.js` attaches `mintLimit { id: 1 }` **and**
+`assetMintLimit { id: 2, requiredCollection }`. Guards are conjunctive, so a claim needs
+both to pass. They close different holes and neither closes both:
+
+| guard | counter seeded by | stops | leaves open alone |
+|---|---|---|---|
+| `mintLimit` | payer + machine | one wallet claiming once per edition it holds | passing an edition to a fresh wallet and claiming again |
+| `assetMintLimit` | the **NFT** + machine | recycling - the counter rides with the asset | a wallet claiming once against each edition it holds |
+
+Together: **one claim per wallet and one per asset**, which is what people assume "one
+reward per holder" means. `--per-wallet` and `--per-asset` each attach only one, and are
+mutually exclusive.
+
+The ids are fixed and written back so the frontend never assumes them: `claimLimitId` for
+`mintLimit`, `assetLimitId` for `assetMintLimit`. In `--per-asset` mode `assetMintLimit`
+keeps id 1, matching every campaign deployed before this change; those rows carry no
+`assetLimitId`, so `campaign.ts` falls back to `claimLimitId` for exactly that reason.
 
 The ceiling is worth stating plainly: this enforces one per **wallet**, and wallets are
 free. Someone can move each edition to a fresh wallet and claim once from each. Nothing on
