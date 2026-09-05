@@ -1,4 +1,4 @@
-import { loadRegistry, loadCampaigns, loadTextCards } from "./registry/adapter";
+import { loadRegistry, loadCampaigns, loadTextCards, refreshMintedCounts } from "./registry/adapter";
 import { initUIEngine } from "./ui.engine";
 import { connectWallet, disconnectWallet, autoReconnect } from "./wallet";
 import { mint } from "./mint";
@@ -37,9 +37,14 @@ async function bootstrap() {
   initUIEngine();
   bindButtons();
   await autoReconnect();
-  await loadRegistry();
+  const registry = await loadRegistry();
   await loadCampaigns();
   await loadTextCards();
   console.log("? READY");
+
+  // refreshMintedCounts was exported and never called, which is why every card
+  // showed a frozen mint count (open-items 40). Not awaited: one RPC call per
+  // deployed drop must not delay a page the reader can already use.
+  if (registry) void refreshMintedCounts(registry);
 }
 window.addEventListener("load", bootstrap);
