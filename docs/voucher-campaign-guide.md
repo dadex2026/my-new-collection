@@ -228,7 +228,10 @@ It buys real optionality; it is not free and it is not recovered.
 
 ---
 
-## Five things that will bite
+## Seven things that will bite
+
+(Six until 2026-09-05, and the heading said five over six items for as long as anyone
+had been reading it. Recount the bold lines rather than trusting this parenthesis.)
 
 **`assetGate` is collection-granular, not drop-granular.** "Holders of open edition X" is
 enforced as "holders of anything in X's *collection*" — `deploy-campaign.js` reads
@@ -279,6 +282,21 @@ and said otherwise only in the status line, after they had decided not to click.
 renders "Free with a voucher" or "<n> SOL with a voucher" whenever the drop has a holder
 route — shown to everyone, not only to wallets holding one, because the offer is the
 argument for claiming a voucher in the first place.
+
+**Raising the eligibility drop's cap re-opens the farming hole.** `assetGate` is written
+against the eligibility drop's *collection*, and `assetMintLimit` gives every asset in it a
+fresh claim counter, so the number of claims a campaign can ever serve is bounded by the
+number of eligible assets that exist. Cap that drop at 500 and the ceiling is
+`min(allocation, 500)`. Raise it to 5,000 mid-campaign and the ceiling moves with it — for
+5,000 lamports, from a script whose whole purpose is that raising a cap should be cheap and
+routine. `preflight.js` cannot catch this: `campaign_eligibility_capped` runs at *deploy*
+time, and this happens afterwards. Since 2026-09-05
+`update-candy-machine-supply.js` reads `campaigns.csv` and **refuses a raise on a drop any
+live campaign gates on** unless `--yes-widens-eligibility` is passed; it names the campaigns
+and how many claims the raise would add. A cut is never refused, and neither is a raise on a
+drop nothing gates on. `--candy-machine <address>` is not a way around it — the drop is
+resolved from the address. `update-candy-machine-supply.selftest.js` covers the decision
+offline.
 
 **The silent fallback is an unmade decision.** `mint.ts` routes a wallet with no
 qualifying asset to the `public` group and charges full price, and
