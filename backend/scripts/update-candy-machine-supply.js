@@ -40,6 +40,18 @@
  *   node scripts/update-candy-machine-supply.js --drop TEST-004 --items-available 8
  *   node scripts/update-candy-machine-supply.js --drop TEST-004 --items-available 8 --write --yes
  *   node scripts/update-candy-machine-supply.js --candy-machine <address> --items-available 8
+ *
+ * RAISING A CAP CAN RE-OPEN A CAMPAIGN TO FARMING
+ *   preflight's campaign_eligibility_capped (open-items 41) refuses to deploy a
+ *   campaign gated on an uncapped drop, because eligibility that can be minted
+ *   on demand can be manufactured. That check runs at DEPLOY time. This script
+ *   runs afterwards, and raising the cap of a drop some live campaign gates on
+ *   widens exactly the hole preflight closed - quietly, and after the decision
+ *   was made. So a raise on a gating drop is refused unless you say otherwise:
+ *
+ *     --yes-widens-eligibility   proceed anyway, having read the campaigns named
+ *
+ *   Lowering a cap, and raising one nothing gates on, are unaffected.
  */
 
 "use strict";
@@ -54,6 +66,7 @@ require("dotenv").config({ path: path.join(__dirname, "..", ".env.admin") });
 const BACKEND_DIR = path.join(__dirname, "..");
 const CONFIG_PATH = path.join(BACKEND_DIR, "config.json");
 const MASTER_CSV_PATH = path.join(BACKEND_DIR, "master.csv");
+const CAMPAIGNS_CSV_PATH = path.join(BACKEND_DIR, "campaigns.csv");
 const LOGS_DIR = path.join(BACKEND_DIR, "logs");
 
 const ADDRESS_PATTERN = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -135,6 +148,64 @@ function findDropRow(dropItemId) {
   return matches[0];
 }
 
+// Which campaigns gate eligibility on this drop? A campaign's assetGate is
+// written against the eligibility drop's COLLECTION, so raising this drop's cap
+// raises the number of assets that can ever satisfy it - and assetMintLimit
+// gives every one of them a fresh claim counter. That is the whole farming
+// mechanism of open-items 41, arriving through the back door.
+//
+// Deliberately decided from campaigns.csv alone, with no RPC call. Reading each
+// campaign machine's itemsRedeemed would say which are still claimable, at the
+// cost of a network failure being able to block a legitimate raise. Refusing
+// slightly too often is the safe direction when the override is one flag away.
+function gatingCampaignsFrom(records, dropItemId, network) {
+  if (!dropItemId) return { deployed: [], undeployed: [] };
+  const gating = records.filter((r) => (r.eligibilityDropItemId || "").trim() === dropItemId);
+  // A blank network column counts as a match: rows predate the column, and
+  // "we do not know which chain this is on" is not a reason to wave it through.
+  const here = gating.filter((r) => !(r.network || "").trim() || (r.network || "").trim() === network);
+  return {
+    deployed: here.filter((r) => (r.campaignCandyMachineAddress || "").trim()),
+    undeployed: here.filter((r) => !(r.campaignCandyMachineAddress || "").trim()),
+  };
+}
+
+function findGatingCampaigns(dropItemId, network) {
+  if (!dropItemId || !fs.existsSync(CAMPAIGNS_CSV_PATH)) return { deployed: [], undeployed: [] };
+  const { records } = parseCsvRecords(fs.readFileSync(CAMPAIGNS_CSV_PATH, "utf8"));
+  return gatingCampaignsFrom(records, dropItemId, network);
+}
+
+// The decision, separated from the report so it can be exercised without a
+// chain. Returns null to allow, or the refusal to hand to fail().
+function widenRefusal({ dropItemId, current, itemsAvailable, gating, acceptsWidening }) {
+  if (!(itemsAvailable > current)) return null;      // a cut narrows eligibility
+  if (gating.deployed.length === 0) return null;     // nothing live gates on it
+  if (acceptsWidening) return null;                  // said so explicitly
+  const named = gating.deployed.map((c) => `${c.campaignId} (allocation ${c.allocation || "?"})`).join(", ");
+  return {
+    code: "widens_campaign_eligibility",
+    message:
+      `Refusing to raise "${dropItemId}" from ${current} to ${itemsAvailable}: ${gating.deployed.length} live ` +
+      `campaign(s) gate eligibility on it - ${named}. Each new asset this cap permits is a fresh assetMintLimit ` +
+      `counter, so the raise adds ${itemsAvailable - current} potential claims to campaigns whose allocation was ` +
+      `sized against a cap of ${current}. This is the farming hole preflight's campaign_eligibility_capped ` +
+      `refuses at deploy time (open-items 41), reached afterwards instead.\n\n` +
+      `If that is what you want - the float is genuinely growing and the campaign should follow it - re-run with ` +
+      `--yes-widens-eligibility. To raise supply without touching the campaign, deploy a separate drop instead.`,
+  };
+}
+
+// --candy-machine must not be a way around the check above. Resolve the drop
+// from the address when --drop was not given, so the guard keys on the machine
+// being changed rather than on how the operator happened to name it.
+function findDropIdByCandyMachine(candyMachineAddress) {
+  if (!fs.existsSync(MASTER_CSV_PATH)) return null;
+  const { records } = parseCsvRecords(fs.readFileSync(MASTER_CSV_PATH, "utf8"));
+  const matches = records.filter((r) => (r.candyMachineAddress || "").trim() === candyMachineAddress);
+  return matches.length === 1 ? matches[0].dropItemId : null;
+}
+
 // master.csv's maxSupply is what the card renders and what a future
 // deploy-candy-machine.js would use. Raising the on-chain cap without it
 // leaves the site advertising the old number.
@@ -200,6 +271,7 @@ async function main() {
   const itemsRaw = flag("--items-available");
   const write = args.includes("--write");
   const confirmed = args.includes("--yes");
+  const acceptsWidening = args.includes("--yes-widens-eligibility");
 
   const config = loadConfig();
 
@@ -214,6 +286,10 @@ async function main() {
   if (!ADDRESS_PATTERN.test(candyMachineAddress)) {
     fail("invalid_candy_machine", `"${candyMachineAddress}" does not look like a Solana address`, 1);
   }
+
+  // The id used for the eligibility check, which is not always the one typed.
+  const effectiveDropId = dropItemId || findDropIdByCandyMachine(candyMachineAddress);
+  const gating = findGatingCampaigns(effectiveDropId, config.network);
 
   const wantsChange = itemsRaw !== null;
   let itemsAvailable = null;
@@ -257,6 +333,13 @@ async function main() {
   console.log(`  remaining       ${current - redeemed}`);
   console.log("\n" + describeData(cm.data));
 
+  if (gating.deployed.length > 0 || gating.undeployed.length > 0) {
+    console.log("\nEligibility: campaigns gated on this drop");
+    for (const c of gating.deployed) console.log(`  live       ${c.campaignId}  (allocation ${c.allocation || "?"})`);
+    for (const c of gating.undeployed) console.log(`  not yet    ${c.campaignId}  (allocation ${c.allocation || "?"})`);
+    console.log("  Raising this cap raises how many assets can ever claim from them.");
+  }
+
   if (!wantsChange) {
     log({ status: "success", message: "Read-only: printed current supply, wrote nothing." });
     process.exit(0);
@@ -274,6 +357,9 @@ async function main() {
       1
     );
   }
+  const refusal = widenRefusal({ dropItemId: effectiveDropId, current, itemsAvailable, gating, acceptsWidening });
+  if (refusal) fail(refusal.code, refusal.message, 1);
+
   if (signer && cm.authority.toString() !== signer) {
     fail("not_authority", `Signing key ${signer} is not this machine's authority (${cm.authority.toString()}).`, 1);
   }
@@ -369,10 +455,25 @@ async function main() {
   console.log(`\n  Cap changed and read back correctly. hiddenSettings unchanged.\n`);
   console.log(`  ANSWER: this program DOES permit itemsAvailable to be ${itemsAvailable > current ? "increased" : "decreased"} on a live machine.\n`);
 
-  if (row) writeMaxSupply(row.dropItemId, itemsAvailable);
-  else console.log("  ! Target given as --candy-machine, so master.csv was NOT updated.\n");
+  // preflight's campaign_eligibility_capped reads maxSupply from master.csv and
+  // never touches an RPC, so it is only correct while this write-back happens.
+  // It used to be skipped entirely for --candy-machine, which left the CSV
+  // saying one cap while the chain said another - and now that a check depends
+  // on the column, that silence is a farming hole rather than a cosmetic drift.
+  // effectiveDropId resolves the row from the address, so the only remaining
+  // gap is an address no master.csv row claims.
+  const writeBackId = row ? row.dropItemId : effectiveDropId;
+  if (writeBackId) writeMaxSupply(writeBackId, itemsAvailable);
+  else console.log("  ! No master.csv row matches this candy machine, so maxSupply was NOT updated.\n");
 
   log({ status: "success", signature, itemsAvailable, message: "Supply updated and read back matching." });
 }
 
-main().catch((err) => fail("unexpected_error", err && err.stack ? err.stack : String(err), 2));
+// Only run when invoked directly. The exported pieces are the ones that can be
+// tested without a network: which campaigns gate a drop, and whether a raise is
+// refused. Everything else here is only ever proved by a settled transaction.
+if (require.main === module) {
+  main().catch((err) => fail("unexpected_error", err && err.stack ? err.stack : String(err), 2));
+}
+
+module.exports = { gatingCampaignsFrom, widenRefusal, findDropIdByCandyMachine };
