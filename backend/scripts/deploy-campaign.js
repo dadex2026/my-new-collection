@@ -212,6 +212,9 @@ async function main() {
   const args = process.argv.slice(2);
   const campaignFlagIndex = args.indexOf("--campaign");
   const forceFlag = args.includes("--force");
+  // Accepts a redeemable drop whose cap is below the allocation. See the
+  // headroom block further down.
+  const acceptsShortHeadroom = args.includes("--yes-under-provisioned");
   // --per-wallet swaps the per-ASSET claim counter for a per-WALLET one.
   // assetMintLimit's counter is seeded by the qualifying NFT, so a wallet
   // holding five eligible editions gets five claims; mintLimit's counter is
@@ -399,6 +402,75 @@ async function main() {
     `\n  Choose ${allocation} as the number you would accept giving away if every single\n` +
     `  one went to a stranger. With transfers permitted, that is an allowed outcome.\n`
   );
+
+  // ---- Voucher redemption headroom ---------------------------------------
+  // The EXPOSURE block above says "up to N editions leave". Until 2026-09-05 it
+  // said so without checking whether any edition could absorb them: this script
+  // did not read holderRequiredCollection at all, so it had no idea which drops
+  // a voucher is even spendable on.
+  //
+  // A voucher redeems for ANY ONE of the migrated drops, chosen by the holder,
+  // so allocation cannot be divided among them - worst case every voucher lands
+  // on the same drop. Each redeemable drop therefore needs room for the whole
+  // allocation on its own, and that floor is what is checked here.
+  //
+  // It is a FLOOR, not the real requirement. The real one is
+  //     remaining >= outstanding vouchers + public sales still intended
+  // where remaining is itemsAvailable minus itemsRedeemed, and itemsRedeemed
+  // lives only on chain. This check stays offline deliberately, so it can catch
+  // only a cap that was never big enough to begin with. Live headroom comes
+  // from update-candy-machine-supply.js, and the operator is told so rather
+  // than left to assume this covered it.
+  //
+  // On a FIRST campaign nothing has been migrated yet - the guide runs this
+  // script before update-candy-guard.js - so no row carries
+  // holderRequiredCollection and there is nothing to check. That is reported
+  // out loud rather than passed over: a check that quietly finds nothing to
+  // look at is the exact shape this repo keeps getting wrong.
+  if (targetIsVoucher) {
+    const voucherCollection = (targetDrop.collectionAddress || "").trim();
+    const redeemable = voucherCollection
+      ? masterRows.filter((r) => (r.holderRequiredCollection || "").trim() === voucherCollection)
+      : [];
+
+    console.log("");
+    if (redeemable.length === 0) {
+      console.log("  redeemable drops    NONE YET - no row names this voucher collection as its");
+      console.log("                      holderRequiredCollection, so nothing can be redeemed today.");
+      console.log("                      Run update-candy-guard.js after this, and give every drop you");
+      console.log("                      migrate room for " + allocation + " redemption(s) ON TOP of public sales.");
+    } else {
+      console.log("  redeemable drops    " + redeemable.length + ", and one voucher may be spent on any ONE of them:");
+      const short = [];
+      for (const r of redeemable) {
+        const raw = (r.maxSupply || "").trim();
+        const n = Number(raw);
+        const capped = Number.isFinite(n) && n > 0;
+        const below = capped && n < allocation;
+        console.log(
+          "                      " + String(r.dropItemId).padEnd(14) +
+          "maxSupply " + (raw || "(blank)").padEnd(11) + (below ? "<< below allocation" : "")
+        );
+        if (below) short.push(r.dropItemId + " (" + n + ")");
+      }
+      console.log("  live headroom       NOT checked here - this script makes no RPC call for it. Per drop:");
+      console.log("                        node scripts/update-candy-machine-supply.js --drop <id>");
+      console.log("                      Hold: remaining >= outstanding vouchers + public sales intended.");
+
+      if (short.length > 0 && !acceptsShortHeadroom) {
+        fail(
+          "redeemable_below_allocation",
+          short.length + " redeemable drop(s) have a maxSupply below this campaign's allocation of " +
+            allocation + ": " + short.join(", ") + ". A voucher is spendable on any one of them, so the " +
+            "allocation cannot be split between them - each needs room for all " + allocation +
+            " on its own, on top of whatever you intend to sell publicly. Raise them with " +
+            "update-candy-machine-supply.js, lower the allocation, or pass --yes-under-provisioned if you " +
+            "accept that some vouchers may not be redeemable on every drop.",
+          1
+        );
+      }
+    }
+  }
 
   if (config.network === "mainnet") {
     log({ status: "info", message: "Deploying to MAINNET — this costs real SOL. 5 second window to cancel (Ctrl+C)." });
