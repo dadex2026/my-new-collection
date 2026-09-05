@@ -562,6 +562,57 @@ function checkCampaignEligibilityCapped(campaignRows, allRows, reservedPrefixes)
   };
 }
 
+// A voucher lives in the same project as the editions that spend it: its own
+// collectionSlug, its own collectionAddress, in this same master.csv. So every
+// holderRequiredCollection should name a collection this file knows about.
+//
+// WHAT THIS CATCHES: a master.csv copied from a LIVE collection rather than from
+// the pristine template. Stage 1 strips deployment.json, deploy-state.json and
+// registry.json; it never mentioned the CSVs, which are tracked and carry every
+// address a deployed collection owns. A stale holderRequiredCollection points
+// the new project's editions at the OLD project's voucher.
+//
+// Nothing errors at deploy. generate-registry.js emits the value, the card
+// advertises a holder route, and mint.ts sends group "holder" with assetBurn
+// args to a machine whose guard has no groups - where the instruction fails to
+// deserialize. It presents as "minting is broken" with no visible cause, which
+// is exactly how items 36 and 39 survived as long as they did.
+//
+// Checked across EVERY row, not only the slug being deployed: a copied CSV's
+// stale rows can sit in any slug, and a foreign voucher address anywhere in the
+// project is worth knowing before anything is minted.
+//
+// Downgradable: a voucher deliberately shared between two projects is coherent,
+// just unusual, and --allow-warnings is how that gets said out loud rather than
+// assumed.
+function checkHolderCollectionIsLocal(allRows) {
+  const known = new Set(allRows.map((r) => (r.collectionAddress || "").trim()).filter(Boolean));
+  const users = allRows.filter((r) => (r.holderRequiredCollection || "").trim());
+
+  if (users.length === 0) {
+    return { pass: true, detail: "No drop declares a holderRequiredCollection" };
+  }
+
+  const foreign = users.filter((r) => !known.has((r.holderRequiredCollection || "").trim()));
+  if (foreign.length > 0) {
+    return {
+      pass: false,
+      detail:
+        `${foreign.length} of ${users.length} drop(s) burn a collection that is not in this master.csv: ` +
+        `${foreign.map((r) => `${r.dropItemId} -> ${r.holderRequiredCollection}`).join(", ")}. ` +
+        `A voucher lives in the same project as the editions that spend it, so this is usually a master.csv ` +
+        `copied from another collection: these editions would advertise a holder route backed by somebody ` +
+        `else's voucher, and the mint would fail to deserialize rather than say so. Blank the column, or pass ` +
+        `--allow-warnings if a cross-project voucher is deliberate.`,
+    };
+  }
+
+  return {
+    pass: true,
+    detail: `All ${users.length} holderRequiredCollection value(s) name a collection in this master.csv`,
+  };
+}
+
 function checkNotAlreadyDeployed(rows, network, force) {
   const alreadyDeployed = rows.filter((r) => r.collectionAddress && r.network === network);
   if (alreadyDeployed.length > 0 && !force) {
@@ -594,6 +645,7 @@ const CONTENT_CHECK_NAMES = new Set([
   "no_placeholder_uris",
   "no_reserved_campaign_ids",
   "campaign_eligibility_capped",
+  "holder_collection_is_local",
   "no_placeholder_collection_name",
   "no_placeholder_collection_image",
 ]);
@@ -617,7 +669,7 @@ const CATEGORIES = [
   { name: "Project Structure", checks: ["config_exists", "config_valid_json", "collection_slug_present", "collection_has_rows"] },
   { name: "Environment", checks: ["env_admin_exists", "env_admin_gitignored", "deployer_key_present", "treasury_valid", "rpc_valid", "deployer_not_treasury"] },
   { name: "Content Validation", checks: ["no_reserved_slug", "no_reserved_drop_ids", "no_placeholder_images", "no_placeholder_uris"] },
-  { name: "Permanent Values", checks: ["no_placeholder_collection_name", "no_placeholder_collection_image", "prices_parse", "item_names_fit_on_chain", "max_supply_parses", "not_a_mintable_voucher"] },
+  { name: "Permanent Values", checks: ["no_placeholder_collection_name", "no_placeholder_collection_image", "prices_parse", "item_names_fit_on_chain", "max_supply_parses", "not_a_mintable_voucher", "holder_collection_is_local"] },
   { name: "Campaign Validation", checks: ["no_reserved_campaign_ids", "campaign_eligibility_capped"] },
   { name: "Deployment State", checks: ["not_already_deployed"] },
 ];
@@ -708,6 +760,7 @@ function main() {
         results.push({ name: "item_names_fit_on_chain", ...checkItemNamesFitOnChain(matchingRows) });
         results.push({ name: "max_supply_parses", ...checkMaxSupplyParses(matchingRows) });
         results.push({ name: "not_a_mintable_voucher", ...checkNotAMintableVoucher(matchingRows, allRows) });
+        results.push({ name: "holder_collection_is_local", ...checkHolderCollectionIsLocal(allRows) });
         results.push({ name: "not_already_deployed", ...checkNotAlreadyDeployed(matchingRows, config.network, force) });
       }
     } else {
