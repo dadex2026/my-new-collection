@@ -25,7 +25,7 @@ the chain permanently.** The boundary is marked, and it is the only one that mat
 | **9** | Verify — chain, site, and drift | yes |
 | **10** | Ongoing: text cards, rankings, methodology | yes |
 
-Appendix A — the twenty-one preflight checks · Appendix B — known non-issues ·
+Appendix A — the twenty-two preflight checks · Appendix B — known non-issues ·
 Appendix C — reference documents (none of which you need to finish a launch)
 
 ---
@@ -779,11 +779,12 @@ confirm the site says nothing that implies otherwise.
 
 ---
 
-# Appendix A — The twenty-one preflight checks
+# Appendix A — The twenty-two preflight checks
 
-Sixteen until 2026-08-28, plus the five added when the permanent-value surface was
-enumerated (see below). Twenty-one is what `grep -c results.push backend/scripts/preflight.js`
-reports; recount it rather than trusting this sentence.
+Sixteen until 2026-08-28, plus five when the permanent-value surface was enumerated (see
+below), plus `not_a_mintable_voucher` on 2026-09-03. Twenty-two is what
+`grep -c results.push backend/scripts/preflight.js` reports; recount it rather than trusting
+this sentence.
 
 | Group | Check | Notes |
 |---|---|---|
@@ -807,6 +808,7 @@ reports; recount it rather than trusting this sentence.
 | | `prices_parse` | **Never downgradable.** `Number(price) \|\| 0` means a typo mints free, forever |
 | | `item_names_fit_on_chain` | **Never downgradable.** `hiddenSettings.name` is `.slice(0, 32)` — over-length names are silently truncated |
 | | `max_supply_parses` | **Never downgradable.** `parseMaxSupply` falls back to unlimited, so a typo makes an unbounded open edition |
+| | `not_a_mintable_voucher` | **Never downgradable.** Fails when a burn currency already has a candy machine. A voucher collection must never get one: a candy machine is the public mint path, so anyone could mint vouchers and burn each for an edition. Detected two ways — `mintStatus` of `voucher` on the row, true from the moment it is typed, and the collection being named as some drop's `holderRequiredCollection`, true only after the first edition is migrated. `deploy-candy-machine.js` refuses on the same two signals, and that refusal is what actually prevents it |
 | Deployment State | `not_already_deployed` | Network-aware; overridden by `--force` |
 
 ### Why these five exist
@@ -836,17 +838,17 @@ saying not to put it back. Same date, its three un-runnable paths stopped report
 
 **A category can pass without evaluating anything.** Every content, permanent-value and
 deployment check runs inside the block that `collection_has_rows` guards, so a slug with no
-matching rows skips nine checks — including both art gates. Until 2026-09-03 the report
+matching rows skips ten checks — including both art gates. Until 2026-09-03 the report
 printed `Content Validation ✓ PASS` in that state and omitted the Permanent Values group
 from the output altogether. It now marks a partly-skipped category `(partial)`, prints
 `- NOT EVALUATED` for one that ran nothing, and names the checks that did not run in both
 cases. **Read that line before you read the ticks.**
 
 **Three checks are pushed to results only on failure** — `config_valid_json`,
-`collection_slug_present` and `collection_has_rows`. So a clean run records **eighteen**
-named results, or seventeen when `campaigns.csv` is absent and `no_reserved_campaign_ids`
+`collection_slug_present` and `collection_has_rows`. So a clean run records **nineteen**
+named results, or eighteen when `campaigns.csv` is absent and `no_reserved_campaign_ids`
 never runs, and still prints `READY — all checks passed`. The conditions are genuinely
-evaluated — not a hole — but don't go looking for twenty-one ticks.
+evaluated — not a hole — but don't go looking for twenty-two ticks.
 
 ---
 

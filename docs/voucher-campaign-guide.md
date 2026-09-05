@@ -60,7 +60,10 @@ A voucher is an NFT and needs everything an NFT needs.
    cannot be changed afterwards.
 4. `preflight.js`, then `deploy-collection.js`.
 5. **Do not run `deploy-candy-machine.js` for the voucher drop.** A voucher must not be
-   publicly mintable; the only way to get one is to claim it. `deploy-campaign.js` creates
+   publicly mintable; the only way to get one is to claim it. Since 2026-09-03 this is
+   enforced rather than remembered: that script refuses any slug whose rows declare
+   `mintStatus: voucher`, or whose collection is named as another drop's
+   `holderRequiredCollection`. Neither can undo a machine already deployed. `deploy-campaign.js` creates
    its own candy machine and mints into the target collection, so the voucher drop needs a
    deployed `collectionAddress` and a real `uri` and nothing else
    (`deploy-campaign.js:270-287, 336-348`).
@@ -128,7 +131,7 @@ A worked example, `Founders Voucher`. Card previews of exactly these rows are in
 | `attributes` | `Type:Voucher\|Redeems:Any one edition` |
 | `maxSupply` | `250` |
 | `price` | `0` — never publicly minted; the campaign sets what a claim costs |
-| `mintStatus` | `ready` |
+| `mintStatus` | **`voucher`** — not `ready`. This is a declaration, not a status: `deploy-candy-machine.js` refuses to deploy a candy machine for any slug carrying it, and preflight's `not_a_mintable_voucher` reports it. True from the moment the row is typed, which is the window the derived check cannot cover |
 
 **`campaigns.csv` — the claim.** `allocation` is the first-come cap and the only thing
 enforcing it.

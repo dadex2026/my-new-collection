@@ -343,6 +343,54 @@ function checkNoPlaceholderCollectionName(rows) {
 }
 
 // deploy-collection.js:350 — uri: firstRow.collectionImage || ""
+// A voucher collection is a burn currency, and in this pipeline a candy
+// machine IS the public mint path. So a candy machine on a voucher collection
+// makes vouchers mintable by anyone, and each one redeems for an edition.
+//
+// Two signals: mintStatus "voucher" on the row, which is true from the moment
+// it is typed, and the collection being named as some drop's
+// holderRequiredCollection, which only becomes true after the first edition is
+// migrated. The first protects day one; the second catches a voucher nobody
+// marked. deploy-candy-machine.js refuses on the same two, which is the check
+// that actually prevents it - this one is so you find out before you get there.
+function checkNotAMintableVoucher(matchingRows, allRows) {
+  const declared = matchingRows.filter(
+    (r) => (r.mintStatus || "").trim().toLowerCase() === "voucher"
+  );
+  const slugAddresses = new Set(
+    matchingRows.map((r) => (r.collectionAddress || "").trim()).filter(Boolean)
+  );
+  const burnedBy = allRows.filter((r) => {
+    const target = (r.holderRequiredCollection || "").trim();
+    return target && slugAddresses.has(target);
+  });
+
+  const isVoucher = declared.length > 0 || burnedBy.length > 0;
+  if (!isVoucher) {
+    return { pass: true, detail: "Not a burn currency - a candy machine here is expected" };
+  }
+
+  const why = declared.length > 0
+    ? `declared by mintStatus "voucher" on ${declared.map((r) => r.dropItemId).join(", ")}`
+    : `named as holderRequiredCollection by ${burnedBy.map((r) => r.dropItemId).join(", ")}`;
+
+  const deployed = matchingRows.filter((r) => (r.candyMachineAddress || "").trim());
+  if (deployed.length > 0) {
+    return {
+      pass: false,
+      detail:
+        `This is a burn currency (${why}) and ${deployed.length} row(s) already have a candy machine: ` +
+        `${deployed.map((r) => r.dropItemId).join(", ")}. Vouchers are now publicly mintable, and each one ` +
+        "redeems for an edition. A deployed candy machine cannot be undone from here.",
+    };
+  }
+
+  return {
+    pass: true,
+    detail: `Burn currency (${why}) with no candy machine - correct. Never run deploy-candy-machine.js for this slug.`,
+  };
+}
+
 function checkNoPlaceholderCollectionImage(rows) {
   const img = rows[0] && rows[0].collectionImage;
   if (isPlaceholder(img)) {
@@ -444,7 +492,7 @@ const CATEGORIES = [
   { name: "Project Structure", checks: ["config_exists", "config_valid_json", "collection_slug_present", "collection_has_rows"] },
   { name: "Environment", checks: ["env_admin_exists", "env_admin_gitignored", "deployer_key_present", "treasury_valid", "rpc_valid", "deployer_not_treasury"] },
   { name: "Content Validation", checks: ["no_reserved_slug", "no_reserved_drop_ids", "no_placeholder_images", "no_placeholder_uris"] },
-  { name: "Permanent Values", checks: ["no_placeholder_collection_name", "no_placeholder_collection_image", "prices_parse", "item_names_fit_on_chain", "max_supply_parses"] },
+  { name: "Permanent Values", checks: ["no_placeholder_collection_name", "no_placeholder_collection_image", "prices_parse", "item_names_fit_on_chain", "max_supply_parses", "not_a_mintable_voucher"] },
   { name: "Campaign Validation", checks: ["no_reserved_campaign_ids"] },
   { name: "Deployment State", checks: ["not_already_deployed"] },
 ];
@@ -524,6 +572,7 @@ function main() {
         results.push({ name: "prices_parse", ...checkPricesParse(matchingRows) });
         results.push({ name: "item_names_fit_on_chain", ...checkItemNamesFitOnChain(matchingRows) });
         results.push({ name: "max_supply_parses", ...checkMaxSupplyParses(matchingRows) });
+        results.push({ name: "not_a_mintable_voucher", ...checkNotAMintableVoucher(matchingRows, allRows) });
         results.push({ name: "not_already_deployed", ...checkNotAlreadyDeployed(matchingRows, config.network, force) });
       }
     } else {
