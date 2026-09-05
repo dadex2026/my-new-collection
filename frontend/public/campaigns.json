@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-03T22:23:20.396Z",
+  "generatedAt": "2026-09-05T03:26:35.950Z",
   "campaigns": [
     {
       "campaignId": "test-combined-check",
@@ -22,6 +22,8 @@
       "network": "mainnet",
       "treasury": "7XJJvj5N4aBMNyX9g5NZqSEzi9vY6vYxWydezMZvC4n9",
       "claimLimitId": "",
+      "assetLimitId": "",
+      "claimScope": "asset",
       "claimLimit": null,
       "claimed": null
     },
@@ -46,6 +48,8 @@
       "network": "mainnet",
       "treasury": "",
       "claimLimitId": "1",
+      "assetLimitId": "",
+      "claimScope": "asset",
       "claimLimit": 1,
       "claimed": null
     },
@@ -70,6 +74,8 @@
       "network": "mainnet",
       "treasury": "",
       "claimLimitId": "1",
+      "assetLimitId": "",
+      "claimScope": "asset",
       "claimLimit": 1,
       "claimed": null
     },
@@ -94,6 +100,8 @@
       "network": "mainnet",
       "treasury": "7XJJvj5N4aBMNyX9g5NZqSEzi9vY6vYxWydezMZvC4n9",
       "claimLimitId": "",
+      "assetLimitId": "",
+      "claimScope": "asset",
       "claimLimit": null,
       "claimed": null
     },
@@ -118,6 +126,8 @@
       "network": "mainnet",
       "treasury": "7XJJvj5N4aBMNyX9g5NZqSEzi9vY6vYxWydezMZvC4n9",
       "claimLimitId": "",
+      "assetLimitId": "",
+      "claimScope": "asset",
       "claimLimit": null,
       "claimed": null
     },
@@ -142,6 +152,8 @@
       "network": "mainnet",
       "treasury": "7XJJvj5N4aBMNyX9g5NZqSEzi9vY6vYxWydezMZvC4n9",
       "claimLimitId": "",
+      "assetLimitId": "",
+      "claimScope": "asset",
       "claimLimit": null,
       "claimed": null
     },
@@ -166,6 +178,8 @@
       "network": "mainnet",
       "treasury": "7XJJvj5N4aBMNyX9g5NZqSEzi9vY6vYxWydezMZvC4n9",
       "claimLimitId": "",
+      "assetLimitId": "",
+      "claimScope": "asset",
       "claimLimit": null,
       "claimed": null
     },
@@ -190,6 +204,8 @@
       "network": "mainnet",
       "treasury": "7XJJvj5N4aBMNyX9g5NZqSEzi9vY6vYxWydezMZvC4n9",
       "claimLimitId": "",
+      "assetLimitId": "",
+      "claimScope": "asset",
       "claimLimit": null,
       "claimed": null
     }
