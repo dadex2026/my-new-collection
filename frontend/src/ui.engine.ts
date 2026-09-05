@@ -337,13 +337,28 @@ function buildDropCard(d: RegistryDrop): string {
       ? getAllDrops().filter((x) => x.holderRequiredCollection === d.collectionAddress).length
       : 0;
 
+  // A card with no room left still rendered "900 / 900 minted" above a live
+  // Mint button until 2026-09-05. Fixing the count (main.ts now calls
+  // refreshMintedCounts) is only half of it: nothing acted on the number.
+  //
+  // Conservative on purpose. minted is null on a registry built without
+  // --fetch-minted, and stays null until the refresh returns, so UNKNOWN IS
+  // NEVER SOLD OUT - a card that wrongly refuses to mint is worse than one
+  // that lets the chain say no. An unlimited drop parses to 4,294,967,295 and
+  // is never reached.
+  const soldOut =
+    typeof d.minted === "number" &&
+    typeof d.maxSupply === "number" &&
+    d.maxSupply > 0 &&
+    d.minted >= d.maxSupply;
+
   const actionButton = d.candyMachineAddress
     ? `<button
         class="drop-mint-btn"
         data-action="mint"
         data-drop-id="${d.key}"
-        ${!walletConnected ? "disabled" : ""}>
-        Mint
+        ${!walletConnected || soldOut ? "disabled" : ""}>
+        ${soldOut ? "Sold out" : "Mint"}
       </button>`
     : claimCampaign
     ? `<button
@@ -375,9 +390,12 @@ function buildDropCard(d: RegistryDrop): string {
             : (!d.holderPrice ? "Free with a voucher" : `${d.holderPrice} SOL with a voucher`)}
         </div>
       ` : ""}
-      <div class="drop-minted">
-        ${d.minted ?? 0} / ${d.maxSupply ?? "Unlimited"} minted
+      <div class="drop-minted${soldOut ? " drop-sold-out" : ""}">
+        ${d.minted ?? 0} / ${d.maxSupply ?? "Unlimited"} minted${soldOut ? " - SOLD OUT" : ""}
       </div>
+      ${soldOut && d.holderRequiredCollection
+        ? `<div class="drop-claim-note">Full. A voucher cannot be redeemed here - spend it on another edition.</div>`
+        : ""}
       ${d.status ? `<div class="drop-status">${d.status}</div>` : ""}
       ${redeemableHere > 0
         ? `<div class="drop-claim-note drop-voucher-held">You hold one - redeemable on ${redeemableHere} edition${redeemableHere === 1 ? "" : "s"} below</div>`

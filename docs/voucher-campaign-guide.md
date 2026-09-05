@@ -106,6 +106,40 @@ all three are fine; they are listed so the choice is made rather than discovered
 alternative is a third slug for the gating edition, which costs one more
 `deploy-collection.js` and buys even distribution and unprompted raises.
 
+### Adding a second campaign
+
+More vouchers of the same kind is a **new row in `campaigns.csv` targeting the same
+`VOUCHER-001`** — both campaigns mint into the voucher collection and the vouchers are
+indistinguishable. Nothing about `master.csv` changes: `deploy-campaign.js` reads it but
+only ever writes `campaigns.csv`, so **the editions' caps are untouched and are yours to
+manage.**
+
+Three things follow:
+
+- **There are no cross-campaign limits.** Each campaign gets its own machine, so `mintLimit`
+  and `assetMintLimit` counters live in different PDAs. An asset that claimed campaign 1 can
+  claim campaign 2. Two campaigns means two vouchers per holder, by design. If "one voucher
+  ever" is the rule, it has to be one campaign.
+- **Raise the caps *before* deploying the campaign,** not after. Issuing a voucher is issuing
+  a claim on edition supply; do it in the order where you never owe more than you can deliver.
+- **There is no reservation.** An edition's machine has one counter and no notion of "public"
+  versus "voucher" supply. Unsold public supply is available to voucher holders, and supply
+  you meant for vouchers is available to buyers. Whoever mints first takes it. So a second
+  campaign may need no raise at all — if you are willing to sell fewer.
+
+`deploy-campaign.js` now checks the floor for you. When the target is a voucher it resolves
+the redeemable drops (those naming the voucher's collection as `holderRequiredCollection`),
+prints each one's `maxSupply`, and **refuses if any is below `allocation`** — because a
+voucher is spendable on any one of them, so the allocation cannot be split between them.
+`--yes-under-provisioned` overrides it. On a *first* campaign nothing is migrated yet, so it
+says so rather than passing silently.
+
+That check is a floor, not the requirement. It is offline and cannot see `itemsRedeemed`.
+The real invariant still has to be checked per drop with
+`update-candy-machine-supply.js --drop <id>`:
+
+> `remaining` ≥ outstanding vouchers + public sales you still intend
+
 ---
 
 ## Stage A — the voucher collection (once)
@@ -169,6 +203,18 @@ edition that qualified them.
 10. `generate-registry.js`, rebuild, deploy.
 11. The holder opens any migrated drop and mints. `assetBurn` consumes the voucher — one
     voucher, one edition, chosen by them.
+
+**If that edition has no room left**, the burn and the mint are one instruction in one
+transaction, so the whole thing reverts and **the voucher is not consumed** — the holder
+keeps it and can redeem on another migrated drop. That is atomicity, not a feature anyone
+built, and it has never been observed on mainnet here: the rehearsal covered a public mint,
+a holder mint, and a second holder mint with a spent voucher, never a full drop.
+
+Since 2026-09-05 `mint.ts` checks `itemsRedeemed` against `itemsAvailable` before asking for
+a signature, so a voucher holder is told *this edition is full, your voucher was NOT used,
+redeem it on X* instead of the buyer-facing "sold out" they used to get after signing. The
+check is best-effort: an RPC that will not answer falls through and lets the chain decide,
+because a card that wrongly refuses to mint is worse than one the program rejects.
 
 ---
 

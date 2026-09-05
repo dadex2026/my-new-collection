@@ -44,7 +44,7 @@
 
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
 import { mplCore } from "@metaplex-foundation/mpl-core";
-import { mplCandyMachine, mintV1 } from "@metaplex-foundation/mpl-core-candy-machine";
+import { mplCandyMachine, mintV1, safeFetchCandyMachine } from "@metaplex-foundation/mpl-core-candy-machine";
 import { generateSigner, publicKey as umiPublicKey, some } from "@metaplex-foundation/umi";
 import { walletAdapterIdentity, WalletAdapter } from "@metaplex-foundation/umi-signer-wallet-adapters";
 import { PublicKey } from "@solana/web3.js";
@@ -204,12 +204,16 @@ export async function mint(dropId: string): Promise<void> {
     // safe; the instruction fails to deserialize against that group.
     let group: string | undefined;
     const mintArgs: any = {};
+    // Hoisted out of the branch below so the supply check can tell a voucher
+    // holder from a buyer. They need opposite things said to them.
+    let holdsVoucher = false;
 
     if (drop.holderRequiredCollection) {
       setStatus("Checking holder eligibility...");
       const qualifyingAsset = await findQualifyingHolderAsset(walletAddress, drop.holderRequiredCollection);
 
       if (qualifyingAsset) {
+        holdsVoucher = true;
         group = "holder";
         mintArgs.assetBurn = some({
           requiredCollection: umiPublicKey(drop.holderRequiredCollection),
@@ -232,6 +236,67 @@ export async function mint(dropId: string): Promise<void> {
     } else {
       // Original, unchanged path — no groups, no group parameter passed.
       mintArgs.solPayment = some({ destination: umiPublicKey(drop.treasury) });
+    }
+
+    // ---- Supply pre-check ------------------------------------------------
+    // Until 2026-09-05 nothing here looked at how much room the drop had. A
+    // holder redeeming against a full edition got as far as a wallet popup, a
+    // signature, and then "Collection sold out - no more editions remain for
+    // this drop." That sentence is true, aimed at a buyer, and says neither of
+    // the two things a voucher holder needs to know: the voucher was not
+    // spent, and there may be another edition with room.
+    //
+    // Nothing was ever at risk - the burn and the mint are one instruction in
+    // one transaction, so a failure reverts both and the voucher survives. But
+    // "sold out" read against a reward you cannot spend does not say that, and
+    // the person holding it has no way to tell.
+    //
+    // One extra read, on a connection already open for the holder lookup. It
+    // is best-effort: an RPC that will not answer must not block a mint the
+    // chain would have accepted, so an unreadable account falls through and
+    // lets the program decide.
+    try {
+      const machine = await safeFetchCandyMachine(umi, umiPublicKey(drop.candyMachineAddress));
+      if (machine) {
+        const available = Number(machine.data.itemsAvailable);
+        const redeemed = Number(machine.itemsRedeemed);
+        if (redeemed >= available) {
+          clearPendingMint();
+          setMinting(false);
+          if (holdsVoucher) {
+            // Editions the SAME voucher spends on, minus this one, minus any
+            // already known to be full. Counts come from the registry, which
+            // main.ts now refreshes on load, so this list is worth printing.
+            const alternatives = ((state.registry as any[]) ?? [])
+              .flatMap((c) => c.drops)
+              .filter(
+                (x: any) =>
+                  x.key !== drop.key &&
+                  x.candyMachineAddress &&
+                  x.holderRequiredCollection === drop.holderRequiredCollection &&
+                  !(
+                    typeof x.minted === "number" &&
+                    typeof x.maxSupply === "number" &&
+                    x.maxSupply > 0 &&
+                    x.minted >= x.maxSupply
+                  )
+              )
+              .map((x: any) => x.itemName);
+            setStatus(
+              `This edition is full - ${redeemed} of ${available} minted. ` +
+                `Your voucher was NOT used and is still in your wallet. ` +
+                (alternatives.length > 0
+                  ? `Redeem it on: ${alternatives.join(", ")}.`
+                  : `No other edition has room right now - your voucher keeps until one does.`)
+            );
+          } else {
+            setStatus("Sold out - no more editions remain for this drop.");
+          }
+          return;
+        }
+      }
+    } catch {
+      // Unreadable account: fall through and let the mint attempt answer.
     }
 
     setStatus("Waiting for wallet approval...");
