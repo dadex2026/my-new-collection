@@ -67,6 +67,8 @@ export type Campaign = {
   treasury: string;
   claimed: number | null;
   claimLimitId?: string;
+  /** The assetMintLimit id. Empty on pre-2026-09-03 campaigns, which used 1. */
+  assetLimitId?: string;
   /** "wallet" (mintLimit) or "asset" (assetMintLimit). Empty means asset. */
   claimScope?: string;
   claimLimit?: number | null;

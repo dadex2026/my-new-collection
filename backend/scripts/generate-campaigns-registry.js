@@ -153,6 +153,10 @@ async function main() {
         network: r.network || "",
         treasury: r.treasury || "",
         claimLimitId: r.claimLimitId || "",
+        // The assetMintLimit id. Empty on campaigns deployed before
+        // 2026-09-03, where assetMintLimit used id 1 and campaign.ts falls
+        // back to claimLimitId for exactly that reason.
+        assetLimitId: r.assetLimitId || "",
         // "wallet" or "asset". Absent on every campaign deployed before
         // 2026-09-03, and those all used the per-asset counter, so an empty
         // value must read as "asset" and not as "unknown".

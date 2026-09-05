@@ -177,19 +177,25 @@ export async function claimCampaign(campaignId: string): Promise<void> {
     // Every campaign deployed after that fix has claimLimitId set;
     // older campaigns deployed before the fix won't, so this stays
     // conditional rather than assumed-always-present.
-    if (campaign.claimLimitId) {
-      // Which counter guard is deployed depends on how the campaign was
-      // created: --per-wallet gives mintLimit (one claim per wallet, args
-      // { id }), the default gives assetMintLimit (one per qualifying NFT,
-      // args { id, asset }). Sending the wrong shape does not fall back to
-      // anything safe - the instruction fails to deserialize against the
-      // guard set. claimScope is empty for every campaign deployed before
-      // 2026-09-03, and all of those are per-asset.
-      if (campaign.claimScope === "wallet") {
-        mintArgs.mintLimit = some({ id: Number(campaign.claimLimitId) });
-      } else {
-        mintArgs.assetMintLimit = some({ id: Number(campaign.claimLimitId), asset: umiPublicKey(qualifyingAsset) });
-      }
+    // The mint args must name exactly the counter guards deployed on this
+    // campaign, and sending the wrong shape does not fall back to anything
+    // safe - the instruction fails to deserialize against the guard set.
+    //
+    //   "both"   (default since 2026-09-03) mintLimit AND assetMintLimit
+    //   "wallet" mintLimit only
+    //   "asset"  assetMintLimit only
+    //   ""       every campaign deployed before that date: assetMintLimit
+    //            with id 1, which is why assetLimitId falls back to
+    //            claimLimitId rather than being assumed absent.
+    const claimScope = campaign.claimScope || "asset";
+    const walletLimitId = campaign.claimLimitId;
+    const assetLimitId = campaign.assetLimitId || campaign.claimLimitId;
+
+    if ((claimScope === "both" || claimScope === "wallet") && walletLimitId) {
+      mintArgs.mintLimit = some({ id: Number(walletLimitId) });
+    }
+    if ((claimScope === "both" || claimScope === "asset") && assetLimitId) {
+      mintArgs.assetMintLimit = some({ id: Number(assetLimitId), asset: umiPublicKey(qualifyingAsset) });
     }
     // price === 0 campaigns have no solPayment guard deployed at all
     // (see deploy-campaign.js) — must not send solPayment mint args for
