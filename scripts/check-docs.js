@@ -78,8 +78,13 @@ const RULES = [
     // twenty-one, and this rule watched only for "ten" — so the stale count
     // sat in a heading through every run of the guard that was supposed to
     // catch stale counts. Match every wrong number, not the last one seen.
-    pattern: /\b(ten|10|eleven|11|twelve|12|sixteen|16|seventeen|17|eighteen|18|nineteen|19|twenty|20|twenty-one|21)\s+checks\b/i,
-    why: "preflight.js registers 22 checks in six groups. A clean run prints 19 of them (18 without campaigns.csv), because three are recorded only on failure.",
+    // Widened again 2026-09-05 for campaign_eligibility_capped (22 -> 23), and
+    // extended UPWARD past the new truth as well as below it. The previous
+    // revision stopped at twenty-one, one short of the number it was written
+    // to protect, so the next increment had nowhere to land. A count drifts in
+    // both directions; the wrong numbers above the right one are wrong too.
+    pattern: /\b(ten|10|eleven|11|twelve|12|sixteen|16|seventeen|17|eighteen|18|nineteen|19|twenty|20|twenty-one|21|twenty-two|22|twenty-four|24|twenty-five|25)\s+checks\b/i,
+    why: "preflight.js registers 23 checks in six groups. A clean run prints 20 of them, or 18 without campaigns.csv, where BOTH campaign checks never run - three others are recorded only on failure.",
     truth: "backend/scripts/preflight.js — count the results.push({ name: ... }) calls",
   },
   {
@@ -138,9 +143,15 @@ const RULES = [
   {
     id: "allow-warnings-count",
     // Same widening, same reason: this watched for "six", so when the guide
-    // said "five" it passed. Everything but "seven" is wrong.
-    pattern: /--allow-warnings[^.\n]{0,60}\b(one|two|three|four|five|six|eight|nine|ten|\d+)\b[^.\n]{0,30}checks/i,
-    why: "CONTENT_CHECK_NAMES holds seven entries as of 2026-08-28, and deployer_not_treasury is deliberately not one of them.",
+    // said "five" it passed. Everything but "eight" is wrong as of 2026-09-05,
+    // when campaign_eligibility_capped joined the set.
+    //
+    // The digit branch is a negative lookahead rather than a plain \d+, which
+    // matched the CORRECT numeral and would have flagged "downgrades 8 checks"
+    // as a contradiction. It never fired only because every doc spells the
+    // count as a word. A rule that is right by luck is a rule that is wrong.
+    pattern: /--allow-warnings[^.\n]{0,60}\b(one|two|three|four|five|six|seven|nine|ten|eleven|twelve|(?!8\b)\d+)\b[^.\n]{0,30}checks/i,
+    why: "CONTENT_CHECK_NAMES holds eight entries as of 2026-09-05, and deployer_not_treasury is deliberately not one of them.",
     truth: "backend/scripts/preflight.js — CONTENT_CHECK_NAMES",
   },
 ];

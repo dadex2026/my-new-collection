@@ -438,6 +438,130 @@ function checkMaxSupplyParses(rows) {
   return { pass: true, detail: "All maxSupply values parse (or are deliberately unlimited)" };
 }
 
+// Mirrors parseMaxSupply in deploy-candy-machine.js:244 and
+// generate-registry.js:98. A fourth copy is a cost, and it is paid
+// deliberately: preflight must stay importable without a deployer key, and
+// deploy-candy-machine.js reaches for one at module scope. These three move
+// together - change one and change all three.
+function isUncappedSupply(value) {
+  const raw = (value || "").trim().toLowerCase();
+  if (raw === "" || raw === "unlimited") return true;
+  const n = Number(raw);
+  return !(Number.isFinite(n) && n > 0);
+}
+
+// Item 41. assetGate asks only "is this asset in the eligibility collection",
+// and assetMintLimit's counter is seeded by the qualifying asset - so a FRESH
+// eligible asset arrives with a fresh counter. If the eligibility drop is an
+// open edition, eligibility can be minted on demand: the allocation drains to
+// whoever wants it most rather than to holders, which is a different campaign
+// than the one anybody meant to run. No guard can tell a farmed asset from a
+// genuine one, because on chain they are identical.
+//
+// The lever chosen 2026-09-05 is to cap the eligibility drop. That used to
+// mean giving up the open edition; since update-candy-machine-supply.js it
+// does not. Raising a live cap costs 5,000 lamports - fee only, no rent,
+// because a machine with hiddenSettings does not grow when itemsAvailable
+// does. A cap is no longer a commitment to scarcity. It is a commitment to
+// deciding, one raise at a time.
+//
+// Why master.csv can be trusted by a check that never touches an RPC:
+// update-candy-machine-supply.js writes maxSupply back to master.csv after a
+// polled read-back (:148), so the column mirrors the chain rather than
+// guessing at it. If that write-back is ever removed this check goes blind
+// and says nothing, which is why the dependency is named here and there.
+//
+// Downgradable on purpose. Item 41's lever (d) - treat the allocation as a
+// giveaway budget and accept the leak - is a real answer when the reward is
+// worth less than the cost of farming it. --allow-warnings is how you say you
+// weighed that, rather than never having met the question.
+// A campaigns.csv can hold dozens of rows, and naming every one of them turns a
+// report line into a paragraph nobody reads to the end. Name enough to act on,
+// count the rest, and never hide the total.
+function nameSome(list, cap) {
+  if (list.length <= cap) return list.join(", ");
+  return `${list.slice(0, cap).join(", ")}, and ${list.length - cap} more`;
+}
+
+function checkCampaignEligibilityCapped(campaignRows, allRows, reservedPrefixes) {
+  const considered = [];
+  const skipped = [];
+  for (const c of campaignRows) {
+    const id = (c.campaignId || "").trim();
+    if (!id) continue;
+    if (hasReservedPrefix(id, reservedPrefixes)) {
+      skipped.push(id);
+      continue;
+    }
+    considered.push(c);
+  }
+
+  // Name the skipped rows rather than quietly shrinking the denominator. A
+  // pass that examined nothing is the failure mode this repo keeps meeting.
+  const note =
+    skipped.length > 0
+      ? ` (${skipped.length} reserved/sample row(s) not examined: ${nameSome(skipped, 4)})`
+      : "";
+
+  if (considered.length === 0) {
+    return { pass: true, detail: `No live campaigns to examine${note}` };
+  }
+
+  const uncapped = [];
+  const unresolved = [];
+  const capped = [];
+  for (const c of considered) {
+    const dropId = (c.eligibilityDropItemId || "").trim();
+    if (!dropId) {
+      unresolved.push(`${c.campaignId} (row has no eligibilityDropItemId)`);
+      continue;
+    }
+    // Matches deploy-campaign.js:320 - the eligibility drop is looked up across
+    // every master.csv row, not only the slug being deployed, because a
+    // campaign may gate on a drop in another collection entirely.
+    const drop = allRows.find((r) => r.dropItemId === dropId);
+    if (!drop) {
+      unresolved.push(`${c.campaignId} -> ${dropId} (no such dropItemId in master.csv)`);
+      continue;
+    }
+    if (isUncappedSupply(drop.maxSupply)) {
+      uncapped.push(`${c.campaignId} -> ${dropId} (maxSupply "${drop.maxSupply || ""}")`);
+    } else {
+      capped.push(`${c.campaignId} -> ${dropId} (${drop.maxSupply})`);
+    }
+  }
+
+  if (uncapped.length > 0) {
+    return {
+      pass: false,
+      detail:
+        `${uncapped.length} of ${considered.length} campaign(s) gate on an UNCAPPED eligibility drop: ` +
+        `${nameSome(uncapped, 5)}. An open edition can be minted on demand, so eligibility can be ` +
+        `manufactured for the price of one mint and the allocation drains to farmers rather than holders. ` +
+        `Fix: set maxSupply on that drop's master.csv row, or run update-candy-machine-supply.js if it is ` +
+        `already deployed (5,000 lamports, and the cap can be raised again whenever you want more float). ` +
+        `To accept the leak deliberately instead, pass --allow-warnings. See open-items 41.${note}`,
+    };
+  }
+
+  if (unresolved.length > 0) {
+    return {
+      pass: true,
+      unknown: true,
+      detail:
+        `COULD NOT VERIFY - ${unresolved.length} of ${considered.length} campaign(s) name an eligibility drop ` +
+        `that is not in master.csv: ${nameSome(unresolved, 5)}. Farmability cannot be judged for these, and ` +
+        `deploy-campaign.js will refuse them outright (it looks the drop up the same way), so they are broken ` +
+        `rows rather than merely unverified ones. ${capped.length} of ${considered.length} confirmed capped${note}`,
+    };
+  }
+
+  return {
+    pass: true,
+    detail: `All ${capped.length} campaign(s) gate on a capped eligibility drop: ${capped.join(", ")}${note}`,
+  };
+}
+
 function checkNotAlreadyDeployed(rows, network, force) {
   const alreadyDeployed = rows.filter((r) => r.collectionAddress && r.network === network);
   if (alreadyDeployed.length > 0 && !force) {
@@ -469,6 +593,7 @@ const CONTENT_CHECK_NAMES = new Set([
   "no_placeholder_images",
   "no_placeholder_uris",
   "no_reserved_campaign_ids",
+  "campaign_eligibility_capped",
   "no_placeholder_collection_name",
   "no_placeholder_collection_image",
 ]);
@@ -493,7 +618,7 @@ const CATEGORIES = [
   { name: "Environment", checks: ["env_admin_exists", "env_admin_gitignored", "deployer_key_present", "treasury_valid", "rpc_valid", "deployer_not_treasury"] },
   { name: "Content Validation", checks: ["no_reserved_slug", "no_reserved_drop_ids", "no_placeholder_images", "no_placeholder_uris"] },
   { name: "Permanent Values", checks: ["no_placeholder_collection_name", "no_placeholder_collection_image", "prices_parse", "item_names_fit_on_chain", "max_supply_parses", "not_a_mintable_voucher"] },
-  { name: "Campaign Validation", checks: ["no_reserved_campaign_ids"] },
+  { name: "Campaign Validation", checks: ["no_reserved_campaign_ids", "campaign_eligibility_capped"] },
   { name: "Deployment State", checks: ["not_already_deployed"] },
 ];
 
@@ -532,6 +657,16 @@ function main() {
     const { rows: campaignRows } = readCsv(CAMPAIGNS_CSV_PATH);
     const combinedReservedPrefixes = [...new Set([...reservedSlugPrefixes, ...reservedIdPrefixes])];
     results.push({ name: "no_reserved_campaign_ids", ...checkNoReservedCampaignIds(campaignRows, combinedReservedPrefixes) });
+    // master.csv is read again here rather than reused from the block below,
+    // which is guarded by config.json and a collectionSlug this check does not
+    // need: a campaign's eligibility drop can live in any collection. readCsv
+    // returns empty rows for a missing file, so this stays quiet on a project
+    // that has campaigns.csv and nothing else.
+    const { rows: masterRowsForCampaigns } = readCsv(MASTER_CSV_PATH);
+    results.push({
+      name: "campaign_eligibility_capped",
+      ...checkCampaignEligibilityCapped(campaignRows, masterRowsForCampaigns, combinedReservedPrefixes),
+    });
   }
 
   let config = null;
