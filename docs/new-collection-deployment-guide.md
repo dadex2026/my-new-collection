@@ -25,7 +25,7 @@ the chain permanently.** The boundary is marked, and it is the only one that mat
 | **9** | Verify — chain, site, and drift | yes |
 | **10** | Ongoing: text cards, rankings, methodology | yes |
 
-Appendix A — the twenty-two preflight checks · Appendix B — known non-issues ·
+Appendix A — the twenty-three preflight checks · Appendix B — known non-issues ·
 Appendix C — reference documents (none of which you need to finish a launch)
 
 ---
@@ -779,12 +779,12 @@ confirm the site says nothing that implies otherwise.
 
 ---
 
-# Appendix A — The twenty-two preflight checks
+# Appendix A — The twenty-three preflight checks
 
 Sixteen until 2026-08-28, plus five when the permanent-value surface was enumerated (see
-below), plus `not_a_mintable_voucher` on 2026-09-03. Twenty-two is what
-`grep -c results.push backend/scripts/preflight.js` reports; recount it rather than trusting
-this sentence.
+below), plus `not_a_mintable_voucher` on 2026-09-03, plus `campaign_eligibility_capped` on
+2026-09-05. Twenty-three is what `grep -c results.push backend/scripts/preflight.js`
+reports; recount it rather than trusting this sentence.
 
 | Group | Check | Notes |
 |---|---|---|
@@ -803,6 +803,7 @@ this sentence.
 | | `no_placeholder_images` | Downgradable. **Placeholder art about to be minted permanently** |
 | | `no_placeholder_uris` | Downgradable |
 | Campaign Validation | `no_reserved_campaign_ids` | Downgradable; **runs only if `campaigns.csv` exists** |
+| | `campaign_eligibility_capped` | Downgradable; **runs only if `campaigns.csv` exists**. Fails when a campaign's `eligibilityDropItemId` resolves to a row whose `maxSupply` is blank, `unlimited`, or unparseable — an open edition, whose eligibility can be minted on demand for the price of one mint (open-items 41). Reports `COULD NOT VERIFY` when the eligibility drop is not in `master.csv` at all. Downgradable because accepting the leak is a real choice; `--allow-warnings` is how you record having made it |
 | **Permanent Values** | `no_placeholder_collection_name` | Downgradable. The name minted on chain. Word-boundary match, so "Contest Winners" passes and "Mechanics Test B" does not |
 | | `no_placeholder_collection_image` | Downgradable. Becomes the collection's permanent `uri` |
 | | `prices_parse` | **Never downgradable.** `Number(price) \|\| 0` means a typo mints free, forever |
@@ -825,16 +826,17 @@ through "D". The new checks, run against that same `master.csv`, refuse it on bo
 The lesson generalises: the question to ask of this pipeline is not *"does it run?"* — it
 demonstrably runs — but *"is every value it makes permanent one somebody chose?"*
 
-**`--allow-warnings` downgrades seven checks** — every row marked *Downgradable* in the
+**`--allow-warnings` downgrades eight checks** — every row marked *Downgradable* in the
 table above, which is exactly `CONTENT_CHECK_NAMES`. (This paragraph said *five* until
 2026-09-03, having been written when the set was smaller and never recounted after the
 permanent-value checks were added; the guard rule that now catches it was watching for the
-word *six* and let *five* straight through.) Until 2026-08-28 it downgraded an eighth: the
-sixth was `deployer_not_treasury`, an *Environment* check, which made the long-standing
-claim that "an Environment failure is never a warning" false — and false about the check
-protecting the deploy key. It has been removed from `CONTENT_CHECK_NAMES`, with a comment
-saying not to put it back. Same date, its three un-runnable paths stopped reporting
-`pass` and started reporting `COULD NOT VERIFY`.
+word *six* and let *five* straight through. It said *seven* until 2026-09-05, when
+`campaign_eligibility_capped` joined the set.) Until 2026-08-28 the set also contained
+`deployer_not_treasury`, an *Environment* check, which made the long-standing claim that
+"an Environment failure is never a warning" false — and false about the check protecting
+the deploy key. It has been removed from `CONTENT_CHECK_NAMES`, with a comment saying not
+to put it back. Same date, its three un-runnable paths stopped reporting `pass` and started
+reporting `COULD NOT VERIFY`.
 
 **A category can pass without evaluating anything.** Every content, permanent-value and
 deployment check runs inside the block that `collection_has_rows` guards, so a slug with no
@@ -845,10 +847,12 @@ from the output altogether. It now marks a partly-skipped category `(partial)`, 
 cases. **Read that line before you read the ticks.**
 
 **Three checks are pushed to results only on failure** — `config_valid_json`,
-`collection_slug_present` and `collection_has_rows`. So a clean run records **nineteen**
-named results, or eighteen when `campaigns.csv` is absent and `no_reserved_campaign_ids`
-never runs, and still prints `READY — all checks passed`. The conditions are genuinely
-evaluated — not a hole — but don't go looking for twenty-two ticks.
+`collection_slug_present` and `collection_has_rows`. So a clean run records **twenty**
+named results, and still prints `READY — all checks passed`. With no `campaigns.csv` it
+records **eighteen**, because *both* `no_reserved_campaign_ids` and
+`campaign_eligibility_capped` sit inside that file's existence check — which is why that
+number did not move on 2026-09-05 while the other two did. The conditions are genuinely
+evaluated — not a hole — but don't go looking for twenty-three ticks.
 
 ---
 
