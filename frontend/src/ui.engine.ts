@@ -240,8 +240,16 @@ function renderStatus() {
 function renderMintButtons() {
   const btns = document.querySelectorAll<HTMLButtonElement>(".drop-mint-btn");
   btns.forEach((btn) => {
-    btn.disabled = !state.wallet.connected || state.ui.minting;
-    btn.textContent = state.ui.minting ? "Minting..." : "Mint";
+    // A sold-out drop stays sold out. Until 2026-09-05 this reset every mint
+    // button's disabled state and label from wallet and minting state alone,
+    // which silently undid the sold-out button renderDropCard had just
+    // written: the card read "900 / 900 minted - SOLD OUT" above a live button
+    // labelled Mint. The card change shipped an hour before this was noticed,
+    // and it was noticed only by reading the OTHER code path that touches the
+    // same element. Two writers, one property.
+    const soldOut = btn.dataset.soldOut === "1";
+    btn.disabled = soldOut || !state.wallet.connected || state.ui.minting;
+    btn.textContent = soldOut ? "Sold out" : state.ui.minting ? "Minting..." : "Mint";
   });
   // Campaign claim buttons follow the same enable/disable rule as mint
   // buttons — need a connected wallet, and disabled mid-transaction.
@@ -357,6 +365,7 @@ function buildDropCard(d: RegistryDrop): string {
         class="drop-mint-btn"
         data-action="mint"
         data-drop-id="${d.key}"
+        data-sold-out="${soldOut ? "1" : "0"}"
         ${!walletConnected || soldOut ? "disabled" : ""}>
         ${soldOut ? "Sold out" : "Mint"}
       </button>`
