@@ -3,6 +3,7 @@ import { clearNodes } from "./domDiff";
 import { batch } from "./batch";
 import { RegistryDrop, Campaign, TextCard, Methodology } from "./types";
 import { CONFIG } from "./config";
+import { getCampaignClaimState, refreshCampaignClaimStatus } from "./campaign";
 
 let activeCollectionSlug = "all";
 let activeFilters: Record<string, string> = {};
@@ -663,6 +664,16 @@ function buildCampaignCard(c: Campaign): string {
   const walletConnected = state.wallet.connected;
   const soldOut = c.claimed != null && c.claimed >= c.allocation;
 
+  // Read the on-chain claim counters rather than offering a button that will
+  // revert. Until 2026-09-03 a holder who had already claimed - or whose
+  // edition had claimed under a previous owner - saw an enabled Claim button
+  // and a wallet simulation failure they could not interpret.
+  //
+  // "unknown" deliberately behaves like "available": a failed counter lookup
+  // must never tell a genuine holder they are ineligible. The chain stays the
+  // authority; this only ever removes a click that was going to fail.
+  const claim = getCampaignClaimState(c.campaignId);
+
   return `
     <div class="campaign" id="campaign-${c.campaignId}">
       ${c.targetImage ? `<img src="${c.targetImage}" alt="${c.title}" />` : ""}
@@ -677,6 +688,11 @@ function buildCampaignCard(c: Campaign): string {
       </div>
       ${soldOut
         ? `<div class="campaign-sold-out">${c.soldOutText}</div>`
+        : walletConnected && claim.state === "spent"
+        ? `<div class="campaign-claimed">Already claimed with this edition</div>`
+        : walletConnected && claim.state === "ineligible"
+        ? `<button class="campaign-claim-btn" disabled>${c.claimText}</button>
+           <div class="campaign-note">You don't hold a qualifying edition</div>`
         : `<button
             class="campaign-claim-btn"
             data-action="claim-campaign"
@@ -1157,6 +1173,8 @@ export function initUIEngine() {
   subscribe("wallet", () => { void refreshVoucherHoldings(); });
   subscribe("registry", () => { void refreshVoucherHoldings(); });
   subscribe("wallet", () => renderCampaigns());
+  subscribe("wallet", () => { void refreshCampaignClaimStatus().then(() => renderCampaigns()); });
+  subscribe("campaigns", () => { void refreshCampaignClaimStatus().then(() => renderCampaigns()); });
   subscribe("registry", () => {
     batch(() => {
       renderRegistry();

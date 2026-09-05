@@ -353,6 +353,53 @@ async function main() {
     message: `Campaign "${campaignId}": eligibility = holders of "${campaign.eligibilityDropItemId}" (${eligibilityDrop.collectionAddress}), reward = "${campaign.targetDropItemId}" (${targetDrop.collectionAddress}), price = ${priceSol} SOL, allocation = ${allocation}`,
   });
 
+  // ---- Exposure, stated before the money moves --------------------------
+  //
+  // allocation is not a tuning knob, it is the entire cap: itemsAvailable is
+  // enforced by the program, so it bounds claims regardless of who qualifies,
+  // how they qualified, or how many times a voucher is resold afterwards.
+  // Nothing else bounds anything. It was previously just a number in a CSV
+  // column, chosen without anyone having to look at what it implied.
+  //
+  // Eligibility supply is printed alongside it because the two interact: an
+  // eligible edition with no cap can be minted on demand, so eligibility is
+  // manufacturable and the allocation is what a farmer is drawing against.
+  // See open-items 41.
+  const ASSET_RENT_SOL = 0.00347968; // measured on mainnet 2026-09-02, sig 5wCokZgz
+  const eligibilitySupplyRaw = (eligibilityDrop.maxSupply || "").trim().toLowerCase();
+  const eligibilityUncapped = eligibilitySupplyRaw === "" || eligibilitySupplyRaw === "unlimited";
+  const targetIsVoucher = (targetDrop.mintStatus || "").trim().toLowerCase() === "voucher";
+  const eligibilityPrice = Number(eligibilityDrop.price) || 0;
+
+  console.log("\n" + "=".repeat(72));
+  console.log("EXPOSURE - what this campaign can cost you");
+  console.log("=".repeat(72));
+  console.log(`  allocation          ${allocation}  -> at most ${allocation} claim(s), ever.`);
+  console.log(`                      itemsAvailable is a hard on-chain cap, not a policy.`);
+  console.log(`  reward              ${campaign.targetDropItemId}${targetIsVoucher ? "  (a voucher)" : ""}`);
+  if (targetIsVoucher) {
+    console.log(`                      each redeems for one edition, so up to ${allocation} edition(s) leave.`);
+  }
+  console.log(`  claim price         ${priceSol > 0 ? priceSol + " SOL" : "free (claimer pays ~" + ASSET_RENT_SOL + " rent)"}`);
+  console.log(`  eligibility         ${campaign.eligibilityDropItemId}, whole collection ${eligibilityDrop.collectionAddress}`);
+  console.log(`  eligibility supply  ${eligibilityUncapped ? "UNLIMITED" : eligibilitySupplyRaw}`);
+
+  if (eligibilityUncapped) {
+    const farmCost = eligibilityPrice + ASSET_RENT_SOL + priceSol + ASSET_RENT_SOL;
+    console.log(
+      `\n  ! Eligibility is an OPEN edition, so it can be manufactured. Minting a fresh\n` +
+      `    eligible edition and claiming against it costs roughly ${farmCost.toFixed(5)} SOL\n` +
+      `    (${eligibilityPrice} price + ${ASSET_RENT_SOL} rent + ${priceSol} claim + ${ASSET_RENT_SOL} rent).\n` +
+      `    If the reward is worth more than that to anyone, this allocation drains to\n` +
+      `    farmers before it reaches holders. No guard can tell a farmed asset from a\n` +
+      `    genuine one - both are members of the collection. See open-items 41.`
+    );
+  }
+  console.log(
+    `\n  Choose ${allocation} as the number you would accept giving away if every single\n` +
+    `  one went to a stranger. With transfers permitted, that is an allowed outcome.\n`
+  );
+
   if (config.network === "mainnet") {
     log({ status: "info", message: "Deploying to MAINNET — this costs real SOL. 5 second window to cancel (Ctrl+C)." });
     await new Promise((resolve) => setTimeout(resolve, 5000));

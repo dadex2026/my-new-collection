@@ -28,7 +28,13 @@
 
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
 import { mplCore } from "@metaplex-foundation/mpl-core";
-import { mplCandyMachine, mintV1 } from "@metaplex-foundation/mpl-core-candy-machine";
+import {
+  mplCandyMachine,
+  mintV1,
+  findCandyGuardPda,
+  safeFetchAssetMintCounterFromSeeds,
+  safeFetchMintCounterFromSeeds,
+} from "@metaplex-foundation/mpl-core-candy-machine";
 import { generateSigner, publicKey as umiPublicKey, some } from "@metaplex-foundation/umi";
 import { walletAdapterIdentity, WalletAdapter } from "@metaplex-foundation/umi-signer-wallet-adapters";
 import { PublicKey } from "@solana/web3.js";
@@ -77,6 +83,156 @@ function describeClaimError(err: unknown): string {
     return "RPC unavailable — couldn't reach the Solana network. Try again in a moment.";
   }
   return `Claim failed — ${message}`;
+}
+
+// ---- Has this wallet, or this edition, already claimed? ------------------
+//
+// Claims are capped by two on-chain counters: mintLimit keyed to the paying
+// WALLET, and assetMintLimit keyed to the qualifying NFT. Both are PDAs, and
+// nothing read them until 2026-09-03 - so a spent holder saw an enabled Claim
+// button, clicked it, and got a wallet simulation failure with nothing to
+// explain it. Exactly the experience the burned-voucher lockout produced.
+//
+// The asset-keyed counter matters beyond the button: it rides with the NFT, so
+// selling an eligible edition transfers its UNSPENT claims and leaves its spent
+// ones behind. That makes "has this edition already claimed?" a question with
+// money attached, and it was unanswerable from the interface.
+//
+// One more thing this fixes: findQualifyingAsset returns the FIRST eligible
+// asset it sees. A wallet holding two eligible editions, one already spent,
+// could hand assetGate the spent one and revert - while holding a perfectly
+// good unspent one. The search below prefers an asset whose counter is clear.
+
+export type CampaignClaimState = "unknown" | "ineligible" | "spent" | "available";
+
+type ClaimStatus = { state: CampaignClaimState; asset: string | null };
+
+const claimStatusByCampaign = new Map<string, ClaimStatus>();
+
+export function getCampaignClaimState(campaignId: string): ClaimStatus {
+  return claimStatusByCampaign.get(campaignId) || { state: "unknown", asset: null };
+}
+
+// Bounded: a wallet with hundreds of eligible editions should not turn a card
+// render into hundreds of RPC calls. Checking a handful finds an unspent one
+// in every realistic case, and the mint itself still fails loudly if not.
+const MAX_ASSETS_TO_CHECK = 5;
+
+async function fetchEligibleAssets(walletAddress: string, requiredCollection: string): Promise<string[]> {
+  const MAX_PAGES = 3;
+  const PAGE_LIMIT = 1000;
+  const found: string[] = [];
+
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    let response: Response;
+    try {
+      response = await fetch(RPC_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: "campaign-eligible-assets",
+          method: "getAssetsByOwner",
+          params: { ownerAddress: walletAddress, page, limit: PAGE_LIMIT },
+        }),
+      });
+    } catch {
+      return found;
+    }
+    if (!response.ok) return found;
+
+    const body = await response.json();
+    const items = body.result?.items || [];
+    for (const item of items) {
+      if (item.burnt) continue;
+      const inCollection = (item.grouping || []).some(
+        (g: any) => g.group_key === "collection" && g.group_value === requiredCollection
+      );
+      if (inCollection) found.push(item.id);
+    }
+    if (items.length < PAGE_LIMIT) break;
+  }
+  return found;
+}
+
+export async function refreshCampaignClaimStatus(): Promise<void> {
+  claimStatusByCampaign.clear();
+
+  const walletAddress = state.wallet.connected ? state.wallet.address : null;
+  const campaigns = state.campaigns || [];
+  if (!walletAddress || campaigns.length === 0) return;
+
+  const umi = createUmi(RPC_URL).use(mplCore()).use(mplCandyMachine());
+
+  for (const campaign of campaigns) {
+    if (!campaign.campaignCandyMachineAddress || !campaign.eligibilityCollection) continue;
+
+    try {
+      const assets = await fetchEligibleAssets(walletAddress, campaign.eligibilityCollection);
+      if (assets.length === 0) {
+        claimStatusByCampaign.set(campaign.campaignId, { state: "ineligible", asset: null });
+        continue;
+      }
+
+      const candyMachine = umiPublicKey(campaign.campaignCandyMachineAddress);
+      const [candyGuard] = findCandyGuardPda(umi, { base: candyMachine });
+      const limit = campaign.claimLimit ? Number(campaign.claimLimit) : 1;
+      const scope = campaign.claimScope || "asset";
+      const walletLimitId = campaign.claimLimitId ? Number(campaign.claimLimitId) : null;
+      const assetLimitId = campaign.assetLimitId
+        ? Number(campaign.assetLimitId)
+        : campaign.claimLimitId
+        ? Number(campaign.claimLimitId)
+        : null;
+
+      // The wallet counter is per campaign, not per asset - if it is spent,
+      // no asset in this wallet can claim and there is nothing else to check.
+      if ((scope === "both" || scope === "wallet") && walletLimitId !== null) {
+        const counter = await safeFetchMintCounterFromSeeds(umi, {
+          id: walletLimitId,
+          user: umiPublicKey(walletAddress),
+          candyGuard,
+          candyMachine,
+        });
+        if (counter && Number(counter.count) >= limit) {
+          claimStatusByCampaign.set(campaign.campaignId, { state: "spent", asset: null });
+          continue;
+        }
+      }
+
+      if ((scope === "both" || scope === "asset") && assetLimitId !== null) {
+        let usable: string | null = null;
+        for (const asset of assets.slice(0, MAX_ASSETS_TO_CHECK)) {
+          const counter = await safeFetchAssetMintCounterFromSeeds(umi, {
+            id: assetLimitId,
+            asset: umiPublicKey(asset),
+            candyGuard,
+            candyMachine,
+          });
+          // No account means the counter was never created, which means this
+          // asset has never claimed here. Absence is the answer.
+          if (!counter || Number(counter.count) < limit) {
+            usable = asset;
+            break;
+          }
+        }
+        claimStatusByCampaign.set(
+          campaign.campaignId,
+          usable ? { state: "available", asset: usable } : { state: "spent", asset: null }
+        );
+        continue;
+      }
+
+      // No asset counter deployed on this campaign - eligibility alone decides.
+      claimStatusByCampaign.set(campaign.campaignId, { state: "available", asset: assets[0] });
+    } catch {
+      // A failed lookup means "we do not know", never "you cannot claim".
+      // Leaving it unknown keeps the button enabled and lets the chain be the
+      // authority, which is the safe direction: the worst case is the old
+      // behaviour, not a holder wrongly told they are ineligible.
+      claimStatusByCampaign.set(campaign.campaignId, { state: "unknown", asset: null });
+    }
+  }
 }
 
 // ---- DAS eligibility check (same approach as mint.ts's holder-discount) -
@@ -155,7 +311,12 @@ export async function claimCampaign(campaignId: string): Promise<void> {
   setStatus("Checking eligibility...");
 
   try {
-    const qualifyingAsset = await findQualifyingAsset(walletAddress, campaign.eligibilityCollection);
+    // Prefer the unspent asset refreshCampaignClaimStatus already found. Its
+    // counter was read, so it is known good; findQualifyingAsset returns the
+    // first eligible asset regardless of whether that one has already claimed.
+    const known = getCampaignClaimState(campaignId);
+    const qualifyingAsset =
+      known.asset || (await findQualifyingAsset(walletAddress, campaign.eligibilityCollection));
     if (!qualifyingAsset) {
       setMinting(false);
       setStatus("Not eligible — you don't currently hold the required NFT for this campaign.");
