@@ -46,6 +46,68 @@ on-chain bucket the guards can see.
 
 ---
 
+## Per collection — the checklist
+
+Run this once in each collection copied from the template. **Nothing is shared between
+collections:** each deploys its own voucher collection, its own campaign machine and its own
+claim counters, and `assetBurn` names one exact `requiredCollection` address, so one
+collection's voucher is not spendable in another. Slugs are local — `collectionSlug` reaches
+the chain only as the fallback for `collectionName` (`deploy-collection.js:349`) — so the
+same two slugs can be reused in every collection. Set `collectionName` and it never matters.
+
+**Two slugs.**
+
+| slug | rows | candy machine? |
+|---|---|---|
+| `<name>` | the open editions, including whichever one gates eligibility | one per drop |
+| `<name>-voucher` | one row, `mintStatus: voucher` | **never** — `deploy-candy-machine.js` refuses it |
+
+**Three numbers.** The only part that is not mechanical.
+
+| | set to | why |
+|---|---|---|
+| eligibility drop's `maxSupply` | the guest list | bounds total claims; preflight refuses blank or `unlimited` |
+| **every** redeemable drop's `maxSupply` | public sales **+** outstanding vouchers | the holder picks which drop, so each one carries the whole liability, not a share of it |
+| `allocation` in `campaigns.csv` | how many vouchers exist | the real ceiling is `min(allocation, eligibility cap)` |
+
+**Build order**, all in the new collection's folder:
+
+```
+node scripts/preflight.js
+node scripts/deploy-collection.js --slug <name>
+node scripts/deploy-collection.js --slug <name>-voucher
+node scripts/deploy-candy-machine.js --slug <name>          # editions only
+node scripts/deploy-campaign.js --campaign <campaignId>
+# then per redeemable drop, read-only first, every time:
+node scripts/update-candy-guard.js --drop <id> --burn-collection <voucher collectionAddress> --read-only
+node scripts/update-candy-guard.js --drop <id> --burn-collection <voucher collectionAddress> --write --yes
+node scripts/generate-registry.js
+node scripts/generate-campaigns-registry.js
+```
+
+**Afterwards, two read-only commands answer "where am I":**
+
+```
+node scripts/get-holders.js --slug <name>-voucher --counts --dry-run
+node scripts/update-candy-machine-supply.js --drop <id>
+```
+
+The first is what you still owe — it skips `burnt` assets, so live vouchers *are* the
+unredeemed liability. The second prints `itemsAvailable`, `itemsRedeemed` and `remaining`
+for one drop. The invariant to hold, checked against **every** redeemable drop and not only
+the gating one:
+
+> `remaining` ≥ outstanding vouchers + public sales you still intend
+
+**If the gating edition sits inside `<name>`** — which is the shape below — then eligibility
+is "holds anything in `<name>`", a redeemed edition is itself eligible, and every supply
+raise prompts for `--yes-widens-eligibility`. All three are consequences of one choice, and
+all three are fine; they are listed so the choice is made rather than discovered. The
+alternative is a third slug for the gating edition, which costs one more
+`deploy-collection.js` and buys even distribution and unprompted raises.
+
+---
+
 ## Stage A — the voucher collection (once)
 
 A voucher is an NFT and needs everything an NFT needs.
@@ -295,7 +357,17 @@ time, and this happens afterwards. Since 2026-09-05
 live campaign gates on** unless `--yes-widens-eligibility` is passed; it names the campaigns
 and how many claims the raise would add. A cut is never refused, and neither is a raise on a
 drop nothing gates on. `--candy-machine <address>` is not a way around it — the drop is
-resolved from the address. `update-candy-machine-supply.selftest.js` covers the decision
+resolved from the address.
+
+That guard matches **by collection, not by drop id**, because `assetGate` does. With `OE-001`,
+`OE-002` and `OE-003` sharing one `collectionSlug`, a campaign gating on `OE-001` is gating
+on all three, and raising any of them widens it — so all three are refused, and the message
+says which campaign it is and why a drop it never names is affected. The first version of
+this guard compared drop ids and let the siblings through; it was corrected the same day
+(item 42). **In the two-collection shape every redeemable drop is in the eligibility
+collection, so every supply raise prompts.** That is accurate rather than noisy — but a
+prompt answered yes every time is not a guard, which is the argument for putting the gating
+edition in its own collection if even distribution matters. `update-candy-machine-supply.selftest.js` covers the decision
 offline.
 
 **The silent fallback is an unmade decision.** `mint.ts` routes a wallet with no

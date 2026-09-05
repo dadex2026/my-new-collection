@@ -25,7 +25,7 @@ the chain permanently.** The boundary is marked, and it is the only one that mat
 | **9** | Verify — chain, site, and drift | yes |
 | **10** | Ongoing: text cards, rankings, methodology | yes |
 
-Appendix A — the twenty-three preflight checks · Appendix B — known non-issues ·
+Appendix A — the twenty-four preflight checks · Appendix B — known non-issues ·
 Appendix C — reference documents (none of which you need to finish a launch)
 
 ---
@@ -139,6 +139,32 @@ Left in place, the new collection *appears* to already have a deployed collectio
 the template's. Nothing errors; it simply points at the wrong thing. Delete
 `assetAddress` and `createdAt`, set `treasury` to your own wallet, and leave `rpc` for
 Stage 5.
+
+### `master.csv` and `campaigns.csv` carry addresses too
+
+Both are **tracked**, and once a collection has been deployed they hold every on-chain
+address it owns. Copying from `TEMPLATE-OPEN-EDITION` is safe — its `master.csv` is one
+`SAMPLE-001` row with no addresses and its `campaigns.csv` sample row has the address
+columns blank. **Copying from a collection you already launched is not**, and that is the
+tempting thing to do once you have one you like.
+
+Blank these columns in the copy, in every row:
+
+| file | columns |
+|---|---|
+| `master.csv` | `collectionAddress`, `candyMachineAddress`, `candyGuardAddress`, `holderRequiredCollection`, `holderPrice` |
+| `campaigns.csv` | `campaignCandyMachineAddress`, `eligibilityCollection`, `targetCollection`, `treasury`, `claimLimitId`, `assetLimitId` |
+
+Delete campaign rows you are not running, rather than leaving them to be resolved later —
+a fork carrying 24 rows whose `eligibilityDropItemId` matches nothing is a live example.
+
+`holderRequiredCollection` is the one that bites hardest, because it fails *silently*: the
+new collection's editions advertise a holder route backed by the **old** collection's
+voucher, `mint.ts` sends `group: "holder"` with `assetBurn` args to a machine whose guard
+has no groups, and the instruction fails to deserialize. It reads as "minting is broken"
+with no cause attached. `preflight.js` now refuses it up front —
+`holder_collection_is_local`, Appendix A — but blank the column anyway; a guard is a
+backstop, not a substitute for not copying the value.
 
 ---
 
@@ -779,12 +805,13 @@ confirm the site says nothing that implies otherwise.
 
 ---
 
-# Appendix A — The twenty-three preflight checks
+# Appendix A — The twenty-four preflight checks
 
 Sixteen until 2026-08-28, plus five when the permanent-value surface was enumerated (see
-below), plus `not_a_mintable_voucher` on 2026-09-03, plus `campaign_eligibility_capped` on
-2026-09-05. Twenty-three is what `grep -c results.push backend/scripts/preflight.js`
-reports; recount it rather than trusting this sentence.
+below), plus `not_a_mintable_voucher` on 2026-09-03, plus `campaign_eligibility_capped` and
+`holder_collection_is_local` on 2026-09-05. Twenty-four is what
+`grep -c results.push backend/scripts/preflight.js` reports; recount it rather than trusting
+this sentence.
 
 | Group | Check | Notes |
 |---|---|---|
@@ -810,6 +837,7 @@ reports; recount it rather than trusting this sentence.
 | | `item_names_fit_on_chain` | **Never downgradable.** `hiddenSettings.name` is `.slice(0, 32)` — over-length names are silently truncated |
 | | `max_supply_parses` | **Never downgradable.** `parseMaxSupply` falls back to unlimited, so a typo makes an unbounded open edition |
 | | `not_a_mintable_voucher` | **Never downgradable.** Fails when a burn currency already has a candy machine. A voucher collection must never get one: a candy machine is the public mint path, so anyone could mint vouchers and burn each for an edition. Detected two ways — `mintStatus` of `voucher` on the row, true from the moment it is typed, and the collection being named as some drop's `holderRequiredCollection`, true only after the first edition is migrated. `deploy-candy-machine.js` refuses on the same two signals, and that refusal is what actually prevents it |
+| | `holder_collection_is_local` | Downgradable. Fails when a drop's `holderRequiredCollection` names a collection absent from this `master.csv` — almost always a CSV copied from a live collection, pointing these editions at another project's voucher. Checked across every row, not just the slug being deployed. Left alone it does not error: the card advertises a holder route and the mint fails to deserialize, which presents as "minting is broken" |
 | Deployment State | `not_already_deployed` | Network-aware; overridden by `--force` |
 
 ### Why these five exist
@@ -826,12 +854,13 @@ through "D". The new checks, run against that same `master.csv`, refuse it on bo
 The lesson generalises: the question to ask of this pipeline is not *"does it run?"* — it
 demonstrably runs — but *"is every value it makes permanent one somebody chose?"*
 
-**`--allow-warnings` downgrades eight checks** — every row marked *Downgradable* in the
+**`--allow-warnings` downgrades nine checks** — every row marked *Downgradable* in the
 table above, which is exactly `CONTENT_CHECK_NAMES`. (This paragraph said *five* until
 2026-09-03, having been written when the set was smaller and never recounted after the
 permanent-value checks were added; the guard rule that now catches it was watching for the
 word *six* and let *five* straight through. It said *seven* until 2026-09-05, when
-`campaign_eligibility_capped` joined the set.) Until 2026-08-28 the set also contained
+`campaign_eligibility_capped` and then `holder_collection_is_local` joined the set — twice
+in one session, which is the argument for recounting rather than adjusting by one.) Until 2026-08-28 the set also contained
 `deployer_not_treasury`, an *Environment* check, which made the long-standing claim that
 "an Environment failure is never a warning" false — and false about the check protecting
 the deploy key. It has been removed from `CONTENT_CHECK_NAMES`, with a comment saying not
@@ -840,19 +869,22 @@ reporting `COULD NOT VERIFY`.
 
 **A category can pass without evaluating anything.** Every content, permanent-value and
 deployment check runs inside the block that `collection_has_rows` guards, so a slug with no
-matching rows skips ten checks — including both art gates. Until 2026-09-03 the report
+matching rows skips eleven checks — including both art gates. Until 2026-09-03 the report
 printed `Content Validation ✓ PASS` in that state and omitted the Permanent Values group
 from the output altogether. It now marks a partly-skipped category `(partial)`, prints
 `- NOT EVALUATED` for one that ran nothing, and names the checks that did not run in both
 cases. **Read that line before you read the ticks.**
 
 **Three checks are pushed to results only on failure** — `config_valid_json`,
-`collection_slug_present` and `collection_has_rows`. So a clean run records **twenty**
+`collection_slug_present` and `collection_has_rows`. So a clean run records **twenty-one**
 named results, and still prints `READY — all checks passed`. With no `campaigns.csv` it
-records **eighteen**, because *both* `no_reserved_campaign_ids` and
-`campaign_eligibility_capped` sit inside that file's existence check — which is why that
-number did not move on 2026-09-05 while the other two did. The conditions are genuinely
-evaluated — not a hole — but don't go looking for twenty-three ticks.
+records **nineteen**, because *both* `no_reserved_campaign_ids` and
+`campaign_eligibility_capped` sit inside that file's existence check. Watch that pair: when
+`campaign_eligibility_capped` was added, the with-file number moved and the without-file one
+did not, because both new-and-old campaign checks live behind the same gate;
+`holder_collection_is_local` sits outside it, so it moved both. Recount, do not increment.
+The conditions are genuinely evaluated — not a hole — but don't go looking for twenty-four
+ticks.
 
 ---
 

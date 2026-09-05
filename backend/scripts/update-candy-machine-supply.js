@@ -154,26 +154,78 @@ function findDropRow(dropItemId) {
 // gives every one of them a fresh claim counter. That is the whole farming
 // mechanism of open-items 41, arriving through the back door.
 //
-// Deliberately decided from campaigns.csv alone, with no RPC call. Reading each
+// MATCHED BY COLLECTION, NOT BY DROP ID. The first version compared dropItemId
+// against eligibilityDropItemId, which is the same collection-vs-drop confusion
+// that makes assetGate collection-granular and forced --drop into get-holders.js.
+// With OE-001, OE-002 and OE-003 sharing one collectionSlug and a campaign
+// gating on OE-001, a fresh OE-002 satisfies that gate identically - so raising
+// OE-002 widened eligibility and this said nothing. Corrected 2026-09-05, the
+// same day it was introduced; the shared-slug case is in the selftest so it
+// cannot come back quietly.
+//
+// The drop-id comparison is KEPT as well, not replaced: an eligibility drop that
+// has not been deployed has no collectionAddress to compare, and matching by
+// name is the only thing that works there.
+//
+// Deliberately decided from the CSVs alone, with no RPC call. Reading each
 // campaign machine's itemsRedeemed would say which are still claimable, at the
 // cost of a network failure being able to block a legitimate raise. Refusing
 // slightly too often is the safe direction when the override is one flag away.
-function gatingCampaignsFrom(records, dropItemId, network) {
+function gatingCampaignsFrom(campaignRecords, masterRecords, dropItemId, network) {
   if (!dropItemId) return { deployed: [], undeployed: [] };
-  const gating = records.filter((r) => (r.eligibilityDropItemId || "").trim() === dropItemId);
-  // A blank network column counts as a match: rows predate the column, and
-  // "we do not know which chain this is on" is not a reason to wave it through.
-  const here = gating.filter((r) => !(r.network || "").trim() || (r.network || "").trim() === network);
+
+  const master = masterRecords || [];
+  const targetRow = master.find((r) => (r.dropItemId || "").trim() === dropItemId);
+  const targetCollection = ((targetRow && targetRow.collectionAddress) || "").trim();
+
+  // A campaign's eligibility collection: written back by deploy-campaign.js at
+  // deploy time, and otherwise derived from the drop the row names.
+  const eligibilityCollectionOf = (c) => {
+    const recorded = (c.eligibilityCollection || "").trim();
+    if (recorded) return recorded;
+    const row = master.find((r) => (r.dropItemId || "").trim() === (c.eligibilityDropItemId || "").trim());
+    return ((row && row.collectionAddress) || "").trim();
+  };
+
+  const matched = [];
+  for (const c of campaignRecords) {
+    // A blank network column counts as a match: rows predate the column, and
+    // "we do not know which chain this is on" is not a reason to wave it through.
+    const net = (c.network || "").trim();
+    if (net && net !== network) continue;
+
+    if ((c.eligibilityDropItemId || "").trim() === dropItemId) {
+      matched.push({ ...c, _matchedVia: "drop" });
+      continue;
+    }
+    const elig = eligibilityCollectionOf(c);
+    if (targetCollection && elig && elig === targetCollection) {
+      matched.push({ ...c, _matchedVia: "collection" });
+    }
+  }
+
   return {
-    deployed: here.filter((r) => (r.campaignCandyMachineAddress || "").trim()),
-    undeployed: here.filter((r) => !(r.campaignCandyMachineAddress || "").trim()),
+    deployed: matched.filter((r) => (r.campaignCandyMachineAddress || "").trim()),
+    undeployed: matched.filter((r) => !(r.campaignCandyMachineAddress || "").trim()),
   };
 }
 
 function findGatingCampaigns(dropItemId, network) {
   if (!dropItemId || !fs.existsSync(CAMPAIGNS_CSV_PATH)) return { deployed: [], undeployed: [] };
-  const { records } = parseCsvRecords(fs.readFileSync(CAMPAIGNS_CSV_PATH, "utf8"));
-  return gatingCampaignsFrom(records, dropItemId, network);
+  const { records: campaignRecords } = parseCsvRecords(fs.readFileSync(CAMPAIGNS_CSV_PATH, "utf8"));
+  const masterRecords = fs.existsSync(MASTER_CSV_PATH)
+    ? parseCsvRecords(fs.readFileSync(MASTER_CSV_PATH, "utf8")).records
+    : [];
+  return gatingCampaignsFrom(campaignRecords, masterRecords, dropItemId, network);
+}
+
+// How a campaign came to match, said out loud. "But that campaign does not name
+// this drop" is the objection a collection match has to answer, and a refusal
+// that does not answer it reads as a bug.
+function describeMatch(c) {
+  return c._matchedVia === "collection"
+    ? `${c.campaignId} (gates on ${c.eligibilityDropItemId}, which shares this drop's collection; allocation ${c.allocation || "?"})`
+    : `${c.campaignId} (allocation ${c.allocation || "?"})`;
 }
 
 // The decision, separated from the report so it can be exercised without a
@@ -182,7 +234,8 @@ function widenRefusal({ dropItemId, current, itemsAvailable, gating, acceptsWide
   if (!(itemsAvailable > current)) return null;      // a cut narrows eligibility
   if (gating.deployed.length === 0) return null;     // nothing live gates on it
   if (acceptsWidening) return null;                  // said so explicitly
-  const named = gating.deployed.map((c) => `${c.campaignId} (allocation ${c.allocation || "?"})`).join(", ");
+  const named = gating.deployed.map(describeMatch).join(", ");
+  const viaCollection = gating.deployed.some((c) => c._matchedVia === "collection");
   return {
     code: "widens_campaign_eligibility",
     message:
@@ -190,7 +243,13 @@ function widenRefusal({ dropItemId, current, itemsAvailable, gating, acceptsWide
       `campaign(s) gate eligibility on it - ${named}. Each new asset this cap permits is a fresh assetMintLimit ` +
       `counter, so the raise adds ${itemsAvailable - current} potential claims to campaigns whose allocation was ` +
       `sized against a cap of ${current}. This is the farming hole preflight's campaign_eligibility_capped ` +
-      `refuses at deploy time (open-items 41), reached afterwards instead.\n\n` +
+      `refuses at deploy time (open-items 41), reached afterwards instead.` +
+      (viaCollection
+        ? ` At least one of those campaigns does not name this drop: assetGate is written against the eligibility ` +
+          `drop's COLLECTION, which this drop shares, so a new asset here satisfies that gate exactly as one from ` +
+          `the named drop would.`
+        : ``) +
+      `\n\n` +
       `If that is what you want - the float is genuinely growing and the campaign should follow it - re-run with ` +
       `--yes-widens-eligibility. To raise supply without touching the campaign, deploy a separate drop instead.`,
   };
@@ -335,8 +394,8 @@ async function main() {
 
   if (gating.deployed.length > 0 || gating.undeployed.length > 0) {
     console.log("\nEligibility: campaigns gated on this drop");
-    for (const c of gating.deployed) console.log(`  live       ${c.campaignId}  (allocation ${c.allocation || "?"})`);
-    for (const c of gating.undeployed) console.log(`  not yet    ${c.campaignId}  (allocation ${c.allocation || "?"})`);
+    for (const c of gating.deployed) console.log(`  live       ${describeMatch(c)}`);
+    for (const c of gating.undeployed) console.log(`  not yet    ${describeMatch(c)}`);
     console.log("  Raising this cap raises how many assets can ever claim from them.");
   }
 
