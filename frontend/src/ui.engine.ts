@@ -138,8 +138,14 @@ function renderStatus() {
 function renderMintButtons() {
   const btns = document.querySelectorAll<HTMLButtonElement>(".drop-mint-btn");
   btns.forEach((btn) => {
-    btn.disabled = !state.wallet.connected || state.ui.minting;
-    btn.textContent = state.ui.minting ? "Minting..." : "Mint";
+    // A sold-out drop stays sold out. This used to reset every mint button's
+    // disabled state and label from wallet and minting state alone, which
+    // silently undid the sold-out button the card had just written: the card
+    // read "SOLD OUT" above a live button labelled Mint. Two writers, one
+    // property - the card is not the only thing that touches this element.
+    const soldOut = btn.dataset.soldOut === "1";
+    btn.disabled = soldOut || !state.wallet.connected || state.ui.minting;
+    btn.textContent = soldOut ? "Sold out" : state.ui.minting ? "Minting..." : "Mint";
   });
   // Campaign claim buttons follow the same enable/disable rule as mint
   // buttons — need a connected wallet, and disabled mid-transaction.
@@ -197,6 +203,17 @@ function getActiveDrops(): RegistryDrop[] {
 }
 
 function buildDropCard(d: RegistryDrop): string {
+  // Sold out when the live count has reached the cap. Conservative on purpose:
+  // minted is null on a registry built without --fetch-minted and until
+  // refreshMintedCounts returns, so UNKNOWN IS NEVER SOLD OUT - a card that
+  // wrongly refuses to mint is worse than one the program rejects. An
+  // unlimited drop parses to 4,294,967,295 and is never reached.
+  const soldOut =
+    typeof d.minted === "number" &&
+    typeof d.maxSupply === "number" &&
+    d.maxSupply > 0 &&
+    d.minted >= d.maxSupply;
+
   const walletConnected = state.wallet.connected;
   return `
     <div class="drop" id="drop-${d.key}">
@@ -212,16 +229,17 @@ function buildDropCard(d: RegistryDrop): string {
         </div>
       ` : ""}
       <div class="drop-price">${d.price} SOL</div>
-      <div class="drop-minted">
-        ${d.minted ?? 0} / ${d.maxSupply ?? "Unlimited"} minted
+      <div class="drop-minted${soldOut ? " drop-sold-out" : ""}">
+        ${d.minted ?? 0} / ${d.maxSupply ?? "Unlimited"} minted${soldOut ? " - SOLD OUT" : ""}
       </div>
       ${d.status ? `<div class="drop-status">${d.status}</div>` : ""}
       <button
         class="drop-mint-btn"
         data-action="mint"
         data-drop-id="${d.key}"
-        ${!walletConnected ? "disabled" : ""}>
-        Mint
+        data-sold-out="${soldOut ? "1" : "0"}"
+        ${!walletConnected || soldOut ? "disabled" : ""}>
+        ${soldOut ? "Sold out" : "Mint"}
       </button>
     </div>
   `;
