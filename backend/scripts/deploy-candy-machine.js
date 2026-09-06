@@ -287,11 +287,29 @@ async function getUmi(rpc) {
 // ---- Deploy one drop's Candy Machine + Candy Guard ------------------------
 
 async function deployDropCandyMachine({ umi, umiCore, mplCandyMachine }, row, config, options) {
-  const { mintLimitPerWallet, startDateIso, botTaxSol, mutable, holderCollection, holderPrice } = options;
+  const { mintLimitPerWallet, startDateIso, botTaxSol, mutable, holderCollection, holderPrice, acceptsCostlierHolder } = options;
 
   const candyMachineSigner = umiCore.generateSigner(umi);
   const itemsAvailable = parseMaxSupply(row.maxSupply);
   const priceSol = Number(row.price) || 0;
+
+  // A holder price at or above the public price on the SAME machine is almost
+  // always a mistake, and nothing caught it until 2026-09-05. mint.ts routes a
+  // wallet holding a qualifying voucher to the holder group and gives it no way
+  // to reach the public one, so this charges a voucher holder more than a
+  // stranger and burns their voucher as well. Mirrors holderPriceRefusal in
+  // update-candy-guard.js, which guards the migration path; the two must agree.
+  if (holderCollection && holderPrice > 0 && priceSol > 0 && holderPrice >= priceSol && !acceptsCostlierHolder) {
+    fail(
+      "holder_price_not_a_discount",
+      `Drop "${row.dropItemId}": a holder price of ${holderPrice} SOL is ${holderPrice === priceSol ? "the same as" : "more than"} ` +
+        `its public price of ${priceSol} SOL. A voucher holder cannot reach the public group, so this charges ` +
+        `them ${holderPrice === priceSol ? "no less than" : "more than"} a stranger and burns their voucher too. ` +
+        `Pass --yes-holder-costs-more if the voucher sells access past the per-wallet mintLimit rather than a ` +
+        `discount. See open-items 47.`,
+      1
+    );
+  }
 
   const guards = {
     solPayment: {
@@ -389,6 +407,7 @@ async function main() {
   if (holderPriceFlagIndex !== -1 && !Number.isFinite(holderPrice)) {
     fail("invalid_holder_price", `--holder-price "${args[holderPriceFlagIndex + 1]}" is not a number`, 1);
   }
+  const acceptsCostlierHolder = args.includes("--yes-holder-costs-more");
   if (holderPrice > 0 && !holderCollection) {
     fail("holder_price_without_collection", "--holder-price does nothing without --holder-collection", 1);
   }
@@ -563,7 +582,7 @@ async function main() {
         umiContext,
         row,
         config,
-        { mintLimitPerWallet, startDateIso, botTaxSol, mutable, holderCollection, holderPrice }
+        { mintLimitPerWallet, startDateIso, botTaxSol, mutable, holderCollection, holderPrice, acceptsCostlierHolder }
       );
 
       row.candyMachineAddress = candyMachineAddress;

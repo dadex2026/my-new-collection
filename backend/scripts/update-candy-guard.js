@@ -340,6 +340,42 @@ function assertMigratable(current) {
 
 // ---- Plan ----------------------------------------------------------------
 
+// A guard's solPayment carries a umi SolAmount - { basisPoints, identifier,
+// decimals } - whether it came off the chain or out of umiCore.sol(). Reduce it
+// to a lamport number, and say "no price" rather than 0 when the guard is
+// absent: those are different, and conflating them is how a free route reads as
+// a paid one.
+function solPaymentLamports(guards) {
+  const sp = guards && guards.solPayment;
+  if (!sp || sp.lamports == null) return null;
+  const raw = sp.lamports;
+  const bp = typeof raw === "object" && raw !== null && "basisPoints" in raw ? raw.basisPoints : raw;
+  const n = Number(bp);
+  return Number.isFinite(n) ? n : null;
+}
+
+// A holder price at or above the public price is almost certainly a mistake,
+// and nothing in this repo caught it until 2026-09-05: holderPrice was checked
+// only for < 0 and > 0, never against what the public pays. Combined with
+// mint.ts routing on holding alone - a wallet with a voucher CANNOT reach the
+// public group - the result is that a voucher holder is charged more than a
+// stranger AND burns a voucher to do it, while the card advertises the holder
+// price as the offer.
+//
+// Refused rather than warned, because no operator types this on purpose. There
+// IS one coherent case for holderPrice EQUAL to the public price, which is why
+// --yes-holder-costs-more exists: buildPlan deliberately keeps mintLimit out of
+// the holder group, so a same-price voucher can mean "mint past the per-wallet
+// cap" rather than "mint cheaper". That is a real design; it just has to be
+// typed on purpose.
+function holderPriceRefusal({ holderPriceSol, publicLamports }) {
+  if (!(holderPriceSol > 0)) return null;                       // free is always fine
+  if (publicLamports == null || !(publicLamports > 0)) return null;  // nothing to compare against
+  const holderLamports = Math.round(holderPriceSol * 1e9);
+  if (holderLamports < publicLamports) return null;             // a discount, as intended
+  return { holderLamports, publicLamports, equal: holderLamports === publicLamports };
+}
+
 function buildPlan(currentDefaultGuards, options) {
   const { burnCollection, holderPrice, treasury, umiCore } = options;
 
@@ -549,6 +585,9 @@ async function main() {
   const burnCollection = flagValue("--burn-collection");
   const holderPriceRaw = flagValue("--holder-price");
   const treasuryFlag = flagValue("--treasury");
+  // See holderPriceRefusal: the only coherent reason to charge a voucher holder
+  // the public price is to sell access past a mintLimit rather than a discount.
+  const acceptsCostlierHolder = args.includes("--yes-holder-costs-more");
   const readOnly = args.includes("--read-only");
   const verifyOnly = args.includes("--verify");
   const setHolderPriceRaw = flagValue("--set-holder-price");
@@ -719,6 +758,30 @@ async function main() {
     ? buildRepricePlan(candyGuard, { holderPrice, treasury, umiCore })
     : buildPlan(currentDefaultGuards, { burnCollection, holderPrice, treasury, umiCore });
 
+  // Compared against the PUBLIC GROUP OF THE PLAN, not master.csv's price
+  // column: what the public actually pays is whatever solPayment is on the
+  // guard, and a CSV edited since deploy would answer a different question.
+  const publicGroup = plan.groups.find((g) => g.label === "public");
+  const pricing = holderPriceRefusal({
+    holderPriceSol: holderPrice,
+    publicLamports: solPaymentLamports(publicGroup && publicGroup.guards),
+  });
+  if (pricing && !acceptsCostlierHolder) {
+    fail(
+      "holder_price_not_a_discount",
+      `A holder price of ${holderPrice} SOL (${pricing.holderLamports} lamports) is ` +
+        `${pricing.equal ? "the same as" : "more than"} the public price ` +
+        `(${pricing.publicLamports} lamports) on this same machine. mint.ts routes a wallet holding a ` +
+        `qualifying voucher to the holder group and gives it no way to reach the public one, so this ` +
+        `charges a voucher holder ${pricing.equal ? "no less than" : "MORE than"} a stranger and burns ` +
+        `their voucher as well - while the card advertises the holder price as the offer.\n\n` +
+        `If the voucher is meant to sell access rather than a discount - the holder group carries no ` +
+        `mintLimit, so it can mean "mint past the per-wallet cap at the same price" - re-run with ` +
+        `--yes-holder-costs-more. See open-items 47.`,
+      1
+    );
+  }
+
   // In reprice mode the collection being burned is whatever is already on
   // chain, read back off the plan rather than taken from an argument - the
   // caller never named one, and inventing it here is how you point a live
@@ -872,4 +935,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { unwrapGuardSet, unwrapGroups, buildPlan, buildRepricePlan, verifyReadBack, verifyMigrated, guardNames };
+module.exports = { unwrapGuardSet, unwrapGroups, buildPlan, buildRepricePlan, verifyReadBack, verifyMigrated, guardNames, solPaymentLamports, holderPriceRefusal };
