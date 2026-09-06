@@ -12,6 +12,9 @@
  *     actually returns into the plain guard args updateCandyGuard takes.
  *   - buildPlan writes an EMPTY default guard set, carries the machine's
  *     existing guards into `public`, and puts assetBurn in `holder`.
+ *   - holderPriceRefusal refuses a holder price at or above the public price,
+ *     allows any genuine discount and any free route, and is silent when there
+ *     is no public price to compare against.
  *   - verifyReadBack catches the three ways this migration goes wrong:
  *     a default set that was not emptied (every group inherits it, so a
  *     free holder mint would still be charged), a group that did not
@@ -208,6 +211,41 @@ function ok(label, detail) {
   assert.deepStrictEqual(Object.keys(flattened[0].guards), ["solPayment"]);
   assert.deepStrictEqual(Object.keys(flattened[1].guards), ["assetBurn"]);
   ok("unwrapGroups collapses 31 slots to the ones that are set");
+
+  // ---- 6. holderPriceRefusal ---------------------------------------------
+  // Nothing compared holderPrice to the public price until 2026-09-05. Because
+  // mint.ts routes on holding alone, a holder price at or above the public one
+  // charges a voucher holder more than a stranger and burns the voucher too.
+  const PUBLIC = 50_000_000; // 0.05 SOL, in lamports
+  const refuse = (sol, pub = PUBLIC) => m.holderPriceRefusal({ holderPriceSol: sol, publicLamports: pub });
+
+  assert.strictEqual(refuse(0.01), null);
+  assert.strictEqual(refuse(0.049999), null);
+  ok("allows a genuine discount", "0.01 and 0.049999 against a 0.05 public price");
+
+  assert.strictEqual(refuse(0), null);
+  ok("allows a FREE holder route", "0 removes solPayment entirely - never a mistake");
+
+  const equal = refuse(0.05);
+  assert.ok(equal && equal.equal === true);
+  ok("refuses an EQUAL price", "coherent only as access-past-mintLimit, so it must be typed on purpose");
+
+  const over = refuse(0.1);
+  assert.ok(over && over.equal === false);
+  assert.strictEqual(over.holderLamports, 100_000_000);
+  assert.strictEqual(over.publicLamports, PUBLIC);
+  ok("refuses a HIGHER price", "the case that charges a voucher holder more than a stranger");
+
+  assert.strictEqual(refuse(0.1, null), null);
+  assert.strictEqual(refuse(0.1, 0), null);
+  ok("silent with no public price", "a free public group is not a price to be under");
+
+  // The lamport reduction has to survive both shapes solPayment arrives in.
+  assert.strictEqual(m.solPaymentLamports({ solPayment: { lamports: { basisPoints: 50000000n } } }), PUBLIC);
+  assert.strictEqual(m.solPaymentLamports({ solPayment: { lamports: 50000000 } }), PUBLIC);
+  assert.strictEqual(m.solPaymentLamports({}), null);
+  assert.strictEqual(m.solPaymentLamports({ solPayment: {} }), null);
+  ok("solPaymentLamports reads SolAmount and plain number", "absent stays null, never 0");
 
   console.log("\n  All local assertions held. No on-chain behaviour was tested.\n");
 })().catch((err) => {
