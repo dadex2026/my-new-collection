@@ -10,22 +10,18 @@
  * shipping alongside real collection data, a --force-able "already
  * deployed" guard, placeholder URLs reaching a deploy script).
  *
- * Checks performed (scoped to the active collection — config.json's
- * collectionSlug, or --slug):
- *   1. collectionSlug isn't a reserved/test prefix (e.g. "test-")
- *   2. No dropItemId uses a reserved/test prefix (e.g. "TEST-")
- *   3. No itemImage is still a placeholder URL
- *   4. No uri is still a placeholder/empty
- *   5. config.json's treasury is a plausible Solana address
- *   6. config.json's rpc is a well-formed URL
- *   7. backend/.env.admin exists locally
- *   8. .gitignore actually excludes .env.admin (so it can't leak)
- *   9. DEPLOYER_PRIVATE_KEY is present in the environment
- *  10. Every row for this collection isn't already deployed on the
- *      target network, unless --force is passed
+ * Checks performed: see Appendix A of docs/new-collection-deployment-guide.md,
+ * and the GROUPS table and results.push calls below - the code is the count.
+ * This header listed ten numbered checks until 2026-10-21, when preflight ran
+ * twenty-four; a second hand-kept list is how counts drift, so it is gone.
+ *
+ * NOT checked here: itemImage and uri. Stage 7 fills them after this gate
+ * runs, so they are checked at 7.4a by check-upload-columns.js (offline) and
+ * verify-uploads.js (networked) - open-items 60. Every verdict says so.
  *
  * Exit codes:
- *   0 = all checks passed, safe to deploy
+ *   0 = every preflight check passed - not "safe to deploy": the upload gate
+ *       (7.4a) still has to pass before 7.5
  *   1 = one or more checks failed — do not deploy
  *
  * Usage:
