@@ -143,6 +143,23 @@ no Metaplex packages, no `.env`, no `.env.admin`.
   straight to the deploy, which failed only on the missing package (**exit 3,
   `blockchain_error`**). Without the sandbox, that is a second deploy.
 
+**Re-run on the real fork, through `--dry-run`** (template `b25797f`, added because this
+script had no read-only mode). The expected output was written down before running; the same
+temporary row, then deleted.
+
+- `--dry-run`: `reward  TEST-001  (a voucher)`, `TEST-004  maxSupply 2  << below allocation`
+  (2, not 8 - the 3c.i cut was already in `master.csv`), **exit 1
+  `redeemable_below_allocation`**. As expected.
+- `--yes-under-provisioned --dry-run`: *"Dry run: every check passed for campaign
+  "verify-floor". Nothing was sent and campaigns.csv was not changed."* **Exit 0**, no
+  `MAINNET` countdown line, 16 ms from start to finish. As expected.
+- `campaigns.csv` afterwards: `3e3a2c91…`, byte-identical to before the row was added.
+
+**The headroom floor is now verified on real data by a command that cannot deploy.** It
+also has an offline selftest (`deploy-campaign.selftest.js`, 10 checks, template `4e24e08`)
+whose fixture is copied from this fork's `master.csv`. Four mutations are each caught,
+including a return to the label-only code.
+
 ---
 
 ## Step 3c.i — cut TEST-004 to what it has already minted (1 write)
