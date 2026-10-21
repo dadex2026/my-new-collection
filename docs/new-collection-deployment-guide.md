@@ -402,7 +402,8 @@ does not get.
 - [ ] `git check-ignore backend/.env.admin` confirms the key is ignored.
 - [ ] Deployer funded; Irys balance sufficient for images **and** metadata.
 - [ ] Deployer ≠ treasury, confirmed from the detail line.
-- [ ] Every `itemImage` is real art — **checked by eye, not by flag.**
+- [ ] Every image in `backend/images/` is what you mean to mint — the generated card or
+      your own art — **opened and checked by eye, not by flag** (7.1).
 - [ ] The deployer keypair is backed up off this machine.
 
 ---
@@ -418,17 +419,49 @@ does not get.
 
 Seven scripts, in the only order they may run.
 
-### 7.1 `prepare-images.js` — local images into `backend/images/`
+### 7.1 `generate-images.js` — a text card per drop into `backend/images/`
 
 ```powershell
-node backend/scripts/prepare-images.js
+node backend/scripts/generate-images.js --dry-run   # what it would write
+node backend/scripts/generate-images.js
+```
+
+**No artwork is required.** For every drop it composes a text-based card from that drop's
+own `master.csv` row and writes `backend/images/<dropItemId>.svg`: the collection name,
+the item name, every `attributes` pair (up to ten, two columns of five; more are counted
+as "+N more"), the `dropItemId`, and `config.json`'s `symbol` if set. A drop with no
+attributes prints its `itemDescription` instead. Text too long for the card is shortened
+with an ellipsis and reported; the metadata keeps it in full.
+
+**Price and `maxSupply` are deliberately not printed.** Every edition of a drop shares
+one image, and both values change after launch (a reprice, a cap raise). A printed
+"edition of 8" would be wrong for ever the first time `update-candy-machine-supply.js`
+raises the cap.
+
+**Colours.** Each collection gets its own accent, derived from `collectionSlug`, on a
+dark card. To choose your own, add to `backend/config.json`:
+
+```json
+"card": { "background": "#14161a", "foreground": "#f2f2f0", "accent": "#3fa7d6" }
+```
+
+Any key you leave out keeps its default. A colour that is not `#rrggbb` is refused rather
+than written into a permanent image.
+
+**Your own art still wins.** Put a `.png`, `.jpg`, `.jpeg`, `.gif` or `.webp` named for
+the drop into `backend/images/`, by hand or with `prepare-images.js`, and that drop is
+skipped here and uploaded as your file instead:
+
+```powershell
 node backend/scripts/prepare-images.js --source ./incoming-images
 node backend/scripts/prepare-images.js --source ./incoming-images --force
 ```
 
-Reads the source folder and `master.csv`; writes files into `backend/images/`, not into
-the CSV. **Local only — no SOL, nothing permanent.** `--force` overwrites images already
-prepared. Safe to re-run.
+**Local only — no SOL, nothing permanent.** Same row, same bytes, so it is safe to
+re-run. **Open the `.svg` files and look at them before 7.2.** The card uses the system's
+sans-serif font rather than an embedded one, so check it in a browser, and on any
+marketplace you care about once something is minted. Some marketplaces convert SVG to PNG
+for display.
 
 ### 7.2 `upload-images.js` — Irys/Arweave → `itemImage` ⚠ SPENDS
 
@@ -439,7 +472,9 @@ node backend/scripts/upload-images.js --strict --fund      # auto-fund a shortfa
 ```
 
 **`--dry-run` is the last free look at a paid step. Use it every time.** It is available
-here and on `upload-metadata.js`, and nowhere else in this stage.
+here and on `upload-metadata.js`, and nowhere else in this stage. It writes nothing:
+until 2026-10-21 both dry runs put fake gateway URLs into `master.csv`, which the real
+run then took for finished uploads (open-items 52).
 
 Reads `backend/images/`; **writes the resulting URL into `itemImage` per row.**
 

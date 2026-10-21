@@ -131,6 +131,11 @@ function isPlaceholderUri(uri) {
   if (!uri || uri.trim() === "") return true;
   if (uri.includes("placehold.co")) return true;
   if (uri.includes("example.com")) return true;
+  // A dry run's fake upload id - 43 lowercase hex characters - where a real
+  // Irys id is base58, which never contains "0". Until 2026-10-21 the upload
+  // dry runs wrote these into master.csv and nothing recognised them, so the
+  // real run would skip every row and carry the fake on chain (open-items 52).
+  if (/gateway\.irys\.xyz\/[0-9a-f]{43}$/.test(uri.trim())) return true;
   return false;
 }
 
@@ -272,10 +277,11 @@ async function main() {
         message: `[dry-run] Would upload ${path.basename(item.filePath)} -> ${fakeUrl}`,
       });
     }
-    writeCsv(MASTER_CSV_PATH, header, rows);
+    // Nothing is written. Until 2026-10-21 this wrote the fake URIs into
+    // master.csv, and the real run would then skip every row (open-items 52).
     log({
       status: "success",
-      message: `[dry-run] Simulated ${toUpload.length} upload(s). master.csv updated with fake URIs — do not deploy real mints from this.`,
+      message: `[dry-run] Simulated ${toUpload.length} upload(s). master.csv was not changed.`,
     });
     process.exit(0);
   }

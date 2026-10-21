@@ -3,7 +3,8 @@
  * scripts/upload-images.js
  *
  * Step 1b of the production pipeline: uploads the real local images in
- * backend/images/ (prepared by prepare-images.js) to Arweave via Irys,
+ * backend/images/ (written by generate-images.js, or your own art brought in
+ * by prepare-images.js) to Arweave via Irys,
  * and writes the resulting permanent URLs into master.csv's itemImage
  * column, replacing the placehold.co placeholders.
  *
@@ -65,6 +66,9 @@ const MIME_TYPES = {
   ".jpeg": "image/jpeg",
   ".gif": "image/gif",
   ".webp": "image/webp",
+  // Last, so a raster file for the same drop wins: generate-images.js writes
+  // the .svg, and your own art in any format above replaces it.
+  ".svg": "image/svg+xml",
 };
 const SUPPORTED_EXTENSIONS = Object.keys(MIME_TYPES);
 
@@ -146,6 +150,11 @@ function isPlaceholder(url) {
   if (!url || url.trim() === "") return true;
   if (url.includes("placehold.co")) return true;
   if (url.includes("example.com")) return true;
+  // A dry run's fake upload id - 43 lowercase hex characters - where a real
+  // Irys id is base58, which never contains "0". Until 2026-10-21 the upload
+  // dry runs wrote these into master.csv and nothing recognised them, so the
+  // real run would skip every row and carry the fake on chain (open-items 52).
+  if (/gateway\.irys\.xyz\/[0-9a-f]{43}$/.test(url.trim())) return true;
   if (url.includes("AbCdEf") || url.includes("ImageHash")) return true;
   return false;
 }
@@ -274,7 +283,7 @@ async function main() {
   });
 
   if (missingLocal.length > 0) {
-    const message = `${missingLocal.length} drop(s) have no local image in backend/images/: ${missingLocal.join(", ")}. Run prepare-images.js first.`;
+    const message = `${missingLocal.length} drop(s) have no local image in backend/images/: ${missingLocal.join(", ")}. Run generate-images.js first (or prepare-images.js for your own art).`;
     if (strict) {
       fail("images_incomplete", message, 1);
     }
@@ -298,10 +307,11 @@ async function main() {
         message: `[dry-run] Would upload ${path.basename(item.filePath)} -> ${fakeUrl}`,
       });
     }
-    writeCsv(MASTER_CSV_PATH, header, rows);
+    // Nothing is written. Until 2026-10-21 this wrote the fake URLs into
+    // master.csv, and the real run would then skip every row (open-items 52).
     log({
       status: "success",
-      message: `[dry-run] Simulated ${toUpload.length} upload(s). master.csv updated with fake URLs — do not deploy real metadata from this.`,
+      message: `[dry-run] Simulated ${toUpload.length} upload(s). master.csv was not changed.`,
     });
     process.exit(0);
   }

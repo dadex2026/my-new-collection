@@ -159,7 +159,8 @@ function splitTags(value) {
 
 // A card image is editorial, not an asset. An NFT image must be permanent
 // because on-chain metadata points at it forever, which is why master.csv's
-// images go through prepare-images.js and upload-images.js to Arweave. A news
+// images go through generate-images.js (or prepare-images.js) and
+// upload-images.js to Arweave. A news
 // card's image has no such obligation — if a 2026 announcement's image dies in
 // 2030, the card gets edited. So this takes a URL and buys no permanence.
 //

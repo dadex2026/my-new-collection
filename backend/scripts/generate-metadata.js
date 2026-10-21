@@ -109,6 +109,11 @@ function isPlaceholder(url) {
   if (!url || url.trim() === "") return true;
   if (url.includes("placehold.co")) return true;
   if (url.includes("example.com")) return true;
+  // A dry run's fake upload id - 43 lowercase hex characters - where a real
+  // Irys id is base58, which never contains "0". Until 2026-10-21 the upload
+  // dry runs wrote these into master.csv and nothing recognised them, so the
+  // real run would skip every row and carry the fake on chain (open-items 52).
+  if (/gateway\.irys\.xyz\/[0-9a-f]{43}$/.test(url.trim())) return true;
   if (url.includes("AbCdEf") || url.includes("ImageHash")) return true;
   return false;
 }
@@ -134,8 +139,24 @@ function parseAttributes(raw) {
 
 function guessMimeFromUrl(url) {
   const ext = path.extname(new URL(url, "https://placeholder.invalid").pathname).toLowerCase();
-  const map = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp" };
+  const map = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml" };
   return map[ext] || "image/png";
+}
+
+// The type of the file upload-images.js actually sent, found the way it finds
+// it: the first of these that exists for the drop. An Irys URL carries no
+// extension, so guessing from the URL labelled every image image/png - a JPEG
+// and, since generate-images.js, every generated SVG card included.
+const LOCAL_IMAGE_TYPES = [
+  [".png", "image/png"], [".jpg", "image/jpeg"], [".jpeg", "image/jpeg"],
+  [".gif", "image/gif"], [".webp", "image/webp"], [".svg", "image/svg+xml"],
+];
+
+function localImageMime(dropItemId) {
+  for (const [ext, mime] of LOCAL_IMAGE_TYPES) {
+    if (fs.existsSync(path.join(BACKEND_DIR, "images", dropItemId + ext))) return mime;
+  }
+  return null;
 }
 
 // ---- Metadata builder -------------------------------------------------
@@ -156,7 +177,7 @@ function buildMetadata(row, config) {
       files: [
         {
           uri: row.itemImage,
-          type: guessMimeFromUrl(row.itemImage),
+          type: localImageMime(row.dropItemId) || guessMimeFromUrl(row.itemImage),
         },
       ],
       category: "image",

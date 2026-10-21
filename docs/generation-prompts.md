@@ -714,7 +714,8 @@ Give me the full production pipeline runbook, in the order the scripts must
 run, with the purpose and the idempotency behaviour of each:
 
   backend/scripts/preflight.js            the gate — all twenty-four checks
-  backend/scripts/prepare-images.js       local images into backend/images/
+  backend/scripts/generate-images.js      a text card per drop into backend/images/
+                                          (prepare-images.js only for your own art)
   backend/scripts/upload-images.js        Irys/Arweave → itemImage in master.csv
   backend/scripts/generate-metadata.js    → backend/metadata/<dropItemId>.json
   backend/scripts/upload-metadata.js      Irys/Arweave → uri in master.csv
@@ -751,7 +752,7 @@ inputs — any value you needed that I did not give you, named as the field it
 should become.
 ```
 
-**Reference:** `backend/scripts/preflight.js` · `prepare-images.js` · `upload-images.js` · `generate-metadata.js` · `upload-metadata.js` · `deploy-collection.js` · `deploy-candy-machine.js` · `backend/config.json` · `backend/.env.admin`
+**Reference:** `backend/scripts/preflight.js` · `generate-images.js` · `prepare-images.js` · `upload-images.js` · `generate-metadata.js` · `upload-metadata.js` · `deploy-collection.js` · `deploy-candy-machine.js` · `backend/config.json` · `backend/.env.admin`
 
 **A full worked run of this prompt** — filled header and all five parts of
 the output — is in `docs/runs/worked-run-a3.md`. It was written and not executed:

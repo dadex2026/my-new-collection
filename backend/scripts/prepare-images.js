@@ -47,7 +47,7 @@ const MASTER_CSV_PATH = path.join(BACKEND_DIR, "master.csv");
 const IMAGES_DIR = path.join(BACKEND_DIR, "images");
 const LOGS_DIR = path.join(BACKEND_DIR, "logs");
 
-const ALLOWED_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp"];
+const ALLOWED_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"];
 
 // ---- Logging --------------------------------------------------------------
 
@@ -154,6 +154,14 @@ function validateImageFile(filePath) {
   const stats = fs.statSync(filePath);
   if (stats.size === 0) {
     return { valid: false, reason: "zero_byte_file" };
+  }
+  if (path.extname(filePath).toLowerCase() === ".svg") {
+    // Text, so no magic bytes: an <svg root after an optional BOM, XML
+    // declaration, comments and doctype.
+    const head = fs.readFileSync(filePath, "utf8").slice(0, 4096).replace(/^\uFEFF/, "");
+    const rest = head.replace(/^\s*(<\?xml[\s\S]*?\?>\s*)?((<!--[\s\S]*?-->|<!DOCTYPE[^>]*>)\s*)*/i, "");
+    if (!/^<svg[\s>]/i.test(rest)) return { valid: false, reason: "unrecognized_image_format" };
+    return { valid: true, type: "svg", sizeBytes: stats.size };
   }
   const fd = fs.openSync(filePath, "r");
   const buffer = Buffer.alloc(16);
