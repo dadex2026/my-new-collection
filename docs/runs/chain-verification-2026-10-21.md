@@ -73,6 +73,14 @@ node scripts/update-candy-machine-supply.js --drop TEST-004 --items-available 9 
   *"Plan only - nothing was sent."* `master.csv` was unchanged (same hash before and after).
 - Chain as read: **`itemsAvailable 8`, `itemsRedeemed 2`, remaining 6.**
 
+> **Annotated later the same day (open-items 57).** `test-page-006`, the campaign this
+> refusal named as "live", has **no account on chain**: its `campaigns.csv` row carries an
+> address nothing lives at. The script decides "live" from the CSV. So 3a verified the
+> matching logic - a campaign gating TEST-003 is matched through the shared collection to
+> TEST-004 - against real chain state for the candy machine, but the campaign it protected
+> exists only in the CSV. The result above stands as a test of the logic, and not as
+> evidence that any live campaign was protected.
+
 ---
 
 ## Step 3b — the campaign headroom floor (expected: no RPC, no SOL)
