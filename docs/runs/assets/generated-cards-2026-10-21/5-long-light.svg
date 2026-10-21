@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600" data-generator="generate-images.js">
+<defs><clipPath id="c"><rect width="600" height="600" rx="24"/></clipPath></defs>
+<g clip-path="url(#c)">
+<rect width="600" height="600" fill="#f4efe6"/>
+<rect width="12" height="600" fill="#b5462e"/>
+</g>
+<g font-family="Inter" fill="#1d1b18">
+<text x="56" y="82" font-size="20" opacity=".7">An Extraordinarily Long Collection Name For Testi…</text>
+<text x="56" y="132" font-size="26" font-weight="600">WWWWWWWWWWWWWWWWW…</text>
+<rect x="56" y="160" width="504" height="2" fill="#b5462e"/>
+<text x="56" y="214" font-size="16" opacity=".7">Rarity</text>
+<text x="56" y="244" font-size="26" font-weight="600">Uncommon But…</text>
+<text x="56" y="278" font-size="16" opacity=".7">Mood</text>
+<text x="56" y="308" font-size="26" font-weight="600">Fiery — “quoted”</text>
+<rect x="56" y="528" width="504" height="2" fill="#b5462e"/>
+<text x="56" y="566" font-size="18" opacity=".7">LONG-001</text>
+<text x="560" y="566" font-size="18" opacity=".7" text-anchor="end">LNG</text>
+</g></svg>

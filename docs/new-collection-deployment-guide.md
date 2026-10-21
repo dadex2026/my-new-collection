@@ -427,17 +427,38 @@ Seven scripts, in the only order they may run.
 
 ### 7.1 `generate-images.js` — a text card per drop into `backend/images/`
 
+> **⚠ Not yet cleared for a real mint.** No generated card has been minted and looked at
+> on a marketplace. The image is uploaded permanently and its URL goes into metadata that
+> a candy machine can never change, so "check it after the first real mint" is too late
+> by construction. **Before any production drop uses a generated card, mint one throwaway
+> on a TEST drop and look at it on the marketplaces that matter** (open-items 53). Until
+> that is recorded, use your own art for anything real. The script existing is not
+> approval.
+
 ```powershell
 node backend/scripts/generate-images.js --dry-run   # what it would write
 node backend/scripts/generate-images.js
 ```
 
-**No artwork is required.** For every drop it composes a text-based card from that drop's
-own `master.csv` row and writes `backend/images/<dropItemId>.svg`: the collection name,
-the item name, every `attributes` pair (up to ten, two columns of five; more are counted
-as "+N more"), the `dropItemId`, and `config.json`'s `symbol` if set. A drop with no
-attributes prints its `itemDescription` instead. Text too long for the card is shortened
-with an ellipsis and reported; the metadata keeps it in full.
+**No artwork is required.** For every drop it composes a text card from that drop's own
+`master.csv` row: the collection name, the item name, every `attributes` pair (up to ten,
+two columns of five; more are counted as "+N more"), the `dropItemId`, and `config.json`'s
+`symbol` if set. A drop with no attributes prints its `itemDescription` instead. Text too
+long for the card is shortened with an ellipsis and reported; the metadata keeps it in
+full.
+
+**What ships is a PNG, not the SVG.** The card is composed as SVG and rasterised to a
+1200 px `backend/images/<dropItemId>.png` using **only** the font in `backend/fonts/`
+(Inter 4.1, SIL OFL), with system fonts switched off. The same row gives the same PNG
+bytes on any machine, and no wallet or marketplace has to render SVG or have a font
+installed. The `.svg` stays beside it as the readable source; `upload-images.js` uploads
+the `.png`. `images/generated-images.json` records what was written, with the rasteriser
+version and font hashes.
+
+**A character the font cannot draw refuses the drop.** Emoji and CJK are not in Inter, and
+would print as Inter's "NO GLYPH" box on a permanent image. The script writes nothing for
+that drop, names the characters, and exits `1`. Change the text in `master.csv`, or use
+your own art.
 
 **Price and `maxSupply` are deliberately not printed.** Every edition of a drop shares
 one image, and both values change after launch (a reprice, a cap raise). A printed
@@ -456,18 +477,16 @@ than written into a permanent image.
 
 **Your own art still wins.** Put a `.png`, `.jpg`, `.jpeg`, `.gif` or `.webp` named for
 the drop into `backend/images/`, by hand or with `prepare-images.js`, and that drop is
-skipped here and uploaded as your file instead:
+skipped here and uploaded as your file instead. A PNG this script did not write is
+recognised as yours by its hash, so it is never overwritten:
 
 ```powershell
 node backend/scripts/prepare-images.js --source ./incoming-images
 node backend/scripts/prepare-images.js --source ./incoming-images --force
 ```
 
-**Local only — no SOL, nothing permanent.** Same row, same bytes, so it is safe to
-re-run. **Open the `.svg` files and look at them before 7.2.** The card uses the system's
-sans-serif font rather than an embedded one, so check it in a browser, and on any
-marketplace you care about once something is minted. Some marketplaces convert SVG to PNG
-for display.
+**Local only — no SOL, nothing permanent.** Safe to re-run. **Open the `.png` files and
+look at them before 7.2.** Sample output is in `docs/runs/assets/generated-cards-2026-10-21/`.
 
 ### 7.2 `upload-images.js` — Irys/Arweave → `itemImage` ⚠ SPENDS
 

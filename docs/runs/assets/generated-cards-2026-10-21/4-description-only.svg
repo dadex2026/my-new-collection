@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600" data-generator="generate-images.js">
+<defs><clipPath id="c"><rect width="600" height="600" rx="24"/></clipPath></defs>
+<g clip-path="url(#c)">
+<rect width="600" height="600" fill="#14161a"/>
+<rect width="12" height="600" fill="#d449c6"/>
+</g>
+<g font-family="Inter" fill="#f2f2f0">
+<text x="56" y="82" font-size="20" opacity=".7">Open Notes</text>
+<text x="56" y="132" font-size="44" font-weight="600">Genesis Note</text>
+<rect x="56" y="160" width="504" height="2" fill="#d449c6"/>
+<text x="56" y="214" font-size="22" opacity=".9">A text-only open edition. Every copy carries</text>
+<text x="56" y="248" font-size="22" opacity=".9">this note, minted on Solana as a Metaplex</text>
+<text x="56" y="282" font-size="22" opacity=".9">Core asset; the words are the artwork.</text>
+<rect x="56" y="528" width="504" height="2" fill="#d449c6"/>
+<text x="56" y="566" font-size="18" opacity=".7">NOTE-001</text>
+</g></svg>
