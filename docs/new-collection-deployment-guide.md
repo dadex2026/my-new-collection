@@ -503,6 +503,14 @@ run then took for finished uploads (open-items 52).
 
 Reads `backend/images/`; **writes the resulting URL into `itemImage` per row.**
 
+**Nothing here checks that the URL resolves.** A script on this project's machine cannot
+read an upload back: Irys's read CDN refuses non-browser clients (open-items 56), and
+`isPlaceholder()` only matches known patterns, so a dead URL that is none of them passes.
+Until a verification step exists, check each new upload by hand: open
+`https://uploader.irys.xyz/tx/<id>/status`, which should say `CONFIRMED`, and open the
+`itemImage` URL in a browser and look at it. Do this before 7.3 bakes the URL into
+metadata.
+
 Re-running uploads *again* and pays again. A row that already carries a real `itemImage`
 is what makes a re-run cheap instead of expensive. **`--strict` turns a missing local
 image from a silent skip into a failure — use it for a real mint.** Exit `2` is an upload
