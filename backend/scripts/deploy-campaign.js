@@ -371,7 +371,16 @@ async function main() {
   const ASSET_RENT_SOL = 0.00347968; // measured on mainnet 2026-09-02, sig 5wCokZgz
   const eligibilitySupplyRaw = (eligibilityDrop.maxSupply || "").trim().toLowerCase();
   const eligibilityUncapped = eligibilitySupplyRaw === "" || eligibilitySupplyRaw === "unlimited";
-  const targetIsVoucher = (targetDrop.mintStatus || "").trim().toLowerCase() === "voucher";
+  // A target is a voucher if any drop REDEEMS it, not only if its row says so.
+  // Keyed on mintStatus alone, this skipped the headroom floor below for
+  // TEST-001 - mintStatus "ready", yet TEST-004's holderRequiredCollection -
+  // and deployed a 999-allocation campaign on mainnet on 2026-10-21 that the
+  // floor exists to refuse (open-items 50).
+  const targetCollection = (targetDrop.collectionAddress || "").trim();
+  const targetIsVoucher =
+    (targetDrop.mintStatus || "").trim().toLowerCase() === "voucher" ||
+    (targetCollection !== "" &&
+      masterRows.some((r) => (r.holderRequiredCollection || "").trim() === targetCollection));
   const eligibilityPrice = Number(eligibilityDrop.price) || 0;
 
   console.log("\n" + "=".repeat(72));
