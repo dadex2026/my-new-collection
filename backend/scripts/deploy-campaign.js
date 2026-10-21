@@ -212,6 +212,35 @@ function loadConfig() {
 
 // ---- Main ---------------------------------------------------------------
 
+// A target is a voucher if any drop REDEEMS it, not only if its row says so.
+// Keyed on mintStatus alone, this skipped the headroom floor for TEST-001 -
+// mintStatus "ready", yet TEST-004's holderRequiredCollection - and deployed a
+// 999-allocation campaign on mainnet on 2026-10-21 that the floor exists to
+// refuse (open-items 50). An empty collectionAddress never matches: every
+// unmigrated row has an empty holderRequiredCollection, and "" === "".
+function isVoucherTarget(targetDrop, masterRows) {
+  if ((targetDrop.mintStatus || "").trim().toLowerCase() === "voucher") return true;
+  const targetCollection = (targetDrop.collectionAddress || "").trim();
+  if (targetCollection === "") return false;
+  return masterRows.some((r) => (r.holderRequiredCollection || "").trim() === targetCollection);
+}
+
+// The drops a voucher is spendable on, each with whether its cap is below the
+// allocation. A blank or non-positive maxSupply is uncapped, so never below.
+// Exported for deploy-campaign.selftest.js.
+function headroomRows(targetDrop, masterRows, allocation) {
+  const voucherCollection = (targetDrop.collectionAddress || "").trim();
+  if (voucherCollection === "") return [];
+  return masterRows
+    .filter((r) => (r.holderRequiredCollection || "").trim() === voucherCollection)
+    .map((r) => {
+      const raw = (r.maxSupply || "").trim();
+      const n = Number(raw);
+      const capped = Number.isFinite(n) && n > 0;
+      return { dropItemId: r.dropItemId, raw, n, below: capped && n < allocation };
+    });
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const campaignFlagIndex = args.indexOf("--campaign");
@@ -381,16 +410,7 @@ async function main() {
   const ASSET_RENT_SOL = 0.00347968; // measured on mainnet 2026-09-02, sig 5wCokZgz
   const eligibilitySupplyRaw = (eligibilityDrop.maxSupply || "").trim().toLowerCase();
   const eligibilityUncapped = eligibilitySupplyRaw === "" || eligibilitySupplyRaw === "unlimited";
-  // A target is a voucher if any drop REDEEMS it, not only if its row says so.
-  // Keyed on mintStatus alone, this skipped the headroom floor below for
-  // TEST-001 - mintStatus "ready", yet TEST-004's holderRequiredCollection -
-  // and deployed a 999-allocation campaign on mainnet on 2026-10-21 that the
-  // floor exists to refuse (open-items 50).
-  const targetCollection = (targetDrop.collectionAddress || "").trim();
-  const targetIsVoucher =
-    (targetDrop.mintStatus || "").trim().toLowerCase() === "voucher" ||
-    (targetCollection !== "" &&
-      masterRows.some((r) => (r.holderRequiredCollection || "").trim() === targetCollection));
+  const targetIsVoucher = isVoucherTarget(targetDrop, masterRows);
   const eligibilityPrice = Number(eligibilityDrop.price) || 0;
 
   console.log("\n" + "=".repeat(72));
@@ -447,10 +467,7 @@ async function main() {
   // out loud rather than passed over: a check that quietly finds nothing to
   // look at is the exact shape this repo keeps getting wrong.
   if (targetIsVoucher) {
-    const voucherCollection = (targetDrop.collectionAddress || "").trim();
-    const redeemable = voucherCollection
-      ? masterRows.filter((r) => (r.holderRequiredCollection || "").trim() === voucherCollection)
-      : [];
+    const redeemable = headroomRows(targetDrop, masterRows, allocation);
 
     console.log("");
     if (redeemable.length === 0) {
@@ -462,15 +479,11 @@ async function main() {
       console.log("  redeemable drops    " + redeemable.length + ", and one voucher may be spent on any ONE of them:");
       const short = [];
       for (const r of redeemable) {
-        const raw = (r.maxSupply || "").trim();
-        const n = Number(raw);
-        const capped = Number.isFinite(n) && n > 0;
-        const below = capped && n < allocation;
         console.log(
           "                      " + String(r.dropItemId).padEnd(14) +
-          "maxSupply " + (raw || "(blank)").padEnd(11) + (below ? "<< below allocation" : "")
+          "maxSupply " + (r.raw || "(blank)").padEnd(11) + (r.below ? "<< below allocation" : "")
         );
-        if (below) short.push(r.dropItemId + " (" + n + ")");
+        if (r.below) short.push(r.dropItemId + " (" + r.n + ")");
       }
       console.log("  live headroom       NOT checked here - this script makes no RPC call for it. Per drop:");
       console.log("                        node scripts/update-candy-machine-supply.js --drop <id>");
@@ -618,7 +631,11 @@ async function main() {
   process.exit(0);
 }
 
-main().catch((err) => {
-  log({ status: "failure", reason: "unhandled_error", message: err.message });
-  process.exit(3);
-});
+if (require.main === module) {
+  main().catch((err) => {
+    log({ status: "failure", reason: "unhandled_error", message: err.message });
+    process.exit(3);
+  });
+}
+
+module.exports = { isVoucherTarget, headroomRows };
