@@ -89,7 +89,7 @@ const RULES = [
   },
   {
     id: "registry-url-no-fallback",
-    pattern: /VITE_REGISTRY_URL[^.\n]{0,80}\bno fallback\b/i,
+    pattern: /VITE_REGISTRY_URL(?:[^.\n]|\.(?=[A-Za-z])){0,80}\bno fallback\b/i,
     why: "It has a fallback: config.ts reads VITE_REGISTRY_URL || \"/registry/registry.json\". The fallback points at a path the generator never writes, so it 404s.",
     truth: "frontend/src/config.ts",
   },
@@ -119,7 +119,7 @@ const RULES = [
     // claim; the prompt library uses the spaced, upper-case form in its answer
     // sheets and the camel-case form in its prose. A rule that only knew one
     // spelling passed the other for months.
-    pattern: /collection[ _-]?name[^.\n]{0,80}(written on.?chain|on.?chain name|on.?chain by)[^.\n]{0,80}deployCoreAsset/i,
+    pattern: /collection[ _-]?name(?:[^.\n]|\.(?=[A-Za-z])){0,80}(written on.?chain|on.?chain name|on.?chain by)(?:[^.\n]|\.(?=[A-Za-z])){0,80}deployCoreAsset/i,
     why: "deployCoreAsset.ts is invoked by nothing. The on-chain name is master.csv's collectionName, first matching row.",
     truth: "backend/scripts/deploy-collection.js — name: firstRow.collectionName || collectionSlug",
   },
@@ -127,7 +127,7 @@ const RULES = [
     id: "template-name-fallback",
     // The fallback is written both as `templateName` and as the fully qualified
     // `templateVersion.templateName`. Both name the same dead code path.
-    pattern: /falls back to `?(templateVersion\.)?templateName`?[^.\n]{0,80}(mint|on.?chain|permanent)/i,
+    pattern: /falls back to `?(templateVersion\.)?templateName`?(?:[^.\n]|\.(?=[A-Za-z])){0,80}(mint|on.?chain|permanent)/i,
     why: "That fallback is in deployCoreAsset.ts, which nothing runs. deploy-collection.js falls back to collectionSlug.",
     truth: "backend/scripts/deploy-collection.js",
   },
@@ -136,7 +136,7 @@ const RULES = [
     // Added the same day the file was written, because writing it made eight
     // documents wrong at once and nothing would have said so. A guard earns its
     // place by catching the drift its own change creates.
-    pattern: /get-holders(\.js)?[^.\n]{0,60}(0 bytes|empty file|is empty|currently empty)/i,
+    pattern: /get-holders(\.js)?(?:[^.\n]|\.(?=[A-Za-z])){0,60}(0 bytes|empty file|is empty|currently empty)/i,
     why: "get-holders.js was written on 2026-09-02, 312 lines. It is no longer empty.",
     truth: "backend/scripts/get-holders.js",
   },
@@ -150,7 +150,7 @@ const RULES = [
     // quote is anchored on "hardcodes": a bare `groups: []` matched the real
     // no-holder fallback in deploy-candy-machine.js and deploy-campaign.js,
     // and update-candy-guard.js's true description of pre-groups drops.
-    pattern: /(hardcod\w*\s+`?groups:\s*\[\s*\]|redemption[^.\n]{0,60}(is not|not yet|never) (built|wired|implemented)|holder branch[^.\n]{0,40}(unreachable|never runs))/i,
+    pattern: /(hardcod\w*\s+`?groups:\s*\[\s*\]|redemption(?:[^.\n]|\.(?=[A-Za-z])){0,60}(is not|not yet|never) (built|wired|implemented)|holder branch(?:[^.\n]|\.(?=[A-Za-z])){0,40}(unreachable|never runs))/i,
     why: "deploy-candy-machine.js calls buildPlan when --holder-collection is given, emitting public and holder groups; update-candy-guard.js migrates already-deployed drops with --burn-collection. Redemption is built.",
     truth: "backend/scripts/deploy-candy-machine.js; backend/scripts/update-candy-guard.js - buildPlan",
   },
@@ -165,7 +165,7 @@ const RULES = [
     // matched the CORRECT numeral and would have flagged "downgrades 8 checks"
     // as a contradiction. It never fired only because every doc spells the
     // count as a word. A rule that is right by luck is a rule that is wrong.
-    pattern: /--allow-warnings[^.\n]{0,60}\b(one|two|three|four|five|six|seven|eight|ten|eleven|twelve|(?!9\b)\d+)\b[^.\n]{0,30}checks/i,
+    pattern: /--allow-warnings(?:[^.\n]|\.(?=[A-Za-z])){0,60}\b(one|two|three|four|five|six|seven|eight|ten|eleven|twelve|(?!9\b)\d+)\b(?:[^.\n]|\.(?=[A-Za-z])){0,30}checks/i,
     why: "CONTENT_CHECK_NAMES holds nine entries as of 2026-09-05, and deployer_not_treasury is deliberately not one of them.",
     truth: "backend/scripts/preflight.js — CONTENT_CHECK_NAMES",
   },
