@@ -385,7 +385,7 @@ That check runs only when the file is present. Its silence is not a pass.
 | Flag | What it does | When it is legitimate |
 |---|---|---|
 | `--slug <name>` | Check a slug other than `config.json`'s | Multi-collection repos |
-| `--allow-warnings` | Downgrades the **seven** reserved-prefix and placeholder checks — see Appendix A | A deliberate test deployment. **On mainnet this is the flag that mints test data.** |
+| `--allow-warnings` | Downgrades the **nine** reserved-prefix, placeholder, campaign and holder checks — see Appendix A | A deliberate test deployment. **On mainnet this is the flag that mints test data.** |
 | `--force` | Overrides `not_already_deployed` | An intentional re-deploy. Nothing else. |
 
 Preflight writes `force` and `allowWarnings` into `backend/logs/preflight.log` at start,
@@ -399,6 +399,12 @@ does not get.
 
 - [ ] `network` in `config.json` read back and said aloud.
 - [ ] Preflight clean, no flags.
+- [ ] `node backend/scripts/reconcile.js` exits 0, once anything is deployed. Preflight
+      reads every cap from `master.csv` and never asks the chain, so its
+      `campaign_eligibility_capped` pass says so. This is the check that does ask. It is
+      read-only, takes no flags and repairs nothing. A row marked `<<` means the CSV and
+      the chain disagree: decide which is right before deploying anything that trusts
+      the CSV (open-items 51).
 - [ ] `git check-ignore backend/.env.admin` confirms the key is ignored.
 - [ ] Deployer funded; Irys balance sufficient for images **and** metadata.
 - [ ] Deployer ≠ treasury, confirmed from the detail line.

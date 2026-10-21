@@ -488,6 +488,12 @@ function nameSome(list, cap) {
   return `${list.slice(0, cap).join(", ")}, and ${list.length - cap} more`;
 }
 
+// What a pass here did NOT check. "Capped" is read from master.csv, never from
+// the chain - preflight is offline by design - and on 2026-10-21 the fork's CSV
+// had disagreed with the chain for six weeks without anything noticing
+// (open-items 51). A green tick means only what was tested, so it says so.
+const CSV_ONLY = " (master.csv values; not verified against the chain - run reconcile.js)";
+
 function checkCampaignEligibilityCapped(campaignRows, allRows, reservedPrefixes) {
   const considered = [];
   const skipped = [];
@@ -557,13 +563,13 @@ function checkCampaignEligibilityCapped(campaignRows, allRows, reservedPrefixes)
         `COULD NOT VERIFY - ${unresolved.length} of ${considered.length} campaign(s) name an eligibility drop ` +
         `that is not in master.csv: ${nameSome(unresolved, 5)}. Farmability cannot be judged for these, and ` +
         `deploy-campaign.js will refuse them outright (it looks the drop up the same way), so they are broken ` +
-        `rows rather than merely unverified ones. ${capped.length} of ${considered.length} confirmed capped${note}`,
+        `rows rather than merely unverified ones. ${capped.length} of ${considered.length} confirmed capped${note}${CSV_ONLY}`,
     };
   }
 
   return {
     pass: true,
-    detail: `All ${capped.length} campaign(s) gate on a capped eligibility drop: ${capped.join(", ")}${note}`,
+    detail: `All ${capped.length} campaign(s) gate on a capped eligibility drop: ${capped.join(", ")}${note}${CSV_ONLY}`,
   };
 }
 

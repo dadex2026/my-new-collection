@@ -86,12 +86,16 @@ node scripts/generate-registry.js
 node scripts/generate-campaigns-registry.js
 ```
 
-**Afterwards, two read-only commands answer "where am I":**
+**Afterwards, three read-only commands answer "where am I":**
 
 ```
 node scripts/get-holders.js --slug <name>-voucher --counts --dry-run
 node scripts/update-candy-machine-supply.js --drop <id>
+node scripts/reconcile.js        # every drop's master.csv cap against the chain
 ```
+
+The headroom floor and preflight both read caps from `master.csv` without asking the
+chain. `reconcile.js` is what tells you whether that trust still holds.
 
 The first is what you still owe — it skips `burnt` assets, so live vouchers *are* the
 unredeemed liability. The second prints `itemsAvailable`, `itemsRedeemed` and `remaining`

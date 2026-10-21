@@ -180,7 +180,12 @@ const RULES = [
     // matched the CORRECT numeral and would have flagged "downgrades 8 checks"
     // as a contradiction. It never fired only because every doc spells the
     // count as a word. A rule that is right by luck is a rule that is wrong.
-    pattern: /--allow-warnings(?:[^.\n]|\.(?=[A-Za-z])){0,60}\b(one|two|three|four|five|six|seven|eight|ten|eleven|twelve|(?!9\b)\d+)\b(?:[^.\n]|\.(?=[A-Za-z])){0,30}checks/i,
+    //
+    // Widened again 2026-10-21: the window from the number to "checks" was 30
+    // characters, and the guide's flags table read "Downgrades the **seven**
+    // reserved-prefix and placeholder checks" - 35. A stale count sat in the
+    // table this rule exists to police, one row from a correct "nine".
+    pattern: /--allow-warnings(?:[^.\n]|\.(?=[A-Za-z])){0,60}\b(one|two|three|four|five|six|seven|eight|ten|eleven|twelve|(?!9\b)\d+)\b(?:[^.\n]|\.(?=[A-Za-z])){0,60}checks/i,
     why: "CONTENT_CHECK_NAMES holds nine entries as of 2026-09-05, and deployer_not_treasury is deliberately not one of them.",
     truth: "backend/scripts/preflight.js — CONTENT_CHECK_NAMES",
   },

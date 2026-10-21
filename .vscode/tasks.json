@@ -1,0 +1,38 @@
+{
+  // Terminal > Run Task. The three read-only checks to run before a deploy.
+  // None of them writes, signs or spends; each exits non-zero when it finds
+  // something, and the terminal stays open so the reason can be read.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "preflight",
+      "detail": "backend/scripts/preflight.js - the offline gate; caps come from master.csv",
+      "type": "process",
+      "command": "node",
+      "args": ["${workspaceFolder}/backend/scripts/preflight.js"],
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "check-docs",
+      "detail": "scripts/check-docs.js - docs that contradict the code; also the pre-push hook",
+      "type": "process",
+      "command": "node",
+      "args": ["${workspaceFolder}/scripts/check-docs.js"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "reconcile",
+      "detail": "backend/scripts/reconcile.js - master.csv caps against the chain; read-only, RPC",
+      "type": "process",
+      "command": "node",
+      "args": ["${workspaceFolder}/backend/scripts/reconcile.js"],
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated", "clear": true }
+    }
+  ]
+}
