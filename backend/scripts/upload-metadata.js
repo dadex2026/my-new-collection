@@ -127,17 +127,9 @@ function loadConfig() {
   return config;
 }
 
-function isPlaceholderUri(uri) {
-  if (!uri || uri.trim() === "") return true;
-  if (uri.includes("placehold.co")) return true;
-  if (uri.includes("example.com")) return true;
-  // A dry run's fake upload id - 43 lowercase hex characters - where a real
-  // Irys id is base58, which never contains "0". Until 2026-10-21 the upload
-  // dry runs wrote these into master.csv and nothing recognised them, so the
-  // real run would skip every row and carry the fake on chain (open-items 52).
-  if (/gateway\.irys\.xyz\/[0-9a-f]{43}$/.test(uri.trim())) return true;
-  return false;
-}
+// One definition for every script: lib/placeholder.js. Nine copies had drifted
+// apart before 2026-10-21 (open-items 52); do not define another here.
+const { isPlaceholder: isPlaceholderUri } = require("./lib/placeholder");
 
 function findMetadataFile(dropItemId) {
   const filePath = path.join(METADATA_DIR, `${dropItemId}.json`);

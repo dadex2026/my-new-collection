@@ -150,17 +150,9 @@ function encodeBase58(buffer) {
   return result;
 }
 
-function isPlaceholder(url) {
-  if (!url || url.trim() === "") return true;
-  if (url.includes("placehold.co")) return true;
-  if (url.includes("example.com")) return true;
-  // A dry run's fake upload id - 43 lowercase hex characters - where a real
-  // Irys id is base58, which never contains "0". Until 2026-10-21 the upload
-  // dry runs wrote these into master.csv and nothing recognised them, so the
-  // real run would skip every row and carry the fake on chain (open-items 52).
-  if (/gateway\.irys\.xyz\/[0-9a-f]{43}$/.test(url.trim())) return true;
-  return false;
-}
+// One definition for every script: lib/placeholder.js. Nine copies had drifted
+// apart before 2026-10-21 (open-items 52); do not define another here.
+const { isPlaceholder } = require("./lib/placeholder");
 
 // ---- CSV helpers ------------------------------------------------------
 
