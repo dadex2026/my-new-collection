@@ -551,6 +551,14 @@ and minted is unfixable. If rows are being skipped, run 7.2 first.
 > it buys you on mainnet is a permanent on-chain asset pointing at a picture that says
 > "placeholder", and the only remedy is minting a new collection.
 
+**A deployed drop's metadata is frozen.** Once a row has a `candyMachineAddress`, its
+`uri` is fixed on chain, and `metadata/<dropItemId>.json` is the only local record of what
+holders own. This script will not rewrite or create that file. It reports the drop as
+*Frozen* instead, which also tells you `master.csv` no longer matches what was minted.
+`--force` does not override this. `--yes-rewrite-deployed` does, and changes nothing on
+chain, only the local record. Before 2026-10-21 the files were rewritten silently, and two
+of the fork's no longer match what was minted (open-items 59).
+
 ### 7.4 `upload-metadata.js` — Irys/Arweave → `uri` ⚠ SPENDS
 
 ```powershell

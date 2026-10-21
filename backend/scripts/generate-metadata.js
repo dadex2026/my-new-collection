@@ -18,6 +18,11 @@
  * unfixable mistake. Run upload-images.js first. Use --allow-placeholder
  * only for local dry-run/testing purposes.
  *
+ * A DEPLOYED drop's file is frozen: a row with a candyMachineAddress is never
+ * rewritten (or created) unless --yes-rewrite-deployed, because its uri is
+ * fixed on chain and this file is the only local record of what holders own
+ * (open-items 59). --force does not override it.
+ *
  * Idempotent: a metadata file is only regenerated if its content would
  * actually change (compared by hash), unless --force is passed. This
  * keeps deterministic-file-naming meaningful — untouched drops don't
@@ -34,6 +39,7 @@
  *   node scripts/generate-metadata.js --strict            (fail if any image is still a placeholder)
  *   node scripts/generate-metadata.js --allow-placeholder  (generate anyway, for local testing only)
  *   node scripts/generate-metadata.js --slug founders
+ *   node scripts/generate-metadata.js --yes-rewrite-deployed  (also rewrite a DEPLOYED drop's file - changes nothing on chain)
  */
 
 "use strict";
@@ -203,6 +209,7 @@ async function main() {
   const force = args.includes("--force");
   const strict = args.includes("--strict");
   const allowPlaceholder = args.includes("--allow-placeholder");
+  const rewriteDeployed = args.includes("--yes-rewrite-deployed");
   const slugFlagIndex = args.indexOf("--slug");
 
   const config = loadConfig();
@@ -227,7 +234,7 @@ async function main() {
 
   const manifest = fs.existsSync(MANIFEST_PATH) ? JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8")) : {};
 
-  const results = { generated: [], unchanged: [], skippedPlaceholder: [] };
+  const results = { generated: [], unchanged: [], skippedPlaceholder: [], frozen: [] };
 
   for (const row of matchingRows) {
     const dropItemId = row.dropItemId;
@@ -252,6 +259,24 @@ async function main() {
       continue;
     }
 
+    // A deployed drop's metadata is frozen. Its uri is fixed in the candy
+    // machine, so the file here is the only local copy of what holders own.
+    // Until 2026-10-21 this script regenerated it whenever master.csv moved,
+    // and the fork's TEST-002 and TEST-004 files stopped matching what was
+    // minted (open-items 59). Refused unless --yes-rewrite-deployed - a flag of
+    // its own, because --force is the routine "regenerate anyway" switch.
+    if ((row.candyMachineAddress || "").trim() && !rewriteDeployed) {
+      results.frozen.push(dropItemId);
+      log({
+        status: "warning",
+        dropItemId,
+        message: `Frozen - ${dropItemId} is deployed (candyMachineAddress set), so metadata/${dropItemId}.json was not ` +
+          `${fs.existsSync(filePath) ? "overwritten" : "created"}. master.csv now differs from what was minted; ` +
+          `that difference is permanent. --yes-rewrite-deployed overrides, and changes nothing on chain.`,
+      });
+      continue;
+    }
+
     fs.writeFileSync(filePath, JSON.stringify(metadata, null, 2), "utf8");
     manifest[dropItemId] = hash;
     results.generated.push(dropItemId);
@@ -266,6 +291,7 @@ async function main() {
     generated: results.generated.length,
     unchanged: results.unchanged.length,
     skippedPlaceholder: results.skippedPlaceholder.length,
+    frozenDeployed: results.frozen.length,
   };
 
   log({ status: "summary", ...summary });
