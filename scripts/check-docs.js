@@ -141,6 +141,20 @@ const RULES = [
     truth: "backend/scripts/get-holders.js",
   },
   {
+    id: "redemption-not-built",
+    // Added 2026-09-09 while replacing voucher-airdrop-runbook.md, whose
+    // "What is not built" section still said redemption did not exist a week
+    // after buildPlan landed. Three phrasings because the claim travels as a
+    // code quote, as prose, and as a statement about the frontend branch -
+    // a rule matching only the code quote passed the other two. The code
+    // quote is anchored on "hardcodes": a bare `groups: []` matched the real
+    // no-holder fallback in deploy-candy-machine.js and deploy-campaign.js,
+    // and update-candy-guard.js's true description of pre-groups drops.
+    pattern: /(hardcod\w*\s+`?groups:\s*\[\s*\]|redemption[^.\n]{0,60}(is not|not yet|never) (built|wired|implemented)|holder branch[^.\n]{0,40}(unreachable|never runs))/i,
+    why: "deploy-candy-machine.js calls buildPlan when --holder-collection is given, emitting public and holder groups; update-candy-guard.js migrates already-deployed drops with --burn-collection. Redemption is built.",
+    truth: "backend/scripts/deploy-candy-machine.js; backend/scripts/update-candy-guard.js - buildPlan",
+  },
+  {
     id: "allow-warnings-count",
     // Same widening, same reason: this watched for "six", so when the guide
     // said "five" it passed. Everything but "nine" is wrong as of 2026-09-05:
