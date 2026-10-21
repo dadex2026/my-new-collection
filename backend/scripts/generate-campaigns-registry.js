@@ -123,6 +123,8 @@ async function main() {
 
   const campaigns = rows
     .filter((r) => isValidSolanaAddress(r.campaignCandyMachineAddress)) // only publish campaigns with a genuinely valid deployed address — not just a truthy/misaligned field
+    // A closed campaign is history, not an offer (close-campaign.js, open-items 57).
+    .filter((r) => (r.campaignStatus || "").trim().toLowerCase() !== "closed")
     .map((r) => {
       // Look up the target drop's own image from master.csv, keyed by
       // dropItemId — carries the reward's real image through to the

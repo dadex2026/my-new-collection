@@ -149,7 +149,7 @@ function formatTable(results) {
 // chain: "invalid" when the address is not a public key at all; null when no
 // account exists; { kind: "other" } when an account exists but is not a candy
 // machine; else { kind: "candy_machine", itemsAvailable, itemsRedeemed }.
-function compareCampaignRow(row, chain, network) {
+function compareCampaignRow(row, chain, network, hasHistory) {
   const base = {
     campaignId: row.campaignId,
     address: (row.campaignCandyMachineAddress || "").trim(),
@@ -159,13 +159,21 @@ function compareCampaignRow(row, chain, network) {
   if ((row.network || "").trim() && (row.network || "").trim() !== network) {
     return { ...base, status: "other_network", detail: `row is ${row.network}, config.json is ${network}` };
   }
+  const markedClosed = (row.campaignStatus || "").trim().toLowerCase() === "closed";
   if (chain === "invalid") return { ...base, status: "invalid_address", detail: "not a valid public key - nothing can live there" };
-  if (chain === null) return { ...base, status: "no_account", detail: "no account at this address - never deployed, or closed" };
+  if (chain === null) {
+    // A closed campaign has no account but keeps its transaction history; one
+    // that never existed has neither. The chain decides, not the CSV.
+    if (markedClosed && hasHistory) return { ...base, status: "closed", detail: `closed (${(row.closedSignature || "no signature recorded").slice(0, 12)}...)` };
+    if (markedClosed) return { ...base, status: "closed_without_history", detail: "marked closed, but nothing ever existed at this address" };
+    return { ...base, status: "no_account", detail: "no account at this address - never deployed, or closed without close-campaign.js" };
+  }
   if (chain.kind !== "candy_machine") return { ...base, status: "not_a_candy_machine", detail: "an account exists here, but it is not a candy machine" };
+  if (markedClosed) return { ...base, status: "marked_closed_but_live", detail: "campaigns.csv says closed, but the candy machine still exists and can be claimed from" };
   return { ...base, status: "live", claimed: `${Number(chain.itemsRedeemed)}/${Number(chain.itemsAvailable)}`, detail: "" };
 }
 
-const CAMPAIGN_AGREES = new Set(["live", "other_network"]);
+const CAMPAIGN_AGREES = new Set(["live", "closed", "other_network"]);
 
 // The dangerous direction: a candy machine under the drops' authority that NO
 // csv row records. A campaign deployed while its address column stayed blank
@@ -265,7 +273,12 @@ async function main() {
       try { chain = (await umi.rpc.getAccount(key)).exists ? { kind: "other" } : null; }
       catch (err) { fail("rpc_error", `Could not read campaign ${row.campaignId}'s address: ${err.message}. Nothing can be concluded.`, 3); }
     }
-    campaignResults.push(compareCampaignRow(row, chain, config.network));
+    let hasHistory = false;
+    if (chain === null && (row.campaignStatus || "").trim().toLowerCase() === "closed") {
+      try { hasHistory = (await umi.rpc.call("getSignaturesForAddress", [String(key), { limit: 1 }])).length > 0; }
+      catch (err) { fail("rpc_error", `Could not read history for ${row.campaignId}: ${err.message}. Nothing can be concluded.`, 3); }
+    }
+    campaignResults.push(compareCampaignRow(row, chain, config.network, hasHistory));
   }
 
   // ---- The other direction: machines on chain that no row records --------

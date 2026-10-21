@@ -86,6 +86,11 @@ node scripts/generate-registry.js
 node scripts/generate-campaigns-registry.js
 ```
 
+**When a campaign is finished** - fully claimed, or ended on purpose - close it rather than
+leaving it deployed: `node scripts/close-campaign.js --campaign <id>` plans it (no key
+needed), `--write --yes` closes it, recovers its rent, and marks the row closed. Then re-run
+`generate-campaigns-registry.js` so the site stops offering it.
+
 **Afterwards, three read-only commands answer "where am I":**
 
 ```

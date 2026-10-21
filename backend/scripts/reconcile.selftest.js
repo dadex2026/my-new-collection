@@ -140,6 +140,14 @@ const TEST_004_CHAIN = { itemsAvailable: 8n, itemsRedeemed: 2n }; // bigints, as
   assert.strictEqual(dev.status, "other_network");
   ok("campaign rows: live, no account, invalid key, not a machine, other network", "test-page-006 - 3a's \"live\" campaign - is no_account");
 
+  // Closed rows (close-campaign.js): the chain's history decides, not the CSV.
+  const closedRow = { ...liveRow, campaignStatus: "closed", closedSignature: "48b1yXFGDuhA78EYwMTbyxCrYYdrqu284Gxr4g4Qi6msapoZGymggHpCJE2AAt5VSgniqmx8VD4C5j4YNYxJP5BT" };
+  assert.strictEqual(m.compareCampaignRow(closedRow, null, "mainnet", true).status, "closed");
+  assert.strictEqual(m.compareCampaignRow(closedRow, null, "mainnet", false).status, "closed_without_history");
+  assert.strictEqual(m.compareCampaignRow(closedRow, { kind: "candy_machine", itemsAvailable: 5n, itemsRedeemed: 0n }, "mainnet").status, "marked_closed_but_live");
+  assert.strictEqual(m.compareCampaignRow(liveRow, null, "mainnet", true).status, "no_account");
+  ok("a closed row passes only with history; never-existed and still-live fail", "item 50's real close signature as the record");
+
   const ctable = m.formatCampaignTable([live, p6, p4, dev]).split("\n");
   assert.deepStrictEqual(ctable.filter((l) => l.startsWith("<<")).map((l) => l.split(/\s+/)[1]), ["test-page-006", "test-page-004"]);
   ok("the campaign table marks exactly the rows that are not live", "<< test-page-006, test-page-004");
