@@ -602,9 +602,10 @@ Add them under **Project configuration → Environment variables**:
 
   > From 2026-08-28 to 2026-10-21 this guide said the opposite: that the variable falls
   > back through `frontend/src/config.ts:8` to a path under `public/registry/`. That
-  > fallback is real code that nothing runs - `config.ts`'s `registryUrl` is read only by
-  > `registry/loader.ts`, and nothing imports `loader.ts`. A build with the variable unset
-  > compiles the registry fetch to `fetch(void 0)` (open-items 49).
+  > fallback was real code that nothing ran - `config.ts`'s `registryUrl` was read only by
+  > `registry/loader.ts`, which nothing imported - and both were deleted on 2026-10-21. A
+  > build with the variable unset compiles the registry fetch to `fetch(void 0)`. **No
+  > fallback is the decision, not an oversight** (open-items 49).
 - `VITE_SOLANA_RPC_URL_DEVNET`, `VITE_CAMPAIGNS_URL`, `VITE_CONTENT_REGISTRY_URL` if set
   locally.
 

@@ -92,14 +92,15 @@ const RULES = [
     id: "registry-url-fallback",
     // Replaced 2026-10-21 (open-items 49). Its predecessor, registry-url-no-
     // fallback, banned the TRUE claim: it took its truth from config.ts:8,
-    // whose registryUrl is read only by registry/loader.ts, which nothing
-    // imports. The live fetch is adapter.ts, with no fallback. This bans every
+    // whose registryUrl was read only by registry/loader.ts, which nothing
+    // imported (both deleted 2026-10-21). The live fetch is adapter.ts, with no
+    // fallback - by decision, not oversight (open-items 49). This bans every
     // shape the false fallback travelled in - the never-written path itself,
     // "does have a fallback", "falls back", and "the fallback firing" - not
     // just the sentence it replaces (the lesson of open-items 33).
     pattern: /\/registry\/registry\.json|VITE_REGISTRY_URL(?:[^.\n]|\.(?=[A-Za-z])){0,80}\b(does have|has|have|with) a (built-in )?fallback\b|VITE_REGISTRY_URL`?(?:[^.\n]|\.(?=[A-Za-z])){0,30}\bfalls back\b|\b(built-in|VITE_REGISTRY_URL)`? fallback\b(?:[^.\n]|\.(?=[A-Za-z])){0,20}\bfir(es|ing)\b/i,
     why: "VITE_REGISTRY_URL has no fallback. registry/adapter.ts:43 reads it bare and :82 fetches it; unset, the build compiles that to fetch(void 0), a request for /undefined. The /registry/registry.json fallback in config.ts:8 is dead - only registry/loader.ts reads it, and nothing imports loader.ts.",
-    truth: "frontend/src/registry/adapter.ts:43 and :82; no import of registry/loader.ts anywhere",
+    truth: "frontend/src/registry/adapter.ts:43 and :82 (registry/loader.ts and CONFIG.registryUrl deleted 2026-10-21)",
   },
   {
     id: "undefined-symptom",
@@ -110,9 +111,12 @@ const RULES = [
     // "nothing requests a literal /undefined", "you will not find /undefined",
     // "not a request for /undefined", "the /undefined symptom is wrong".
     //
-    // strict: the denial was itself phrased as a correction ("Both were wrong",
-    // "the symptom is wrong"), so the RETRACTION exemption would wave through
-    // exactly the sentences this rule exists to catch.
+    // strict exists because a denial can wear a correction's clothes. This one
+    // was itself phrased as a correction ("Both were wrong", "the symptom is
+    // wrong"), so the RETRACTION exemption waved through exactly the sentences
+    // the rule exists to catch; without strict, two of them slip (tested
+    // 2026-10-21). Mark any new rule strict when the claim it bans is one
+    // people write as a retraction.
     strict: true,
     pattern: /\b(nothing|never|no longer|does not|doesn't|will not|won't)\s+(\w+\s+){0,2}(requests?|fetch\w*|find|see|hit\w*)\s+(a\s+)?(literal\s+)?(URL\s+)?(literally\s+named\s+)?`?\/undefined|\/undefined`?(?:[^.\n]|\.(?=[A-Za-z])){0,40}\b(will not|won't|never|do not|don't)\s+(find|see|appear)|\bnot a request for (a )?(literal )?`?\/undefined|\/undefined`? symptom is wrong/i,
     why: "A missing VITE_REGISTRY_URL DOES request a literal /undefined: registry/adapter.ts:43 has no fallback, and the build compiles the fetch to fetch(void 0).",
@@ -199,6 +203,9 @@ const DELETED_FILES = [
   "scripts/audit-production.ps1",
   "frontend/src/styles.css",
   "project-files.txt",
+  // The dead VITE_REGISTRY_URL fallback's only reader. Deleted 2026-10-21 with
+  // CONFIG.registryUrl; it is what made two rules wrong for eight weeks.
+  "frontend/src/registry/loader.ts",
 ];
 
 // A line is exempt if it is visibly retracting the claim rather than making it.

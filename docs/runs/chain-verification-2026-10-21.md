@@ -156,7 +156,7 @@ temporary row, then deleted.
 - `campaigns.csv` afterwards: `3e3a2c91…`, byte-identical to before the row was added.
 
 **The headroom floor is now verified on real data by a command that cannot deploy.** It
-also has an offline selftest (`deploy-campaign.selftest.js`, 10 checks, template `4e24e08`)
+also has an offline selftest (`deploy-campaign.selftest.js`, 10 named checks, template `4e24e08`)
 whose fixture is copied from this fork's `master.csv`. Four mutations are each caught,
 including a return to the label-only code.
 
