@@ -77,6 +77,7 @@ node scripts/preflight.js
 node scripts/deploy-collection.js --slug <name>
 node scripts/deploy-collection.js --slug <name>-voucher
 node scripts/deploy-candy-machine.js --slug <name>          # editions only
+node scripts/deploy-campaign.js --campaign <campaignId> --dry-run   # every check, no SOL
 node scripts/deploy-campaign.js --campaign <campaignId>
 # then per redeemable drop, read-only first, every time:
 node scripts/update-candy-guard.js --drop <id> --burn-collection <voucher collectionAddress> --read-only
@@ -127,12 +128,20 @@ Three things follow:
   you meant for vouchers is available to buyers. Whoever mints first takes it. So a second
   campaign may need no raise at all — if you are willing to sell fewer.
 
-`deploy-campaign.js` now checks the floor for you. When the target is a voucher it resolves
+`deploy-campaign.js` now checks the floor for you. A target counts as a voucher when its row
+says `mintStatus` `voucher` **or** any drop names its collection as `holderRequiredCollection`.
+Until 2026-10-21 only the label counted, so a voucher whose row read `ready` skipped this check
+in silence and deployed (open-items 50). When the target is a voucher it resolves
 the redeemable drops (those naming the voucher's collection as `holderRequiredCollection`),
 prints each one's `maxSupply`, and **refuses if any is below `allocation`** — because a
 voucher is spendable on any one of them, so the allocation cannot be split between them.
 `--yes-under-provisioned` overrides it. On a *first* campaign nothing is migrated yet, so it
-says so rather than passing silently.
+says so rather than passing silently. That message depends on the label: before migration no
+drop redeems the voucher, so set its row's `mintStatus` to `voucher`.
+
+**Run it with `--dry-run` first.** That runs every check and prints the EXPOSURE block, then
+stops before the mainnet countdown: no RPC, no SOL, `campaigns.csv` untouched. Without it, a
+check that does not fire is followed directly by a deploy.
 
 That check is a floor, not the requirement. It is offline and cannot see `itemsRedeemed`.
 The real invariant still has to be checked per drop with

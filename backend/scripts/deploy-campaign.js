@@ -44,6 +44,7 @@
  *
  * Exit codes:
  *   0 = success (including "already deployed, nothing to do")
+ *       and a --dry-run whose checks all passed
  *   1 = validation failure (bad config, missing prerequisite drops)
  *   3 = blockchain failure
  *
@@ -55,6 +56,9 @@
  *   node scripts/deploy-campaign.js --per-wallet  (only the per-wallet counter - passing an
  *                                                   edition to a fresh wallet claims again)
  *   node scripts/deploy-campaign.js --campaign MYCOL-OE001-OE002-132
+ *   node scripts/deploy-campaign.js --campaign MYCOL-OE001-OE002-132 --dry-run
+ *                                                 (every check and the EXPOSURE block, then
+ *                                                  stop: no RPC, no SOL, campaigns.csv untouched)
  *
  * Dependencies (npm install):
  *   @metaplex-foundation/umi
@@ -215,6 +219,12 @@ async function main() {
   // Accepts a redeemable drop whose cap is below the allocation. See the
   // headroom block further down.
   const acceptsShortHeadroom = args.includes("--yes-under-provisioned");
+  // --dry-run runs every validation and prints the EXPOSURE block, then stops
+  // before the mainnet countdown. Added 2026-10-21: this was the only script in
+  // the pipeline with no read-only path, so the headroom floor could only be
+  // tested by a command that deploys if the floor fails - and on 2026-10-21 it
+  // did (open-items 50).
+  const dryRun = args.includes("--dry-run");
   // --per-wallet swaps the per-ASSET claim counter for a per-WALLET one.
   // assetMintLimit's counter is seeded by the qualifying NFT, so a wallet
   // holding five eligible editions gets five claims; mintLimit's counter is
@@ -479,6 +489,14 @@ async function main() {
         );
       }
     }
+  }
+
+  if (dryRun) {
+    log({
+      status: "success",
+      message: `Dry run: every check passed for campaign "${campaignId}". Nothing was sent and campaigns.csv was not changed.`,
+    });
+    process.exit(0);
   }
 
   if (config.network === "mainnet") {
