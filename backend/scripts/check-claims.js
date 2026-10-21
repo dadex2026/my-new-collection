@@ -230,6 +230,10 @@ async function main() {
   log({ status: "success", asset, wallet, campaignsChecked: rows.length, assetSpent: assetSpent.length });
 }
 
-main().catch((err) => {
-  fail("unexpected_error", err && err.stack ? err.stack : String(err), 2);
-});
+// Only when run, never when required: a selftest or a tool importing this
+// file must not execute it (2026-10-21; checked by entrypoint-guard.selftest.js).
+if (require.main === module) {
+  main().catch((err) => {
+    fail("unexpected_error", err && err.stack ? err.stack : String(err), 2);
+  });
+}

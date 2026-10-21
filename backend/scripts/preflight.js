@@ -898,4 +898,8 @@ function main() {
   process.exit(0);
 }
 
-main();
+// Only when run, never when required: a selftest or a tool importing this
+// file must not execute it (2026-10-21; checked by entrypoint-guard.selftest.js).
+if (require.main === module) {
+  main();
+}
