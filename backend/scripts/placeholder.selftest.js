@@ -84,8 +84,16 @@ const FORK_PLACEHOLDER = ["https://placehold.co/400x400?text=A", "https://placeh
   const users = fs.readdirSync(scriptsDir)
     .filter((f) => f.endsWith(".js") && !f.endsWith(".selftest.js"))
     .filter((f) => fs.readFileSync(path.join(scriptsDir, f), "latin1").includes('require("./lib/placeholder")'));
-  assert.strictEqual(users.length, 9, `expected the nine former copies to require lib/placeholder, found ${users.length}: ${users.join(", ")}`);
-  ok("no script defines its own placeholder check; the nine require the shared one", users.length + " scripts");
+  // The nine scripts that each carried their own copy until 2026-10-21 must
+  // all use the shared one. More may join (verify-uploads.js did) - so this is
+  // set inclusion, not a count, which would fail on every new user.
+  const FORMER_COPIES = [
+    "deploy-campaign.js", "deploy-candy-machine.js", "deploy-collection.js", "generate-metadata.js",
+    "generate-registry.js", "get-holders.js", "preflight.js", "upload-images.js", "upload-metadata.js",
+  ];
+  const missing = FORMER_COPIES.filter((f) => !users.includes(f));
+  assert.deepStrictEqual(missing, [], `former copies not using lib/placeholder: ${missing.join(", ")}`);
+  ok("no script defines its own placeholder check; the nine former copies use the shared one", `${users.length} scripts use it`);
 
   console.log("\n  All local assertions held.\n");
 })().catch((err) => {

@@ -25,6 +25,16 @@
       "presentation": { "panel": "dedicated", "clear": true }
     },
     {
+      "label": "selftests",
+      "detail": "scripts/run-selftests.js - every *.selftest.js, offline; fails if any fails",
+      "type": "process",
+      "command": "node",
+      "args": ["${workspaceFolder}/scripts/run-selftests.js"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated", "clear": true }
+    },
+    {
       "label": "check-line-endings",
       "detail": "scripts/check-line-endings.js - no CR in tracked .js/.ts/.md/.json; --fix is byte-safe",
       "type": "process",
