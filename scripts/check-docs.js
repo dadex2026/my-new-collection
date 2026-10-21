@@ -99,7 +99,7 @@ const RULES = [
     // "does have a fallback", "falls back", and "the fallback firing" - not
     // just the sentence it replaces (the lesson of open-items 33).
     pattern: /\/registry\/registry\.json|VITE_REGISTRY_URL(?:[^.\n]|\.(?=[A-Za-z])){0,80}\b(does have|has|have|with) a (built-in )?fallback\b|VITE_REGISTRY_URL`?(?:[^.\n]|\.(?=[A-Za-z])){0,30}\bfalls back\b|\b(built-in|VITE_REGISTRY_URL)`? fallback\b(?:[^.\n]|\.(?=[A-Za-z])){0,20}\bfir(es|ing)\b/i,
-    why: "VITE_REGISTRY_URL has no fallback. registry/adapter.ts:43 reads it bare and :82 fetches it; unset, the build compiles that to fetch(void 0), a request for /undefined. The /registry/registry.json fallback in config.ts:8 is dead - only registry/loader.ts reads it, and nothing imports loader.ts.",
+    why: "VITE_REGISTRY_URL has no fallback. registry/adapter.ts:43 reads it bare and :82 fetches it; unset, the build compiles that to fetch(void 0), a request for /undefined. The /registry/registry.json fallback in config.ts:8 was dead code, and it and registry/loader.ts were deleted on 2026-10-21.",
     truth: "frontend/src/registry/adapter.ts:43 and :82 (registry/loader.ts and CONFIG.registryUrl deleted 2026-10-21)",
   },
   {

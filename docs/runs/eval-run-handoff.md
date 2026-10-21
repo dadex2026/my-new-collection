@@ -28,6 +28,23 @@ resembles its worked run. Where they diverge, the prompt is presumed at fault.
 | **D1 / mode A** | **Not run** |
 | **G5 / mode A** | **Not run** |
 
+> **REVERSED 2026-10-21 — worked runs A1, A6 and A7 were correct all along.** On
+> 2026-08-28, `open-items.md` row 174 ruled that their symptom for a missing
+> `VITE_REGISTRY_URL` was wrong. It said the site requests a literal `/undefined`; row 174
+> said it 404s on `/registry/registry.json` instead. Row 174 had read the wrong file:
+> `config.ts`'s fallback was dead code. The live fetch, `registry/adapter.ts:43`, has no
+> fallback, and an unset build compiles it to `fetch(void 0)` — a request for `/undefined`
+> (open-items 49).
+>
+> **Affected window: 2026-08-28 to 2026-10-21. Any cold run of A1, A6 or A7 scored against
+> row 174 in that window was scored backwards** — an answer reporting `/undefined` was
+> marked wrong when it was right, and one reporting a 404 under `/registry/` was marked
+> right when it was wrong. A reversed score is worse than none, because it reads as
+> evidence. Before trusting any A1/A6/A7 result from that window, re-score it against the
+> worked runs as they stand. The ten passages in `worked-run-a1.md` (4), `worked-run-a6.md`
+> (2) and `worked-run-a7.md` (4) need no change; `check-docs.js` no longer flags them, and
+> now flags the opposite claim.
+
 Four runs to go, and E3 wants redoing — see the next paragraph. The protocol's recording
 table asks for C1 A+B, E3 A, G5 A; D1/A is an optional fifth that covers the two-folder
 case.
@@ -215,6 +232,10 @@ existing tools in that folder. The template matters only for one cross-reference
 ---
 
 ## 4. Known results — do not file these as new findings
+
+**A1, A6 and A7 report `/undefined` for a missing `VITE_REGISTRY_URL`, and that is right.**
+See the reversal in section 1. A cold answer that says the same is a hit; one that says
+"404 on `/registry/registry.json`" is wrong — it has reproduced row 174's error, an answer fault.
 
 **G5 collects no `SEPARATOR`.** Step 2's field contract table requires one per paste
 target, and the platform does not answer it uniformly (Sports Ledger exports commas, G3
