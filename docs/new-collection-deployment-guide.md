@@ -440,7 +440,7 @@ does not get.
 > `1` validation, `2` upload, `3` chain** — which is what lets you tell "I typed
 > something wrong" from "the network refused" without reading the logs.
 
-Seven scripts, in the only order they may run.
+Eight scripts, in the only order they may run.
 
 ### 7.1 `generate-images.js` — a text card per drop into `backend/images/`
 
@@ -562,6 +562,29 @@ node backend/scripts/upload-metadata.js --strict --fund
 Reads `backend/metadata/`; **writes `uri` per row.** Same economics as 7.2. This is the
 last step before anything reaches the chain — the last point at which a wrong image is
 still only an Arweave receipt rather than an on-chain asset.
+
+### 7.4a `verify-uploads.js` — every upload confirmed, before anything is permanent
+
+```powershell
+node backend/scripts/verify-uploads.js
+```
+
+**Read-only: no key, no SOL.** For every drop it asks Irys's upload node for the record
+of the `itemImage` and `uri` uploads, and checks each one is **confirmed**, has the **right
+type** (`image/*`, `application/json`), and is **exactly the size of the local file that
+was sent**. Exit `0` means proceed to 7.5. Exit `1` names what to fix, and is the reason
+this step sits here: `uri` becomes permanent at 7.6, and this is the last point at which a
+wrong one can still be re-uploaded. Exit `3` means the upload node did not answer, so
+**nothing was concluded**. Fall back to the manual check in 7.2: open
+`https://uploader.irys.xyz/tx/<id>/status` and look at the image in a browser.
+
+**What it cannot check is content.** Irys's read service refuses scripts from this machine
+(open-items 56), so it compares size, type and confirmation, not bytes. A **size mismatch
+fails** for a drop not yet deployed: the local file changed after upload, so the `uri`
+points at an older version. For a deployed drop the same mismatch is only a **warning**,
+because nothing can change it any more. On 2026-10-21 the fork's TEST-002 and TEST-004
+metadata showed exactly that: 583 and 586 bytes uploaded, 646 and 649 local, regenerated
+after their deploys.
 
 ### 7.5 `deploy-collection.js` — the Core collection ⚠ SPENDS ⚠ PERMANENT
 

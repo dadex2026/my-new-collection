@@ -719,6 +719,7 @@ run, with the purpose and the idempotency behaviour of each:
   backend/scripts/upload-images.js        Irys/Arweave → itemImage in master.csv
   backend/scripts/generate-metadata.js    → backend/metadata/<dropItemId>.json
   backend/scripts/upload-metadata.js      Irys/Arweave → uri in master.csv
+  backend/scripts/verify-uploads.js       every upload confirmed, right type and size
   backend/scripts/deploy-collection.js    the Core collection → collectionAddress
   backend/scripts/deploy-candy-machine.js one candy machine per drop
   backend/scripts/generate-registry.js    → frontend/public/registry.json
@@ -752,7 +753,7 @@ inputs — any value you needed that I did not give you, named as the field it
 should become.
 ```
 
-**Reference:** `backend/scripts/preflight.js` · `generate-images.js` · `prepare-images.js` · `upload-images.js` · `generate-metadata.js` · `upload-metadata.js` · `deploy-collection.js` · `deploy-candy-machine.js` · `backend/config.json` · `backend/.env.admin`
+**Reference:** `backend/scripts/preflight.js` · `generate-images.js` · `prepare-images.js` · `upload-images.js` · `generate-metadata.js` · `upload-metadata.js` · `verify-uploads.js` · `deploy-collection.js` · `deploy-candy-machine.js` · `backend/config.json` · `backend/.env.admin`
 
 **A full worked run of this prompt** — filled header and all five parts of
 the output — is in `docs/runs/worked-run-a3.md`. It was written and not executed:

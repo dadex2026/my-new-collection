@@ -162,7 +162,8 @@ A voucher is an NFT and needs everything an NFT needs.
 1. **Give it its own `collectionSlug`** in `master.csv` — e.g. `founders-voucher` — with a
    single drop row, e.g. `VOUCHER-001`. Not a slug shared with anything else; see the
    traps.
-2. `generate-images.js` → `upload-images.js` → `generate-metadata.js` → `upload-metadata.js`
+2. `generate-images.js` → `upload-images.js` → `generate-metadata.js` → `upload-metadata.js` →
+   `verify-uploads.js`
    for the voucher card and metadata (`prepare-images.js` instead of the first, for your
    own voucher art).
 3. **`collectionImage` on that row becomes the voucher collection's permanent on-chain
