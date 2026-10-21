@@ -25,7 +25,7 @@ the chain permanently.** The boundary is marked, and it is the only one that mat
 | **9** | Verify — chain, site, and drift | yes |
 | **10** | Ongoing: text cards, rankings, methodology | yes |
 
-Appendix A — the twenty-four preflight checks · Appendix B — known non-issues ·
+Appendix A — the twenty-two preflight checks · Appendix B — known non-issues ·
 Appendix C — reference documents (none of which you need to finish a launch)
 
 ---
@@ -402,7 +402,7 @@ That check runs only when the file is present. Its silence is not a pass.
 | Flag | What it does | When it is legitimate |
 |---|---|---|
 | `--slug <name>` | Check a slug other than `config.json`'s | Multi-collection repos |
-| `--allow-warnings` | Downgrades the **nine** reserved-prefix, placeholder, campaign and holder checks — see Appendix A | A deliberate test deployment. **On mainnet this is the flag that mints test data.** |
+| `--allow-warnings` | Downgrades the **seven** reserved-prefix, collection-placeholder, campaign and holder checks — see Appendix A | A deliberate test deployment. **On mainnet this is the flag that mints test data.** |
 | `--force` | Overrides `not_already_deployed` | An intentional re-deploy. Nothing else. |
 
 Preflight writes `force` and `allowWarnings` into `backend/logs/preflight.log` at start,
@@ -571,11 +571,21 @@ Reads `backend/metadata/`; **writes `uri` per row.** Same economics as 7.2. This
 last step before anything reaches the chain — the last point at which a wrong image is
 still only an Arweave receipt rather than an on-chain asset.
 
-### 7.4a `verify-uploads.js` — every upload confirmed, before anything is permanent
+### 7.4a The upload gate — required, before anything is permanent
 
 ```powershell
-node backend/scripts/verify-uploads.js
+node backend/scripts/check-upload-columns.js   # offline: every itemImage and uri is real
+node backend/scripts/verify-uploads.js         # networked: every upload confirmed
 ```
+
+**Both must exit `0` before 7.5.** `check-upload-columns.js` is the check preflight used to
+make as `no_placeholder_images` and `no_placeholder_uris`. It moved here on 2026-10-21
+because Stage 7 fills those columns after Stage 6 runs, so in preflight it could only fail a
+correct new collection. It is offline, so an unreachable Irys node cannot block it, and it
+is as hard a gate as before: exit `1` names each unfilled drop. `deploy-candy-machine.js`
+still refuses a placeholder `uri` on its own.
+
+**`verify-uploads.js`, below, is the networked half.**
 
 **Read-only: no key, no SOL.** For every drop it asks Irys's upload node for the record
 of the `itemImage` and `uri` uploads, and checks each one is **confirmed**, has the **right
@@ -922,11 +932,12 @@ confirm the site says nothing that implies otherwise.
 
 ---
 
-# Appendix A — The twenty-four preflight checks
+# Appendix A — The twenty-two preflight checks
 
 Sixteen until 2026-08-28, plus five when the permanent-value surface was enumerated (see
 below), plus `not_a_mintable_voucher` on 2026-09-03, plus `campaign_eligibility_capped` and
-`holder_collection_is_local` on 2026-09-05. Twenty-four is what
+`holder_collection_is_local` on 2026-09-05, minus `no_placeholder_images` and
+`no_placeholder_uris`, which moved to the upload gate (7.4a) on 2026-10-21. Twenty-two is what
 `grep -c results.push backend/scripts/preflight.js` reports; recount it rather than trusting
 this sentence.
 
@@ -944,8 +955,7 @@ this sentence.
 | | `deployer_not_treasury` | **Never downgradable.** Reports `COULD NOT VERIFY` rather than passing when the key is absent, not 64 bytes, or undecodable |
 | Content Validation | `no_reserved_slug` | Downgradable. Catches `test-`/`demo-`/`sample-` |
 | | `no_reserved_drop_ids` | Downgradable. Catches `TEST-`/`DEMO-`/`SAMPLE-` |
-| | `no_placeholder_images` | Downgradable. **Placeholder art about to be minted permanently** |
-| | `no_placeholder_uris` | Downgradable |
+| | *`no_placeholder_images`, `no_placeholder_uris`* | **Moved to 7.4a on 2026-10-21** (`check-upload-columns.js`). Stage 7 fills `itemImage` and `uri` after this gate runs, so here they could only fail on a correct new collection. Preflight's verdict says it does not check them |
 | Campaign Validation | `no_reserved_campaign_ids` | Downgradable; **runs only if `campaigns.csv` exists** |
 | | `campaign_eligibility_capped` | Downgradable; **runs only if `campaigns.csv` exists**. Fails when a campaign's `eligibilityDropItemId` resolves to a row whose `maxSupply` is blank, `unlimited`, or unparseable — an open edition, whose eligibility can be minted on demand for the price of one mint (open-items 41). Reports `COULD NOT VERIFY` when the eligibility drop is not in `master.csv` at all. Downgradable because accepting the leak is a real choice; `--allow-warnings` is how you record having made it |
 | **Permanent Values** | `no_placeholder_collection_name` | Downgradable. The name minted on chain. Word-boundary match, so "Contest Winners" passes and "Mechanics Test B" does not |
@@ -971,8 +981,9 @@ through "D". The new checks, run against that same `master.csv`, refuse it on bo
 The lesson generalises: the question to ask of this pipeline is not *"does it run?"* — it
 demonstrably runs — but *"is every value it makes permanent one somebody chose?"*
 
-**`--allow-warnings` downgrades nine checks** — every row marked *Downgradable* in the
-table above, which is exactly `CONTENT_CHECK_NAMES`. (This paragraph said *five* until
+**`--allow-warnings` downgrades seven checks** — every row marked *Downgradable* in the
+table above, which is exactly `CONTENT_CHECK_NAMES`. (Nine until 2026-10-21, when the two
+upload-column checks moved to 7.4a.) (This paragraph said *five* until
 2026-09-03, having been written when the set was smaller and never recounted after the
 permanent-value checks were added; the guard rule that now catches it was watching for the
 word *six* and let *five* straight through. It said *seven* until 2026-09-05, when

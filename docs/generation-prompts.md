@@ -713,12 +713,13 @@ DROPS:        <all, or the specific dropItemIds>
 Give me the full production pipeline runbook, in the order the scripts must
 run, with the purpose and the idempotency behaviour of each:
 
-  backend/scripts/preflight.js            the gate — all twenty-four checks
+  backend/scripts/preflight.js            the gate — all twenty-two checks
   backend/scripts/generate-images.js      a text card per drop into backend/images/
                                           (prepare-images.js only for your own art)
   backend/scripts/upload-images.js        Irys/Arweave → itemImage in master.csv
   backend/scripts/generate-metadata.js    → backend/metadata/<dropItemId>.json
   backend/scripts/upload-metadata.js      Irys/Arweave → uri in master.csv
+  backend/scripts/check-upload-columns.js every itemImage and uri real - required gate
   backend/scripts/verify-uploads.js       every upload confirmed, right type and size
   backend/scripts/deploy-collection.js    the Core collection → collectionAddress
   backend/scripts/deploy-candy-machine.js one candy machine per drop

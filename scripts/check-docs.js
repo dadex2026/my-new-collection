@@ -94,8 +94,8 @@ const RULES = [
     // revision stopped at twenty-one, one short of the number it was written
     // to protect, so the next increment had nowhere to land. A count drifts in
     // both directions; the wrong numbers above the right one are wrong too.
-    pattern: /\b(ten|10|eleven|11|twelve|12|sixteen|16|seventeen|17|eighteen|18|nineteen|19|twenty|20|twenty-one|21|twenty-two|22|twenty-three|23|twenty-five|25|twenty-six|26|twenty-seven|27)\s+checks\b/i,
-    why: "preflight.js registers 24 checks in six groups. A clean run prints 21 of them, or 19 without campaigns.csv, where both campaign checks never run - three others are recorded only on failure.",
+    pattern: /\b(ten|10|eleven|11|twelve|12|sixteen|16|seventeen|17|eighteen|18|nineteen|19|twenty|20|twenty-one|21|twenty-three|23|twenty-four|24|twenty-five|25|twenty-six|26|twenty-seven|27)\s+checks\b/i,
+    why: "preflight.js registers 22 checks in six groups (24 until 2026-10-21, when no_placeholder_images and no_placeholder_uris moved to 7.4a's check-upload-columns.js). A clean run prints 19 of them, or 17 without campaigns.csv, where both campaign checks never run - three others are recorded only on failure.",
     truth: "backend/scripts/preflight.js — count the results.push({ name: ... }) calls",
   },
   {
@@ -182,9 +182,10 @@ const RULES = [
   {
     id: "allow-warnings-count",
     // Same widening, same reason: this watched for "six", so when the guide
-    // said "five" it passed. Everything but "nine" is wrong as of 2026-09-05:
-    // campaign_eligibility_capped and holder_collection_is_local both joined
-    // the set that day, which is why this number moved twice in one session.
+    // said "five" it passed. Everything but "seven" is wrong as of 2026-10-21,
+    // when no_placeholder_images and no_placeholder_uris left the set for the
+    // upload gate. (It was nine from 2026-09-05, when campaign_eligibility_capped
+    // and holder_collection_is_local joined - this number has moved four times.)
     //
     // The digit branch is a negative lookahead rather than a plain \d+, which
     // matched the CORRECT numeral and would have flagged "downgrades 8 checks"
@@ -195,8 +196,12 @@ const RULES = [
     // characters, and the guide's flags table read "Downgrades the **seven**
     // reserved-prefix and placeholder checks" - 35. A stale count sat in the
     // table this rule exists to police, one row from a correct "nine".
-    pattern: /--allow-warnings(?:[^.\n]|\.(?=[A-Za-z])){0,60}\b(one|two|three|four|five|six|seven|eight|ten|eleven|twelve|(?!9\b)\d+)\b(?:[^.\n]|\.(?=[A-Za-z])){0,60}checks/i,
-    why: "CONTENT_CHECK_NAMES holds nine entries as of 2026-09-05, and deployer_not_treasury is deliberately not one of them.",
+    // Widened to 100 the same day: "Downgrades the **nine** reserved-prefix,
+    // collection-placeholder, campaign and holder checks" is ~70 from the number
+    // to "checks". Size the window to the longest sentence, then test that
+    // sentence (count-rule-test, 2026-10-21).
+    pattern: /--allow-warnings(?:[^.\n]|\.(?=[A-Za-z])){0,60}\b(one|two|three|four|five|six|eight|nine|ten|eleven|twelve|(?!7\b)\d+)\b(?:[^.\n]|\.(?=[A-Za-z])){0,100}checks/i,
+    why: "CONTENT_CHECK_NAMES holds seven entries as of 2026-10-21 (nine until the two upload-column checks moved to 7.4a), and deployer_not_treasury is deliberately not one of them.",
     truth: "backend/scripts/preflight.js — CONTENT_CHECK_NAMES",
   },
 ];

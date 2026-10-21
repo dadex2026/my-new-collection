@@ -287,27 +287,12 @@ function checkNoReservedCampaignIds(campaignRows, reservedPrefixes) {
   return { pass: true, detail: "No campaigns use a reserved test ID prefix" };
 }
 
-function checkNoPlaceholderImages(rows) {
-  const offenders = rows.filter((r) => isPlaceholder(r.itemImage)).map((r) => r.dropItemId);
-  if (offenders.length > 0) {
-    return {
-      pass: false,
-      detail: `${offenders.length} drop(s) still have a placeholder itemImage: ${offenders.join(", ")} — run upload-images.js`,
-    };
-  }
-  return { pass: true, detail: "All drops have a real itemImage" };
-}
-
-function checkNoPlaceholderUris(rows) {
-  const offenders = rows.filter((r) => isPlaceholder(r.uri)).map((r) => r.dropItemId);
-  if (offenders.length > 0) {
-    return {
-      pass: false,
-      detail: `${offenders.length} drop(s) still have a placeholder/missing uri: ${offenders.join(", ")} — run upload-metadata.js`,
-    };
-  }
-  return { pass: true, detail: "All drops have a real metadata uri" };
-}
+// no_placeholder_images and no_placeholder_uris lived here until 2026-10-21.
+// They check itemImage and uri, which Stage 7 fills (7.2, 7.4) - AFTER this
+// gate runs - so a correct new collection could never pass Stage 6 cleanly.
+// They moved to the upload gate, 7.4a: check-upload-columns.js (offline) and
+// verify-uploads.js (networked). Preflight says so in its verdict, so a green
+// run is not read as covering the images (open-items 60).
 
 // ---- Values that become permanent on chain -----------------------------
 // Everything below guards a value that deploy-collection.js or
@@ -643,8 +628,6 @@ function checkNotAlreadyDeployed(rows, network, force) {
 const CONTENT_CHECK_NAMES = new Set([
   "no_reserved_slug",
   "no_reserved_drop_ids",
-  "no_placeholder_images",
-  "no_placeholder_uris",
   "no_reserved_campaign_ids",
   "campaign_eligibility_capped",
   "holder_collection_is_local",
@@ -670,7 +653,7 @@ const FAILURE_ONLY_CHECKS = new Set([
 const CATEGORIES = [
   { name: "Project Structure", checks: ["config_exists", "config_valid_json", "collection_slug_present", "collection_has_rows"] },
   { name: "Environment", checks: ["env_admin_exists", "env_admin_gitignored", "deployer_key_present", "treasury_valid", "rpc_valid", "deployer_not_treasury"] },
-  { name: "Content Validation", checks: ["no_reserved_slug", "no_reserved_drop_ids", "no_placeholder_images", "no_placeholder_uris"] },
+  { name: "Content Validation", checks: ["no_reserved_slug", "no_reserved_drop_ids"] },
   { name: "Permanent Values", checks: ["no_placeholder_collection_name", "no_placeholder_collection_image", "prices_parse", "item_names_fit_on_chain", "max_supply_parses", "not_a_mintable_voucher", "holder_collection_is_local"] },
   { name: "Campaign Validation", checks: ["no_reserved_campaign_ids", "campaign_eligibility_capped"] },
   { name: "Deployment State", checks: ["not_already_deployed"] },
@@ -754,8 +737,6 @@ function main() {
         });
       } else {
         results.push({ name: "no_reserved_drop_ids", ...checkNoReservedDropIds(matchingRows, reservedIdPrefixes) });
-        results.push({ name: "no_placeholder_images", ...checkNoPlaceholderImages(matchingRows) });
-        results.push({ name: "no_placeholder_uris", ...checkNoPlaceholderUris(matchingRows) });
         results.push({ name: "no_placeholder_collection_name", ...checkNoPlaceholderCollectionName(matchingRows) });
         results.push({ name: "no_placeholder_collection_image", ...checkNoPlaceholderCollectionImage(matchingRows) });
         results.push({ name: "prices_parse", ...checkPricesParse(matchingRows) });
@@ -852,6 +833,9 @@ function main() {
   }
 
   console.log("\nDeployment Readiness:");
+  // What a verdict here does NOT cover, said every time (open-items 60).
+  console.log("  (Not checked here: itemImage and uri. Stage 7 fills them; check-upload-columns.js");
+  console.log("   and verify-uploads.js check them at 7.4a, before anything is deployed.)");
   if (hardFailures.length > 0) {
     console.log(`  NOT READY — ${hardFailures.length} failure(s) must be resolved.\n`);
     log({
@@ -894,7 +878,7 @@ function main() {
   }
 
   console.log("  READY — all checks passed.\n");
-  log({ status: "success", message: "All preflight checks passed. Safe to deploy." });
+  log({ status: "success", message: "All preflight checks passed. Upload columns are checked at 7.4a, not here." });
   process.exit(0);
 }
 
