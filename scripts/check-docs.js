@@ -30,6 +30,16 @@
  *   Add one whenever you correct a factual claim in a doc. The cost is two
  *   lines; the alternative is the same correction being rediscovered.
  *
+ * CHANGING A COUNT - search first; this guard is the backstop, not the search
+ *   After changing any count the docs state (checks, rules, flags, files,
+ *   steps), grep the WHOLE tree for every spelling of the OLD value - the
+ *   word and the numeral ("seven", "7") - near the thing counted, and confirm
+ *   the hit list is empty before committing. Then update the rule here to
+ *   match every wrong number, not only the previous one (open-items 33).
+ *   On 2026-10-21 "--allow-warnings downgrades seven checks" survived three
+ *   count changes because each update fixed the instance its author had
+ *   found, and this guard's window was too short to reach the rest.
+ *
  * Exit codes:
  *   0 = no banned claim found
  *   1 = at least one doc asserts something the code contradicts

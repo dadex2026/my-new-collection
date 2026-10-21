@@ -60,8 +60,21 @@ const texts = (svg) =>
     x[1].replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&"));
 
 // The PNG of `base`, rendered with @resvg/resvg-js 2.6.2 and Inter 4.1
-// (backend/fonts). If this changes, a rasteriser or font change moved every
-// future card: look at the new output, then update the hash deliberately.
+// (backend/fonts). If this changes, a rasteriser, font or layout change moved
+// every future card.
+//
+// RE-BLESSING IT - the only way this hash may change:
+//   1. Render the reference cards and the sheet:
+//        node scripts/render-card-samples.js ../docs/runs/assets/generated-cards-<date>
+//   2. LOOK at contact-sheet.png beside the last committed sheet in
+//      docs/runs/assets/. Confirm the difference is the one you intended - and
+//      only that one.
+//   3. Update this hash IN THE SAME COMMIT as the change that moved it (the
+//      version bump, the font file, the layout edit), with the new sheet, and
+//      say in the message what changed and that the sheet was looked at.
+// Never update the hash alone. A hash regenerated to make a red test green has
+// stopped checking anything, and a check that fires and gets shrugged at is
+// worse than none.
 const GOLDEN_PNG_SHA256 = "6432af655468292940802b3f13b64b97e5d02853b71ae7ae787b5233d6ebc26c";
 
 (async () => {
