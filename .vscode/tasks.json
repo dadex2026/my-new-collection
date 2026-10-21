@@ -1,5 +1,5 @@
 {
-  // Terminal > Run Task. The three read-only checks to run before a deploy.
+  // Terminal > Run Task. The read-only checks to run before a deploy or a copy.
   // None of them writes, signs or spends; each exits non-zero when it finds
   // something, and the terminal stays open so the reason can be read.
   "version": "2.0.0",
@@ -20,6 +20,16 @@
       "type": "process",
       "command": "node",
       "args": ["${workspaceFolder}/scripts/check-docs.js"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "check-line-endings",
+      "detail": "scripts/check-line-endings.js - no CR in tracked .js/.ts/.md/.json; --fix is byte-safe",
+      "type": "process",
+      "command": "node",
+      "args": ["${workspaceFolder}/scripts/check-line-endings.js"],
       "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": [],
       "presentation": { "panel": "dedicated", "clear": true }
