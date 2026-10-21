@@ -152,7 +152,7 @@ Blank these columns in the copy, in every row:
 
 | file | columns |
 |---|---|
-| `master.csv` | `collectionAddress`, `candyMachineAddress`, `candyGuardAddress`, `holderRequiredCollection`, `holderPrice` |
+| `master.csv` | `collectionAddress`, `candyMachineAddress`, `candyGuardAddress`, `holderRequiredCollection`, `holderPrice`, `itemImage`, `uri` |
 | `campaigns.csv` | `campaignCandyMachineAddress`, `eligibilityCollection`, `targetCollection`, `treasury`, `claimLimitId`, `assetLimitId` |
 
 Delete campaign rows you are not running, rather than leaving them to be resolved later —
@@ -165,6 +165,23 @@ has no groups, and the instruction fails to deserialize. It reads as "minting is
 with no cause attached. `preflight.js` now refuses it up front —
 `holder_collection_is_local`, Appendix A — but blank the column anyway; a guard is a
 backstop, not a substitute for not copying the value.
+
+`itemImage` and `uri` fail silently too, and nothing refuses them. Copied, they hold the
+**old** collection's real upload URLs. `upload-images.js` and `upload-metadata.js` skip any
+row that already has a real URL, so the new collection would mint with the old art and the
+old metadata, and every step would report success. Leave both blank: 7.2 and 7.4 fill them.
+
+### Which `master.csv` columns end up on the card, and when they freeze
+
+With generated cards (7.1), four columns are **printed on the image**: `collectionName`,
+`itemName`, `attributes`, and `itemDescription` (only when a drop has no attributes).
+`dropItemId` is printed too. `price` and `maxSupply` never are.
+
+**They freeze at 7.2, the image upload, not at the deploy.** Before 7.2, edit them freely
+and re-run 7.1: the card follows. After 7.2, an edit regenerates the local PNG and nothing
+a buyer will ever see. `upload-images.js` skips a row whose `itemImage` is already real
+(only `--force` re-uploads, and that pays again), and once 7.6 has deployed the drop its
+`uri` is fixed on chain for good. Settle the wording before 7.2.
 
 ---
 
