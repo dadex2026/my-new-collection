@@ -559,17 +559,17 @@ Add them under **Project configuration → Environment variables**:
 - **`VITE_SOLANA_RPC_URL`** — the Worker proxy URL from Stage 5. Never a keyed Helius
   URL; Vite inlines this into the public bundle.
 - **`VITE_REGISTRY_URL`** — set it to `/registry.json`. **This is the single most common
-  cause of "the site loads but is empty."** It does have a fallback —
-  `frontend/src/config.ts:8` reads
-  `import.meta.env.VITE_REGISTRY_URL || "/registry/registry.json"` — but the generator
-  publishes to `frontend/public/registry.json`, and there is no `public/registry/`
-  directory. So the fallback resolves to a path that does not exist and you get a
-  **404 on `/registry/registry.json`**, with the drops grid silently empty.
+  cause of "the site loads but is empty."** It has **no fallback**: the registry is
+  loaded by `frontend/src/registry/adapter.ts:43`, which reads
+  `import.meta.env.VITE_REGISTRY_URL` and nothing else. A missing value makes the browser
+  fetch a URL literally named **`/undefined`**, which 404s, and the drops grid is
+  silently empty. Look for `/undefined` in the console.
 
-  > Earlier revisions of this guide said this variable has *no* fallback and that a
-  > missing value fetches a URL literally named `/undefined`. Both were wrong — verified
-  > against `config.ts` on 2026-08-28. The symptom is identical, but if you go looking for
-  > `/undefined` in the console you will not find it and will chase the wrong thing.
+  > From 2026-08-28 to 2026-10-21 this guide said the opposite: that the variable falls
+  > back through `frontend/src/config.ts:8` to a path under `public/registry/`. That
+  > fallback is real code that nothing runs - `config.ts`'s `registryUrl` is read only by
+  > `registry/loader.ts`, and nothing imports `loader.ts`. A build with the variable unset
+  > compiles the registry fetch to `fetch(void 0)` (open-items 49).
 - `VITE_SOLANA_RPC_URL_DEVNET`, `VITE_CAMPAIGNS_URL`, `VITE_CONTENT_REGISTRY_URL` if set
   locally.
 
@@ -612,8 +612,8 @@ A 404 on `campaigns.json`, `content-registry.json`, `standings.json` or
 `methodology.json` is **normal** when the collection has no campaigns, cards or boards
 yet — all are handled as expected empty states.
 
-A 404 on `registry.json` is real breakage. So is a 404 on **`/registry/registry.json`** —
-that is the built-in fallback firing because `VITE_REGISTRY_URL` was never set on Netlify
+A 404 on `registry.json` is real breakage. So is any request for **`/undefined`** — that
+is `VITE_REGISTRY_URL` missing from the build because it was never set on Netlify
 (Stage 8), and it is the most common first-deploy failure there is.
 
 Check the browser console (F12) for `Failed to load resource`. A CORS error naming the

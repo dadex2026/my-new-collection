@@ -68,8 +68,9 @@ const EXTENSIONS = new Set([".md", ".js", ".ts"]);
 const ADVISORY_ONLY = [/^docs\/runs\//];
 
 // Each rule: a pattern that must not appear, why it is wrong, and where the
-// truth lives. `unless` exempts lines that are explicitly correcting the claim,
-// so a doc may quote a falsehood in order to retract it.
+// truth lives. A line within two of a RETRACTION word (below) is exempt, so a
+// doc may quote a falsehood in order to retract it - unless the rule is
+// `strict`, for a claim that was itself written as a correction.
 const RULES = [
   {
     id: "preflight-check-count",
@@ -88,24 +89,34 @@ const RULES = [
     truth: "backend/scripts/preflight.js — count the results.push({ name: ... }) calls",
   },
   {
-    id: "registry-url-no-fallback",
-    pattern: /VITE_REGISTRY_URL(?:[^.\n]|\.(?=[A-Za-z])){0,80}\bno fallback\b/i,
-    why: "It has a fallback: config.ts reads VITE_REGISTRY_URL || \"/registry/registry.json\". The fallback points at a path the generator never writes, so it 404s.",
-    truth: "frontend/src/config.ts",
+    id: "registry-url-fallback",
+    // Replaced 2026-10-21 (open-items 49). Its predecessor, registry-url-no-
+    // fallback, banned the TRUE claim: it took its truth from config.ts:8,
+    // whose registryUrl is read only by registry/loader.ts, which nothing
+    // imports. The live fetch is adapter.ts, with no fallback. This bans every
+    // shape the false fallback travelled in - the never-written path itself,
+    // "does have a fallback", "falls back", and "the fallback firing" - not
+    // just the sentence it replaces (the lesson of open-items 33).
+    pattern: /\/registry\/registry\.json|VITE_REGISTRY_URL(?:[^.\n]|\.(?=[A-Za-z])){0,80}\b(does have|has|have|with) a (built-in )?fallback\b|VITE_REGISTRY_URL`?(?:[^.\n]|\.(?=[A-Za-z])){0,30}\bfalls back\b|\b(built-in|VITE_REGISTRY_URL)`? fallback\b(?:[^.\n]|\.(?=[A-Za-z])){0,20}\bfir(es|ing)\b/i,
+    why: "VITE_REGISTRY_URL has no fallback. registry/adapter.ts:43 reads it bare and :82 fetches it; unset, the build compiles that to fetch(void 0), a request for /undefined. The /registry/registry.json fallback in config.ts:8 is dead - only registry/loader.ts reads it, and nothing imports loader.ts.",
+    truth: "frontend/src/registry/adapter.ts:43 and :82; no import of registry/loader.ts anywhere",
   },
   {
     id: "undefined-symptom",
-    // Deliberately broad: any mention of the path at all. The claim travels in
-    // more shapes than the sentence it was first written in — a1 asserts it in
-    // prose, a1's findings table recommends adding it *to* a prompt, a7 puts it
-    // in a diagnostic table mapping it to a cause, and again in a verification
-    // checklist. A pattern matching only "literally named `/undefined`" found
-    // three of the ten and reported a number that made the drift look a third
-    // its real size, which is worse than not counting. The RETRACTION exemption
-    // is what keeps the guide's and open-items' own corrections quiet.
-    pattern: /\/undefined\b/i,
-    why: "A missing VITE_REGISTRY_URL 404s on /registry/registry.json. Nothing requests a literal /undefined.",
-    truth: "frontend/src/config.ts",
+    // Inverted 2026-10-21 (open-items 49). From 2026-08-28 this rule banned any
+    // mention of /undefined, on the strength of the same dead config.ts
+    // fallback, and so blocked the accurate symptom for eight weeks. It now
+    // bans the DENIAL of that symptom, in each shape the denial was written:
+    // "nothing requests a literal /undefined", "you will not find /undefined",
+    // "not a request for /undefined", "the /undefined symptom is wrong".
+    //
+    // strict: the denial was itself phrased as a correction ("Both were wrong",
+    // "the symptom is wrong"), so the RETRACTION exemption would wave through
+    // exactly the sentences this rule exists to catch.
+    strict: true,
+    pattern: /\b(nothing|never|no longer|does not|doesn't|will not|won't)\s+(\w+\s+){0,2}(requests?|fetch\w*|find|see|hit\w*)\s+(a\s+)?(literal\s+)?(URL\s+)?(literally\s+named\s+)?`?\/undefined|\/undefined`?(?:[^.\n]|\.(?=[A-Za-z])){0,40}\b(will not|won't|never|do not|don't)\s+(find|see|appear)|\bnot a request for (a )?(literal )?`?\/undefined|\/undefined`? symptom is wrong/i,
+    why: "A missing VITE_REGISTRY_URL DOES request a literal /undefined: registry/adapter.ts:43 has no fallback, and the build compiles the fetch to fetch(void 0).",
+    truth: "frontend/src/registry/adapter.ts:43 and :82 - build with no env file and read the bundle",
   },
   {
     id: "environment-never-warning",
@@ -326,7 +337,9 @@ function main() {
           // correction note in my-new-collection that reads as a retraction to
           // any human. A doc may quote a falsehood in order to withdraw it, and
           // the withdrawal does not always share its line.
-          if (retractedNear(lines, i + k)) continue;
+          // A `strict` rule bans a claim that was itself written as a
+          // correction, so a retraction word nearby proves nothing.
+          if (!rule.strict && retractedNear(lines, i + k)) continue;
 
           hits.push({ rel, line: i + k + 1, text, rule, advisory });
           firedThrough.set(rule.id, i + w - 1);

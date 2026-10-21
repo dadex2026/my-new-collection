@@ -588,9 +588,9 @@ Cover, in order:
     publish ../dist, and project visibility.
  9. The environment variables, with VITE_REGISTRY_URL called out as the most
     common first-deploy failure — and name the symptom, because that is what I
-    will actually see: config.ts falls back to /registry/registry.json, which
-    is not where the generator publishes, so the browser 404s on that path and
-    the drops grid is silently empty.
+    will actually see: registry/adapter.ts reads it with no fallback, so a
+    missing value makes the browser request a literal /undefined, which 404s,
+    and the drops grid is silently empty.
 10. Live verification of all five JSON endpoints, and which 404s are normal.
 
 Flag every step that cannot be undone, and say what makes it permanent.
@@ -891,9 +891,8 @@ Cover:
    build command npm run build, publish directory ../dist.
  - Adding environment variables BEFORE the first full deploy, with
    VITE_REGISTRY_URL = /registry.json called out as the most common
-   first-deploy failure — missing it, config.ts falls back to
-   /registry/registry.json, a path the generator never writes, so the site
-   loads and shows nothing.
+   first-deploy failure — missing it, registry/adapter.ts has no fallback
+   and requests a literal /undefined, so the site loads and shows nothing.
  - The rest: VITE_SOLANA_RPC_URL (the Worker proxy, never a keyed Helius
    URL), VITE_SOLANA_RPC_URL_DEVNET, VITE_CAMPAIGNS_URL,
    VITE_CONTENT_REGISTRY_URL.
@@ -939,8 +938,8 @@ Cover:
    /content-registry.json, /standings.json, /methodology.json.
  - Which 404s are the expected empty state (campaigns, content-registry,
    standings, methodology, when nothing has been published yet) and which
-   mean something is actually broken (registry.json, or a 404 on
-   /registry/registry.json — that is the VITE_REGISTRY_URL fallback firing).
+   mean something is actually broken (registry.json, or any request for
+   /undefined — that is VITE_REGISTRY_URL missing from the build).
  - The browser console pass: F12 → Console, every "Failed to load resource"
    line cross-referenced against the environment variables.
  - How to tell a CORS error apart — if it names the Worker URL the problem is
