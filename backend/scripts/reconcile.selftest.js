@@ -120,6 +120,50 @@ const TEST_004_CHAIN = { itemsAvailable: 8n, itemsRedeemed: 2n }; // bigints, as
   assert.ok(table.some((l) => l.includes("u32 max")));
   ok("the table marks exactly the disagreeing rows", "<< TEST-004 19 vs 8");
 
+  // ---- campaigns.csv (open-items 57) ----------------------------------------
+  // my-new-collection/backend/campaigns.csv, verbatim for the columns read, and
+  // the chain as read on 2026-10-21.
+  const CAMPAIGN = (campaignId, campaignCandyMachineAddress, eligibilityCollection) =>
+    ({ campaignId, campaignCandyMachineAddress, eligibilityCollection, network: "mainnet" });
+  const V = "7DayQZfbPCXz5xMpkFG3RsPdsWL4hwWX9ea3EjKj2xVP";
+  const liveRow = CAMPAIGN("test-mech-d-reward", "3MrHBsSa3mD6xhuP2rgQy3b7bsbmawch9vNUVDpo6esf", V);
+  const live = m.compareCampaignRow(liveRow, { kind: "candy_machine", itemsAvailable: 5n, itemsRedeemed: 0n }, "mainnet");
+  assert.strictEqual(live.status, "live");
+  assert.strictEqual(live.claimed, "0/5");
+  const p6 = m.compareCampaignRow(CAMPAIGN("test-page-006", "7RJWhvQBQPEjJmki5fhBboGBWRJhmcFkMvrr4Fu3tMSJ", "DWGTLJUEyGUH33dLut6JLLbPqpHnPm8tLW2ejnj6EEcw"), null, "mainnet");
+  assert.strictEqual(p6.status, "no_account");
+  const p4 = m.compareCampaignRow(CAMPAIGN("test-page-004", "h82pJGF9p7kpzb6eU326EFZf2cDnimbTFVeJtx1qtBmU", V), "invalid", "mainnet");
+  assert.strictEqual(p4.status, "invalid_address");
+  const wallet = m.compareCampaignRow(CAMPAIGN("odd", "7XJJvj5N4aBMNyX9g5NZqSEzi9vY6vYxWydezMZvC4n9", V), { kind: "other" }, "mainnet");
+  assert.strictEqual(wallet.status, "not_a_candy_machine");
+  const dev = m.compareCampaignRow({ ...liveRow, network: "devnet" }, null, "mainnet");
+  assert.strictEqual(dev.status, "other_network");
+  ok("campaign rows: live, no account, invalid key, not a machine, other network", "test-page-006 - 3a's \"live\" campaign - is no_account");
+
+  const ctable = m.formatCampaignTable([live, p6, p4, dev]).split("\n");
+  assert.deepStrictEqual(ctable.filter((l) => l.startsWith("<<")).map((l) => l.split(/\s+/)[1]), ["test-page-006", "test-page-004"]);
+  ok("the campaign table marks exactly the rows that are not live", "<< test-page-006, test-page-004");
+
+  // The six candy machines under the fork's deployer on 2026-10-21, and every
+  // address the two CSVs record.
+  const ON_CHAIN = [
+    "3MrHBsSa3mD6xhuP2rgQy3b7bsbmawch9vNUVDpo6esf", "BLGGzRUgu5KQKJCkTM7CevhJibvpf9geCmDrxerusp7P",
+    "CzTMdNb7Umu9mexAex8L6NYUaYquoCRiTNQEC6kpsX8T", "D24hPHn7rx6mLcwYwsBRXh2oDrpYbPTM8eTWVzceY27U",
+    "GcwSvghcrDmbC2o3Td5ns13ugbS8Z9f14cR42LeQV7v6", "HFnMxQj7idRHkt9uPQ6QPQGWnm8821rycT8ovNJEDgNZ",
+  ];
+  const RECORDED = [
+    ...FORK.map((r) => r.candyMachineAddress),
+    "HFnMxQj7idRHkt9uPQ6QPQGWnm8821rycT8ovNJEDgNZ", "GcwSvghcrDmbC2o3Td5ns13ugbS8Z9f14cR42LeQV7v6",
+    "3MrHBsSa3mD6xhuP2rgQy3b7bsbmawch9vNUVDpo6esf", "h82pJGF9p7kpzb6eU326EFZf2cDnimbTFVeJtx1qtBmU",
+    "NJAEqN76R7PwPfHt3oWb8R6cKvhgyxQdDn53jFrK6wFx", "7RJWhvQBQPEjJmki5fhBboGBWRJhmcFkMvrr4Fu3tMSJ",
+    "5EdynMEiYSyiWAH9GpcbHpeUzeSQF9ZY6q4x8AhBskUf", "5RRfWaHcx1ko8kybqJriN8KUBW1oyoHZqCZ7xhLvhZfD", "",
+  ];
+  assert.deepStrictEqual(m.findUnrecorded(ON_CHAIN, RECORDED), []);
+  // The dangerous direction: test-mech-d-reward deployed, its column blank.
+  const blanked = RECORDED.filter((a) => a !== "3MrHBsSa3mD6xhuP2rgQy3b7bsbmawch9vNUVDpo6esf");
+  assert.deepStrictEqual(m.findUnrecorded(ON_CHAIN, blanked), ["3MrHBsSa3mD6xhuP2rgQy3b7bsbmawch9vNUVDpo6esf"]);
+  ok("a live machine no row records is found - the direction guards cannot see", "the fork's six machines all recorded; blank one, it is flagged");
+
   console.log("\n  All local assertions held. No RPC call was made.\n");
 })().catch((err) => {
   console.error("\n  FAILED: " + err.message + "\n");

@@ -2,9 +2,15 @@
 /**
  * scripts/reconcile.js
  *
- * Compares every deployed drop's maxSupply in master.csv against the cap its
- * candy machine actually has on chain (data.itemsAvailable), and fails if any
- * disagree. itemsRedeemed is printed alongside, for context.
+ * Checks the two CSVs every guard trusts against the chain, and fails on any
+ * disagreement:
+ *   DROPS       each deployed drop's maxSupply in master.csv against the cap its
+ *               candy machine has (data.itemsAvailable), itemsRedeemed alongside
+ *   CAMPAIGNS   each campaignCandyMachineAddress in campaigns.csv must hold a
+ *               live candy machine (open-items 57: five of eight did not)
+ *   UNRECORDED  every candy machine under the drops' authority that NO row of
+ *               either CSV names - a campaign deployed while its column stayed
+ *               blank reads as undeployed, and the guards then let a raise through
  *
  * WHY THIS EXISTS
  *   On 2026-10-21 the fork's master.csv was found carrying +11 on every
@@ -39,10 +45,9 @@
  * beside it before any deploy that relies on master.csv's caps.
  *
  * Exit codes:
- *   0 = every compared drop agrees
- *   1 = at least one disagrees, has no account on chain, or could not be
- *       compared (bad config, bad CSV)
- *   3 = RPC failure - nothing can be concluded
+ *   0 = every drop, every campaign address, and the unrecorded check all agree
+ *   1 = at least one disagreement in any section, or bad config / bad CSV
+ *   3 = RPC failure, or the unrecorded check could not run - not a full pass
  *
  * Usage:
  *   node scripts/reconcile.js
@@ -56,6 +61,7 @@ const { parseCsvRecords } = require("./lib/csv");
 const BACKEND_DIR = path.join(__dirname, "..");
 const CONFIG_PATH = path.join(BACKEND_DIR, "config.json");
 const MASTER_CSV_PATH = path.join(BACKEND_DIR, "master.csv");
+const CAMPAIGNS_CSV_PATH = path.join(BACKEND_DIR, "campaigns.csv");
 const LOGS_DIR = path.join(BACKEND_DIR, "logs");
 
 // deploy-candy-machine.js's cap for a nominally unlimited drop.
@@ -133,6 +139,54 @@ function formatTable(results) {
   return [line(head), line(widths.map((w) => "-".repeat(w))), ...rows.map(line)].join("\n");
 }
 
+// ---- campaigns.csv against the chain (added 2026-10-21, open-items 57) ----
+//
+// A campaignCandyMachineAddress reads as "deployed" to every script, and on
+// 2026-10-21 five of the fork's eight such rows had nothing on chain. The
+// campaign the cap-raise refusal named as live in chain verification 3a was one
+// of them. Each row's address must hold a live candy machine.
+//
+// chain: "invalid" when the address is not a public key at all; null when no
+// account exists; { kind: "other" } when an account exists but is not a candy
+// machine; else { kind: "candy_machine", itemsAvailable, itemsRedeemed }.
+function compareCampaignRow(row, chain, network) {
+  const base = {
+    campaignId: row.campaignId,
+    address: (row.campaignCandyMachineAddress || "").trim(),
+    gates: (row.eligibilityCollection || "").trim(),
+    claimed: null,
+  };
+  if ((row.network || "").trim() && (row.network || "").trim() !== network) {
+    return { ...base, status: "other_network", detail: `row is ${row.network}, config.json is ${network}` };
+  }
+  if (chain === "invalid") return { ...base, status: "invalid_address", detail: "not a valid public key - nothing can live there" };
+  if (chain === null) return { ...base, status: "no_account", detail: "no account at this address - never deployed, or closed" };
+  if (chain.kind !== "candy_machine") return { ...base, status: "not_a_candy_machine", detail: "an account exists here, but it is not a candy machine" };
+  return { ...base, status: "live", claimed: `${Number(chain.itemsRedeemed)}/${Number(chain.itemsAvailable)}`, detail: "" };
+}
+
+const CAMPAIGN_AGREES = new Set(["live", "other_network"]);
+
+// The dangerous direction: a candy machine under the drops' authority that NO
+// csv row records. A campaign deployed while its address column stayed blank
+// reads as undeployed, and every guard that trusts the column lets it through.
+function findUnrecorded(onChain, recorded) {
+  const known = new Set(recorded.map((a) => String(a).trim()).filter(Boolean));
+  return [...new Set(onChain.map(String))].filter((a) => !known.has(a)).sort();
+}
+
+function formatCampaignTable(results) {
+  const rows = results.map((r) => [
+    CAMPAIGN_AGREES.has(r.status) ? "  " : "<<",
+    r.campaignId, r.address ? r.address.slice(0, 8) + "…" : "-", r.gates ? r.gates.slice(0, 8) + "…" : "-",
+    r.claimed || "-", r.status + (r.detail ? " - " + r.detail : ""),
+  ]);
+  const head = ["", "campaign", "address", "gates", "claimed", "status"];
+  const widths = head.map((h, i) => Math.max(h.length, ...rows.map((r) => String(r[i]).length)));
+  const line = (cells) => cells.map((c, i) => (i === cells.length - 1 ? c : String(c).padEnd(widths[i]))).join("  ");
+  return [line(head), line(widths.map((w) => "-".repeat(w))), ...rows.map(line)].join("\n");
+}
+
 // ---- I/O ------------------------------------------------------------------
 
 function log(event) {
@@ -173,6 +227,7 @@ async function main() {
   const umi = umiBundleDefaults.createUmi(config.rpc).use(mplCandyMachine.mplCandyMachine());
 
   const results = [];
+  const authorities = new Set();
   for (const row of deployed) {
     const net = (row.network || "").trim();
     if (net && net !== config.network) {
@@ -183,26 +238,79 @@ async function main() {
     try {
       const cm = await mplCandyMachine.safeFetchCandyMachine(umi, umiCore.publicKey(row.candyMachineAddress.trim()));
       chain = cm ? { itemsAvailable: cm.data.itemsAvailable, itemsRedeemed: cm.itemsRedeemed } : null;
+      if (cm) authorities.add(String(cm.authority));
     } catch (err) {
       fail("rpc_error", `Could not read ${row.dropItemId}'s candy machine ${row.candyMachineAddress}: ${err.message}. Nothing can be concluded.`, 3);
     }
     results.push(compareRow(row, chain, config.network));
   }
 
-  console.log("\n" + formatTable(results) + "\n");
+  // ---- campaigns.csv: every address must hold a live candy machine -------
+  const campaignResults = [];
+  const campaignRows = fs.existsSync(CAMPAIGNS_CSV_PATH)
+    ? parseCsvRecords(fs.readFileSync(CAMPAIGNS_CSV_PATH, "utf8")).records.filter((r) => (r.campaignCandyMachineAddress || "").trim())
+    : [];
+  for (const row of campaignRows) {
+    const net = (row.network || "").trim();
+    if (net && net !== config.network) { campaignResults.push(compareCampaignRow(row, null, config.network)); continue; }
+    let key;
+    try { key = umiCore.publicKey(row.campaignCandyMachineAddress.trim()); }
+    catch { campaignResults.push(compareCampaignRow(row, "invalid", config.network)); continue; }
+    let chain;
+    try {
+      const cm = await mplCandyMachine.safeFetchCandyMachine(umi, key);
+      chain = cm ? { kind: "candy_machine", itemsAvailable: cm.data.itemsAvailable, itemsRedeemed: cm.itemsRedeemed } : null;
+    } catch {
+      // An account that will not deserialise as a candy machine: confirm it exists.
+      try { chain = (await umi.rpc.getAccount(key)).exists ? { kind: "other" } : null; }
+      catch (err) { fail("rpc_error", `Could not read campaign ${row.campaignId}'s address: ${err.message}. Nothing can be concluded.`, 3); }
+    }
+    campaignResults.push(compareCampaignRow(row, chain, config.network));
+  }
+
+  // ---- The other direction: machines on chain that no row records --------
+  let unrecorded = null;
+  try {
+    const onChain = [];
+    for (const authority of authorities) {
+      const keys = await mplCandyMachine.getCandyMachineGpaBuilder(umi).whereField("authority", umiCore.publicKey(authority)).getPublicKeys();
+      onChain.push(...keys.map(String));
+    }
+    const recorded = [
+      ...records.map((r) => r.candyMachineAddress),
+      ...(fs.existsSync(CAMPAIGNS_CSV_PATH) ? parseCsvRecords(fs.readFileSync(CAMPAIGNS_CSV_PATH, "utf8")).records.map((r) => r.campaignCandyMachineAddress) : []),
+    ];
+    unrecorded = findUnrecorded(onChain, recorded);
+  } catch (err) {
+    console.log(log({ status: "warning", reason: "unrecorded_not_checked", message: `Could not list candy machines by authority (${err.message}). The unrecorded-machine check did NOT run.` }));
+  }
+
+  console.log("\nDROPS - master.csv maxSupply against the chain\n" + formatTable(results) + "\n");
+  if (campaignRows.length) console.log("CAMPAIGNS - campaigns.csv addresses against the chain\n" + formatCampaignTable(campaignResults) + "\n");
+  if (unrecorded !== null) {
+    console.log(`UNRECORDED - candy machines under ${[...authorities].map((a) => a.slice(0, 8) + "…").join(", ")} that no CSV row names: ` +
+      (unrecorded.length ? "\n" + unrecorded.map((a) => "<<  " + a).join("\n") : "none") + "\n");
+  }
+
   const bad = results.filter((r) => !AGREES.has(r.status));
+  const badCampaigns = campaignResults.filter((r) => !CAMPAIGN_AGREES.has(r.status));
   const skipped = results.filter((r) => r.status === "other_network").length;
+  const problems = bad.length + badCampaigns.length + (unrecorded ? unrecorded.length : 0);
   console.log(log({
-    status: bad.length ? "failure" : "success",
-    reason: bad.length ? "csv_disagrees_with_chain" : undefined,
+    status: problems ? "failure" : unrecorded === null ? "incomplete" : "success",
+    reason: problems ? "csv_disagrees_with_chain" : unrecorded === null ? "unrecorded_not_checked" : undefined,
     compared: results.length - skipped,
     skippedOtherNetwork: skipped,
     disagreements: bad.map((r) => `${r.dropItemId}: ${r.status}`),
-    message: bad.length
-      ? `${bad.length} drop(s) disagree. Decide which side is right; this script repairs neither.`
-      : `All ${results.length - skipped} deployed drop(s) on ${config.network} match the chain.`,
+    campaignProblems: badCampaigns.map((r) => `${r.campaignId}: ${r.status}`),
+    unrecordedMachines: unrecorded,
+    message: problems
+      ? `${problems} disagreement(s) between the CSVs and the chain. Decide which side is right; this script repairs neither.`
+      : unrecorded === null
+        ? "Drops and campaigns match, but the unrecorded-machine check could not run - not a full pass."
+        : `All ${results.length - skipped} drop(s) and ${campaignResults.length} campaign address(es) on ${config.network} match the chain, and no machine is unrecorded.`,
   }));
-  process.exit(exitCodeFor(results));
+  process.exit(problems ? 1 : unrecorded === null ? 3 : 0);
 }
 
 if (require.main === module) {
@@ -212,4 +320,7 @@ if (require.main === module) {
   });
 }
 
-module.exports = { expectedItemsAvailable, isAmbiguousMaxSupply, compareRow, exitCodeFor, formatTable, UNLIMITED_ITEMS_AVAILABLE };
+module.exports = {
+  expectedItemsAvailable, isAmbiguousMaxSupply, compareRow, exitCodeFor, formatTable, UNLIMITED_ITEMS_AVAILABLE,
+  compareCampaignRow, findUnrecorded, formatCampaignTable,
+};
