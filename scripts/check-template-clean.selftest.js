@@ -2,10 +2,10 @@
 /**
  * scripts/check-template-clean.selftest.js
  *
- * Exercises check-template-clean.js's judgement offline.
- * FIXTURE IS PRODUCTION DATA: the template's actual state on 2026-10-22 - its
- * real config.json and deployment.json values and which state files existed.
- * It must fail on that, item by item, and pass once each item is cleared.
+ * Exercises check-template-clean.js's judgement offline, in both modes.
+ * FIXTURE IS PRODUCTION DATA: the template's actual state on 2026-10-22 -
+ * its git status, which state files and generated dirs existed, and its real
+ * config.json and deployment.json values (including the _why fixture note).
  */
 "use strict";
 
@@ -17,43 +17,58 @@ function ok(label, detail) {
   console.log(`  ok  ${label}${detail ? " — " + detail : ""}`);
 }
 
+const WHY = "Deliberate fixture for prompt A1 (docs/generation-prompts.md: A1's deployment.json step ...). See open-items item 61.";
 // TEMPLATE-OPEN-EDITION as found on 2026-10-22.
-const FOUND = {
+const TEMPLATE = {
+  porcelain: ['?? "Claude outputs/"'],
   exists: { "backend/.env.admin": true, "backend/.env": true, "frontend/.env": true, "backend/deploy-state.json": true, "backend/registry.json": true, "backend/logs": true, ".netlify": true },
+  dirs: { "backend/images": 0 },
   config: { collectionSlug: "your-collection-slug", network: "devnet", treasury: "YOUR_TREASURY_ADDRESS" },
-  deployment: { assetAddress: "GSy11Cj6N8TtA5EeWYs7pUtAx3weXtxdBH6GLQJCyrK6", treasury: "7XJJvj5N4aBMNyX9g5NZqSEzi9vY6vYxWydezMZvC4n9", rpc: "https://rpc-proxy.smallen1967.workers.dev", createdAt: "2026-06-26T20:52:48.712Z" },
+  deployment: { _why: WHY, assetAddress: "GSy11Cj6N8TtA5EeWYs7pUtAx3weXtxdBH6GLQJCyrK6", treasury: "7XJJvj5N4aBMNyX9g5NZqSEzi9vY6vYxWydezMZvC4n9", rpc: "https://rpc-proxy.smallen1967.workers.dev", createdAt: "2026-06-26T20:52:48.712Z" },
   masterRows: [{ dropItemId: "SAMPLE-001", collectionAddress: "", candyMachineAddress: "", candyGuardAddress: "", holderRequiredCollection: "", holderPrice: "", itemImage: "", uri: "" }],
   campaignRows: [],
-  generated: { "backend/metadata": [], "backend/images": [] },
 };
-const CLEAN = {
-  ...FOUND,
-  exists: Object.fromEntries(Object.keys(FOUND.exists).map((k) => [k, false])),
-  deployment: { rpc: FOUND.deployment.rpc },
+// A correct copy after Stage 1: Remove-Item run, deployment.json edited.
+const GOOD_COPY = {
+  ...TEMPLATE,
+  porcelain: [" M deployment.json"],
+  exists: Object.fromEntries(Object.keys(TEMPLATE.exists).map((k) => [k, false])),
+  dirs: {},
+  deployment: { rpc: TEMPLATE.deployment.rpc, treasury: "NewOwnersOwnTreasury1111111111111111111111" },
 };
+const whats = (r) => r.findings.map((f) => f.what);
 
 (async () => {
-  console.log("\n  check-template-clean.js — offline\n");
+  console.log("\n  check-template-clean.js — offline, both modes\n");
 
-  const found = findState(FOUND).map((f) => f.what);
-  assert.deepStrictEqual(found, [
-    "backend/.env.admin", "backend/.env", "frontend/.env",
-    "backend/deploy-state.json", "backend/registry.json", "backend/logs/", ".netlify/",
-    "deployment.json assetAddress", "deployment.json treasury", "deployment.json createdAt",
+  const inv = findState(TEMPLATE, "inventory");
+  assert.deepStrictEqual(whats(inv), [
+    'git status: ?? "Claude outputs/"', "backend/images/ (0 entries)",
+    "backend/.env.admin", "backend/.env", "frontend/.env", "backend/deploy-state.json", "backend/registry.json", "backend/logs", ".netlify",
   ]);
-  ok("the template as found fails on all ten items", "the key, the deploy state, deployment.json's three fields");
+  assert.deepStrictEqual(inv.expected.map((e) => e.what), ["deployment.json assetAddress", "deployment.json treasury", "deployment.json createdAt"]);
+  ok("inventory of the template: 9 findings, the 3 A1 fields expected not found", "porcelain catches Claude outputs/; the sweep the empty images/");
 
-  assert.deepStrictEqual(findState(CLEAN), []);
-  ok("cleared of those, it passes", "the placeholder config and the blank sample row are clean");
+  const noWhy = findState({ ...TEMPLATE, deployment: { ...TEMPLATE.deployment, _why: undefined } }, "inventory");
+  assert.ok(["deployment.json assetAddress", "deployment.json treasury", "deployment.json createdAt"].every((w) => whats(noWhy).includes(w)));
+  ok("without the _why note, the same three fields are drift", "the note is what makes them deliberate");
 
-  const wrong = findState({ ...CLEAN, config: { collectionSlug: "founders", network: "mainnet", treasury: "7XJJvj5N4aBMNyX9g5NZqSEzi9vY6vYxWydezMZvC4n9" } }).map((f) => f.what);
-  assert.deepStrictEqual(wrong, ["backend/config.json treasury", "backend/config.json network", "backend/config.json collectionSlug"]);
-  ok("a configured config.json is caught on each field");
+  assert.deepStrictEqual(findState(GOOD_COPY, "verify"), { findings: [], expected: [] });
+  ok("verify on a correct copy exits clean", "Stage 1's own edit to deployment.json is allowed");
 
-  const rows = findState({ ...CLEAN, masterRows: [{ ...FOUND.masterRows[0], candyMachineAddress: "BLGGzRUgu5KQKJCkTM7CevhJibvpf9geCmDrxerusp7P", itemImage: "https://gateway.irys.xyz/CDKZz6S3Hu2283oMYB8z7zx39eRXS647TP9sffoVPKeM" }],
-    campaignRows: [{ campaignId: "c", campaignCandyMachineAddress: "3MrHBsSa3mD6xhuP2rgQy3b7bsbmawch9vNUVDpo6esf" }], generated: { "backend/metadata": ["SAMPLE-001.json"], "backend/images": [] } }).map((f) => f.what);
-  assert.deepStrictEqual(rows, ["master.csv SAMPLE-001 candyMachineAddress", "master.csv SAMPLE-001 itemImage", "campaigns.csv c campaignCandyMachineAddress", "backend/metadata/ (1 file(s))"]);
-  ok("filled CSV addresses and generated metadata are caught", "values from the fork's real rows");
+  const skipped = whats(findState({ ...TEMPLATE, porcelain: [] }, "verify"));
+  for (const w of ["backend/.env.admin", "backend/deploy-state.json", "deployment.json assetAddress", "deployment.json treasury", "deployment.json createdAt", "deployment.json _why"]) {
+    assert.ok(skipped.includes(w), w);
+  }
+  ok("verify catches a skipped Remove-Item and an unedited deployment.json", "the key, the deploy state, every stale field and the _why");
+
+  const halfway = whats(findState({ ...GOOD_COPY, porcelain: [" M deployment.json", '?? "Claude outputs/"', "?? notes.md"], dirs: { "backend/metadata": 0 } }, "verify"));
+  assert.deepStrictEqual(halfway, ['git status: ?? "Claude outputs/"', "git status: ?? notes.md", "backend/metadata/ (0 entries)"]);
+  ok("verify catches the eleventh thing", "untracked files no list names, and an empty generated dir");
+
+  const filled = whats(findState({ ...GOOD_COPY, masterRows: [{ ...TEMPLATE.masterRows[0], candyMachineAddress: "BLGGzRUgu5KQKJCkTM7CevhJibvpf9geCmDrxerusp7P" }] }, "verify"));
+  assert.deepStrictEqual(filled, ["master.csv SAMPLE-001 candyMachineAddress"]);
+  ok("a filled address column in a copied CSV is caught", "the fork's real TEST-004 machine");
 
   console.log("\n  All local assertions held. Nothing was read from disk.\n");
 })().catch((err) => {

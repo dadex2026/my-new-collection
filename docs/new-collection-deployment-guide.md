@@ -94,14 +94,16 @@ this machine, **before** Stage 7. No check covers this, and it is unrecoverable.
 ### First: check what you are about to copy
 
 ```powershell
-node C:\Users\User\Desktop\TEMPLATE-OPEN-EDITION\scripts\check-template-clean.js
+node C:\Users\User\Desktop\TEMPLATE-OPEN-EDITION\scripts\check-template-clean.js --inventory
 ```
 
-**Read-only.** It lists everything in the template that a new collection would inherit:
-secrets, deploy state, logs, a configured `config.json`, filled address columns, generated
-art, and `deployment.json`'s stamped values. Exit `0` means the source is clean. Exit `1`
-names each item, and the `Remove-Item` block below deletes most of them from the
-**copy**. It deletes nothing itself, and for a reason. On 2026-10-22 the template held a
+**Read-only and informational: in the template, exit `1` is expected.** The template's own
+working copy legitimately holds local secrets and run history. The inventory tells you what
+the copy will carry: anything `git status` shows, generated directories, secrets, deploy
+state, logs, a configured `config.json`, filled address columns. `deployment.json`'s three
+stale fields are listed as *expected*: they are prompt A1's fixture, and the file's `_why`
+says so. The `Remove-Item` block below deletes the rest from the **copy**, and the last
+step of this stage verifies that it did. The checker deletes nothing itself, and for a reason. On 2026-10-22 the template held a
 live mainnet deployer key, with SOL and authority over two collections. A key like that
 must be **moved** somewhere safe, not lost (open-items 61).
 
@@ -129,7 +131,7 @@ pwd    # confirm you are in the copy before the next block
 ```powershell
 Remove-Item -Recurse -Force node_modules,backend\node_modules,frontend\node_modules,dist -EA SilentlyContinue
 Remove-Item -Force backend\.env,backend\.env.admin,frontend\.env -EA SilentlyContinue
-Remove-Item -Recurse -Force backend\logs,.netlify -EA SilentlyContinue
+Remove-Item -Recurse -Force backend\logs,.netlify,"Claude outputs",backend\metadata,backend\images -EA SilentlyContinue
 Remove-Item -Force backend\deploy-state.json,backend\registry.json -EA SilentlyContinue
 ```
 
@@ -151,8 +153,12 @@ binary later. The `.env` files hold live secrets belonging to the template, not 
 
 Left in place, the new collection *appears* to already have a deployed collection asset —
 the template's. Nothing errors; it simply points at the wrong thing. Delete
-`assetAddress` and `createdAt`, set `treasury` to your own wallet, and leave `rpc` for
-Stage 5.
+`assetAddress`, `createdAt` and `_why`, and leave `rpc` for Stage 5. **Nothing reads this
+file**: the treasury the scripts use is `backend/config.json`'s. So set `treasury` here to
+your own wallet, or delete it, as documentation only. What matters is that the template's
+value does not survive, because a person looking for the treasury finds it and copies it.
+(In the template these three values are deliberately stale - its `_why` key explains why
+- so do not "fix" them there.)
 
 ### `master.csv` and `campaigns.csv` carry addresses too
 
@@ -196,6 +202,20 @@ and re-run 7.1: the card follows. After 7.2, an edit regenerates the local PNG a
 a buyer will ever see. `upload-images.js` skips a row whose `itemImage` is already real
 (only `--force` re-uploads, and that pays again), and once 7.6 has deployed the drop its
 `uri` is fixed on chain for good. Settle the wording before 7.2.
+
+### Last: verify the copy - exit `0` required
+
+```powershell
+node scripts\check-template-clean.js --verify
+```
+
+**Run it in the copy, after everything above. Do not start Stage 2 until it exits `0`.**
+This is the run with teeth. It fails on anything the `Remove-Item` block should have
+removed and did not: secrets, deploy state, logs, the generated directories, untracked
+files. It also fails if `deployment.json` still carries `assetAddress`, `createdAt`, `_why`
+or the template's treasury, or if a CSV still holds an address. One entry in `git status`
+is allowed, ` M deployment.json`, because this stage edits that file. Nothing else
+confirms Stage 1 happened: the warning box above asks, and this checks.
 
 ---
 
