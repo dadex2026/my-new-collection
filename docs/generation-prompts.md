@@ -602,7 +602,7 @@ material goes inside it); refusals; verification checklist; and Missing inputs
 become.
 ```
 
-**Reference:** `docs/new-collection-deployment-guide.md` · `docs/netlify-connection.md` · `template-version.json` · `schema.json`
+**Reference:** `docs/new-collection-deployment-guide.md` · `docs/new-collection-decisions.md` · `docs/netlify-connection.md` · `template-version.json` · `schema.json`
 
 **A full worked run of this prompt** — filled header and all five parts of
 the output — is in `docs/runs/worked-run-a1.md`.
@@ -3097,6 +3097,7 @@ The related documents, in the order you usually need them:
 | File | Covers |
 |---|---|
 | `docs/new-collection-deployment-guide.md` | Standing a collection up, and the text-card, rankings and methodology loops |
+| `docs/new-collection-decisions.md` | The per-collection decisions worksheet: seven permanent choices (Stage 0's four, plus the collection image, the art and the treasury), per-collection setup, and the template gaps every copy inherits. An index - each line names the document that owns the fact. **Prompt A1 cites it** |
 | `backend/standings/README.md` | Board format, the two importers, **running a contest**, ties, score direction |
 | `docs/post-generator-spec.md` | The `compose-post.js` contract: sources, placeholders, refusals, character budget |
 | `docs/netlify-connection.md` | Deploy access |

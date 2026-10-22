@@ -33,7 +33,8 @@ Appendix C — reference documents (none of which you need to finish a launch)
 # Stage 0 — Decide the four permanent things
 
 None of these is a preflight check. That is exactly why they get missed. Settle all four
-in writing before you copy anything.
+in writing before you copy anything - `docs/new-collection-decisions.md` is the worksheet.
+It also asks which treasury receives the proceeds, which this stage does not list yet.
 
 ### 1. `collectionName` — and it does not live where older docs said
 
@@ -709,11 +710,14 @@ project**.
 > account's credit runs out, Netlify skips the deploy - and the repo, the push and the
 > build log all look normal from this side. The live site keeps serving the previous
 > version. On this project's account that happened to **27 deploys in a row, 2026-08-28
-> to 09-06** (open-items 62). Before launch day: check usage in the Netlify dashboard;
-> set a credit alert (there was none); and stop builds on any project on the same account
-> that does not need them. **After the launch push, confirm that the deploy happened**:
-> the project's Deploys list shows that commit as *Published*, and the live
-> `registry.json` matches what you pushed. A green push is not a deploy.
+> to 09-06** (open-items 62), and because no push followed the last skip, the fork's
+> live site stayed on its 2026-08-18 build until 2026-10-21. Before launch day: check
+> usage in the Netlify dashboard; set a credit alert (there was none); and **stop builds
+> on the template's own Netlify project** - it has no launch to protect and was 33 of the
+> period's 37 deploys on the shared budget. **After the launch push, confirm that the
+> deploy happened**: the project's Deploys list shows that commit as *Published*, and the
+> live `registry.json` matches what you pushed. **A green push is not evidence of a
+> deploy** - that inference is what let 27 skips pass unnoticed.
 
 1. Log in with the account that should permanently own this collection's infrastructure.
    "Continue with GitHub" using the account that owns the repo is simplest.
@@ -1096,4 +1100,5 @@ guide deliberately doesn't carry.
 | `docs/post-generator-spec.md` | The `compose-post.js` contract: sources, placeholders, refusals, weighted character counting, the six templates. |
 | `docs/netlify-connection.md` | Logging into and confirming the Netlify project. |
 | `docs/production-readiness.md` | The launch record — what the August deployment logs prove, why the first launch runs on mainnet, and template-level fixes still outstanding. **Not a guide.** |
+| `docs/new-collection-decisions.md` | The decisions worksheet: Stage 0's four permanent choices plus the collection image, the art and the treasury; per-collection setup; and the template gaps every copy inherits. Copied blank with the template, filled in the new project. |
 | `docs/open-items.md` | Template maintenance backlog, plus a verified-state table. **Delete when forking.** |
