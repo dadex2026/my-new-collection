@@ -91,6 +91,20 @@ this machine, **before** Stage 7. No check covers this, and it is unrecoverable.
 > files holding a treasury address, a deployer key and RPC settings, which are in no
 > commit and **cannot be restored with `git checkout`**.
 
+### First: check what you are about to copy
+
+```powershell
+node C:\Users\User\Desktop\TEMPLATE-OPEN-EDITION\scripts\check-template-clean.js
+```
+
+**Read-only.** It lists everything in the template that a new collection would inherit:
+secrets, deploy state, logs, a configured `config.json`, filled address columns, generated
+art, and `deployment.json`'s stamped values. Exit `0` means the source is clean. Exit `1`
+names each item, and the `Remove-Item` block below deletes most of them from the
+**copy**. It deletes nothing itself, and for a reason. On 2026-10-22 the template held a
+live mainnet deployer key, with SOL and authority over two collections. A key like that
+must be **moved** somewhere safe, not lost (open-items 61).
+
 ### Copy with `.git`, not without
 
 Keep `.git`. It is hard to reverse, so understand the trade:
