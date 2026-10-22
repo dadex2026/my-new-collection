@@ -48,6 +48,18 @@
  * Usage:
  *   node scripts/check-docs.js
  *   node scripts/check-docs.js --list      # print the rules, check nothing
+ *   node scripts/check-docs.js --exempted  # every match the RETRACTION window
+ *                                          # suppressed, per rule; exits 0
+ *
+ * THE RETRACTION WINDOW IS A MEASURED HOLE (2026-10-22). A non-strict rule skips
+ * a match with a retraction word within two lines - and an open-items row is one
+ * line of up to ~3,000 characters, so "within two lines" can mean anywhere in
+ * the row. The first --exempted run found 16 exempted matches against 3
+ * reported: 13 genuine retractions, and 3 live false claims, one in the
+ * deployment guide. All 3 were fixed. Narrowing to the claim's own sentence was
+ * measured too: it would have caught 2 of the 3 and wrongly failed 4 genuine
+ * retractions, so it was not adopted. Re-run --exempted after adding a rule
+ * or a correction-heavy doc.
  */
 "use strict";
 
@@ -342,6 +354,8 @@ function main() {
   const WINDOW = 3;
 
   const hits = [];
+  const exempted = [];
+  const exemptKeys = new Set();
   for (const file of files) {
     const rel = path.relative(ROOT, file).replace(/\\/g, "/");
     const advisory = ADVISORY_ONLY.some((re) => re.test(rel));
@@ -377,13 +391,55 @@ function main() {
           // the withdrawal does not always share its line.
           // A `strict` rule bans a claim that was itself written as a
           // correction, so a retraction word nearby proves nothing.
-          if (!rule.strict && retractedNear(lines, i + k)) continue;
+          if (!rule.strict && retractedNear(lines, i + k)) {
+            // Recorded, not reported: --exempted measures this hole (2026-10-22).
+            const at = i + k;
+            const key = `${rel}:${at}:${rule.id}`;
+            if (!exemptKeys.has(key)) {
+              exemptKeys.add(key);
+              const before = lines.slice(Math.max(0, at - 2), at).some((l) => RETRACTION.test(l));
+              const where = RETRACTION.test(lines[at]) ? "same line" : before ? "line above" : "line below only";
+              const word = (lines.slice(Math.max(0, at - 2), at + 3).join(" ").match(RETRACTION) || [""])[0];
+              // Distance from the claim to the nearest retraction word on its own
+              // line: a one-line table row can carry a "said" 1,000 characters away.
+              const pos = m.index - offsets[k];
+              const all = [...lines[at].matchAll(new RegExp(RETRACTION.source, "gi"))];
+              const dist = all.length ? Math.min(...all.map((r) => Math.abs(r.index - pos))) : null;
+              // Would a same-sentence window still exempt it? Sentence = the claim's
+              // line cut at ". " / "! " / "? " followed by a capital, a backtick,
+              // markup or a quote.
+              const sentences = lines[at].split(/(?<=[.!?])\s+(?=[*A-Z`(\[~"_])/);
+              let acc = 0, sentence = lines[at];
+              for (const s of sentences) { if (pos < acc + s.length + 1) { sentence = s; break; } acc += s.length + 1; }
+              const sameSentence = RETRACTION.test(sentence);
+              exempted.push({ rel, line: at + 1, rule, where, word, chars: lines[at].length, dist, claim: m[0], sameSentence, advisory });
+            }
+            continue;
+          }
 
           hits.push({ rel, line: i + k + 1, text, rule, advisory });
           firedThrough.set(rule.id, i + w - 1);
         }
       }
     }
+  }
+
+  // --exempted: every match the retraction window suppressed, so the size of
+  // that blind spot is a number, not a note. Informational; exits 0.
+  if (process.argv.includes("--exempted")) {
+    const o = (t) => process.stdout.write(t);
+    o(`\n— exempted by the retraction window: ${exempted.length} match(es); ${hits.length} reported —\n\n`);
+    for (const r of RULES) {
+      const e = exempted.filter((x) => x.rule.id === r.id);
+      const by = (w) => e.filter((x) => x.where === w).length;
+      o(`  ${r.id.padEnd(28)} exempted ${String(e.length).padStart(3)}  (same line ${by("same line")}, above ${by("line above")}, below only ${by("line below only")})${r.strict ? "  [strict]" : ""}\n`);
+    }
+    o("\n");
+    for (const x of exempted) {
+      o(`  ${x.rel}:${x.line}  [${x.rule.id}]  ${x.where}, "${x.word}"${x.dist === null ? "" : `, ${x.dist} chars from the claim`}, line ${x.chars} chars, ${x.sameSentence ? "same sentence" : "NOT same sentence"}${x.advisory ? ", advisory file" : ""}\n`);
+      o(`      claim: ${x.claim.slice(0, 110)}\n`);
+    }
+    process.exit(0);
   }
 
   const blocking = hits.filter((h) => !h.advisory);

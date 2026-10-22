@@ -1063,7 +1063,8 @@ reporting `COULD NOT VERIFY`.
 
 **A category can pass without evaluating anything.** Every content, permanent-value and
 deployment check runs inside the block that `collection_has_rows` guards, so a slug with no
-matching rows skips eleven checks — including both art gates. Until 2026-09-03 the report
+matching rows skips nine checks (`preflight.js`'s rows block, counted 2026-10-22; the two art
+gates that were among them moved to 7.4a's `check-upload-columns.js` on 2026-10-21). Until 2026-09-03 the report
 printed `Content Validation ✓ PASS` in that state and omitted the Permanent Values group
 from the output altogether. It now marks a partly-skipped category `(partial)`, prints
 `- NOT EVALUATED` for one that ran nothing, and names the checks that did not run in both
