@@ -13,7 +13,7 @@ the chain permanently.** The boundary is marked, and it is the only one that mat
 
 | Stage | What it does | Reversible? |
 |---|---|---|
-| **0** | Decide the four permanent things | — |
+| **0** | Decide the five permanent things | — |
 | **1** | Copy the template, strip what shouldn't travel | yes |
 | **2** | Split into its own repo | yes |
 | **3** | Set identity — the seven places the name lives | yes |
@@ -30,11 +30,11 @@ Appendix C — reference documents (none of which you need to finish a launch)
 
 ---
 
-# Stage 0 — Decide the four permanent things
+# Stage 0 — Decide the five permanent things
 
-None of these is a preflight check. That is exactly why they get missed. Settle all four
-in writing before you copy anything - `docs/new-collection-decisions.md` is the worksheet.
-It also asks which treasury receives the proceeds, which this stage does not list yet.
+None of these is a preflight check. That is exactly why they get missed. Settle all five
+in writing before you copy anything - `docs/new-collection-decisions.md` is the worksheet,
+and it adds two more of its own: the collection image and the art.
 
 ### 1. `collectionName` — and it does not live where older docs said
 
@@ -73,6 +73,18 @@ the wrong one.
 
 The deployer wallet is the collection's authority. Back it up somewhere that survives
 this machine, **before** Stage 7. No check covers this, and it is unrecoverable.
+
+### 5. The treasury — which wallet receives the proceeds
+
+**`backend/config.json`'s `treasury` is the address that is read**, and it lands in three
+places: the `public` group's `solPayment` destination on every candy machine
+(`deploy-candy-machine.js:313`), every campaign's payment destination
+(`deploy-campaign.js:555`), and the collection's Royalties creator at 100%
+(`deploy-collection.js:327`). No script in this repo changes the `public` destination or
+the royalty creator after deploy, so treat it as permanent, like the price. A wrong
+answer sends every sale and every royalty to that wallet. Preflight refuses it when it is
+the deployer's own wallet (`preflight.js:235`). `deployment.json` also has a `treasury`;
+nothing that deploys reads it.
 
 > Also decide, if the launch will have them: **rewards** (holder campaigns draw a
 > snapshot from `backend/scripts/get-holders.js` — see Stage 10) and
@@ -710,11 +722,12 @@ project**.
 > account's credit runs out, Netlify skips the deploy - and the repo, the push and the
 > build log all look normal from this side. The live site keeps serving the previous
 > version. On this project's account that happened to **27 deploys in a row, 2026-08-28
-> to 09-06** (open-items 62), and because no push followed the last skip, the fork's
-> live site stayed on its 2026-08-18 build until 2026-10-21. Before launch day: check
-> usage in the Netlify dashboard; set a credit alert (there was none); and **stop builds
-> on the template's own Netlify project** - it has no launch to protect and was 33 of the
-> period's 37 deploys on the shared budget. **After the launch push, confirm that the
+> to 09-06** on the fork, and 68 on the template's own project from 08-24 (open-items 62).
+> Because no push followed the last skip, the fork's live site stayed on its 2026-08-18
+> build until 2026-10-21. Before launch day: check
+> usage in the Netlify dashboard; set a credit alert (there was none); and **keep builds
+> stopped on the template's own Netlify project** (stopped 2026-10-22) - it has no launch
+> to protect and was 33 of the period's 37 deploys on the shared budget. **After the launch push, confirm that the
 > deploy happened**: the project's Deploys list shows that commit as *Published*, and the
 > live `registry.json` matches what you pushed. **A green push is not evidence of a
 > deploy** - that inference is what let 27 skips pass unnoticed.
@@ -1100,5 +1113,5 @@ guide deliberately doesn't carry.
 | `docs/post-generator-spec.md` | The `compose-post.js` contract: sources, placeholders, refusals, weighted character counting, the six templates. |
 | `docs/netlify-connection.md` | Logging into and confirming the Netlify project. |
 | `docs/production-readiness.md` | The launch record — what the August deployment logs prove, why the first launch runs on mainnet, and template-level fixes still outstanding. **Not a guide.** |
-| `docs/new-collection-decisions.md` | The decisions worksheet: Stage 0's four permanent choices plus the collection image, the art and the treasury; per-collection setup; and the template gaps every copy inherits. Copied blank with the template, filled in the new project. |
+| `docs/new-collection-decisions.md` | The decisions worksheet: Stage 0's five permanent choices plus the collection image and the art; per-collection setup; and the template gaps every copy inherits. Copied blank with the template, filled in the new project. |
 | `docs/open-items.md` | Template maintenance backlog, plus a verified-state table. **Delete when forking.** |

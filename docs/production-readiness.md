@@ -2,7 +2,7 @@
 
 > **Looking for how to launch a collection?** That is
 > **`docs/new-collection-deployment-guide.md`**, and it is the only guide. It covers
-> everything from the four permanent decisions through the mint, the site, and the
+> everything from Stage 0's permanent decisions through the mint, the site, and the
 > ongoing content loops. Nothing in this file is needed to complete a launch.
 
 This file holds two things the guide deliberately doesn't carry: **what has already been

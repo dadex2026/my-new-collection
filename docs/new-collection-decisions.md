@@ -16,14 +16,27 @@ the point. Prompt A1 cites it; Appendix C of the deployment guide points to it.
 
 ---
 
-## Part 1 — The seven permanent decisions
+## Part 1 — Seven decisions: Stage 0's five, plus two
 
-Per collection, every time. 1–6 are ordered by **what happens if you get it wrong**, not
-by the order they appear in Stage 0. 7 was added on 2026-10-22 and is not ranked against
-them; a wrong answer to it sends every sale and every royalty to the wrong wallet. Five
-of 1–6 are irreversible on chain. The first is worse.
+Per collection, every time. **Five are the deployment guide's Stage 0 decisions and two
+are this worksheet's additions**; each heading says which.
 
-### 1. Deployer key custody — before anything else
+| Here | Deployment guide | |
+|---|---|---|
+| 1 Deployer key custody | Stage 0 #4 | |
+| 2 Collection name | Stage 0 #1 | |
+| 3 Mint price | Stage 0 #3 | |
+| 4 Royalty rate | Stage 0 #2 | |
+| 5 Collection image | — | **Addition.** Stage 0 #1 says where `collectionImage` lands but does not ask for it |
+| 6 The art | — | **Addition.** Stage 7.1 |
+| 7 Treasury | Stage 0 #5 | |
+
+1–6 are ordered by **what happens if you get it wrong**, not by Stage 0's order. 7 was
+added on 2026-10-22 and is not ranked against them; a wrong answer to it sends every sale
+and every royalty to the wrong wallet. Five of 1–6 are irreversible on chain. The first
+is worse.
+
+### 1. Deployer key custody — before anything else · *Stage 0 #4*
 
 **Answer:** ______________________________________________
 
@@ -36,7 +49,7 @@ already minted is stranded with it.** The only failure on this page that harms a
 other than you. Nothing checks it, nothing recovers it.
 *Owner: deployment guide, Stage 0.*
 
-### 2. Collection name
+### 2. Collection name · *Stage 0 #1*
 
 **Answer:** ______________________________________________
 
@@ -47,7 +60,7 @@ renameable. Set `template-version.json` to the same string so the site agrees.
 explicitly. (Slugs are otherwise local and may be reused across collections freely.)
 *Owner: deployment guide, Stage 0.*
 
-### 3. Mint price — permanent, which Stage 0 doesn't say
+### 3. Mint price — permanent, which Stage 0 doesn't say · *Stage 0 #3*
 
 **Answer:** ______________________________________________
 
@@ -63,14 +76,14 @@ Treat `price` as permanent unless someone writes tooling that doesn't exist. The
 permits rewriting a guard; this repo doesn't do it.
 *Owner: deployment guide, Stage 0. Verified in `update-candy-guard.js`.*
 
-### 4. Royalty rate
+### 4. Royalty rate · *Stage 0 #2*
 
 **Answer:** ______________________________________________
 
 `sellerFeeBasisPoints`, **identical on every row**. The template ships `500` (5%).
 *Owner: deployment guide, Stage 0.*
 
-### 5. The collection's on-chain image — may create work
+### 5. The collection's on-chain image — may create work · *addition*
 
 **Answer (image URL or metadata document):** ______________________________________
 
@@ -84,7 +97,7 @@ raw image URL is what the four August mainnet collections did, and consumers tha
 and parse it get an image.
 *Owner: `docs/open-items.md` item 35.*
 
-### 6. The art — answer this before 5
+### 6. The art — answer this before 5 · *addition*
 
 **Answer:** ______________________________________________
 
@@ -99,7 +112,7 @@ choice — and there is still no uploader for it.
 Part 4. If this collection ships them, that clearance has to happen first.
 *Owner: deployment guide Stage 7.1; `docs/open-items.md` items 35, 53.*
 
-### 7. Treasury — which wallet receives the proceeds
+### 7. Treasury — which wallet receives the proceeds · *Stage 0 #5*
 
 **Answer:** ______________________________________________
 
@@ -117,8 +130,7 @@ No script in this repo changes the `public` destination or the royalty creator a
 deploy. `update-candy-guard.js` re-points only the voucher (`holder`) price's
 destination, and only with an explicit `--treasury` or the drop's own row. Treat this
 as permanent, like the price.
-*Owner: `backend/config.json`. Deployment guide Stage 0 does not list it yet; its four
-cover key custody but not this.*
+*Owner: deployment guide, Stage 0 #5. Read from `backend/config.json`.*
 
 ### Two more, only if this collection uses vouchers or campaigns
 
@@ -156,15 +168,15 @@ machine (item 56).
 
 **Account-level, not per collection: Netlify credit** (`docs/open-items.md` item 62).
 `my-new-collection` had **27 deploys skipped** for *"account credit usage exceeded"*,
-2026-08-28 to 09-06. Every push looked successful, and the live site kept serving the
+2026-08-28 to 09-06, and the template's own project 68, from 08-24. Every push looked successful, and the live site kept serving the
 previous build. The account is on the **Free plan at 300 credits per usage period**, and
 **every project on it shares that one budget**, the template's own project included.
 Four checks before launch:
 
 1. Check this period's usage in the Netlify dashboard. The API does not show it.
 2. Set a credit alert. None was set.
-3. **Stop builds on the template's Netlify project.** It has no launch to protect, and it
-   was 33 of the period's 37 deploys on the shared budget.
+3. **Keep builds stopped on the template's Netlify project** (stopped 2026-10-22). It has
+   no launch to protect, and it was 33 of the period's 37 deploys on the shared budget.
 4. After the launch push, **confirm that commit's deploy shows *Published*** in the
    project's Deploys list. A green push is not evidence of a deploy.
 
@@ -193,7 +205,7 @@ them here.
 
 | Stage | What happens |
 |---|---|
-| 0 | the seven decisions above |
+| 0 | Stage 0's five decisions (1, 2, 3, 4 and 7 above); settle 5 and 6, this worksheet's additions, before 7.1 |
 | 1–5 | copy the template, repo, RPC proxy |
 | 6 | preflight — **recount the check total before quoting it**; it moved when two checks went to 7.4a |
 | 7.1–7.4 | generate images, upload, generate metadata, upload |

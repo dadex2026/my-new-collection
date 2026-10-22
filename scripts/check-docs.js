@@ -204,6 +204,17 @@ const RULES = [
     why: "CONTENT_CHECK_NAMES holds seven entries as of 2026-10-21 (nine until the two upload-column checks moved to 7.4a), and deployer_not_treasury is deliberately not one of them.",
     truth: "backend/scripts/preflight.js — CONTENT_CHECK_NAMES",
   },
+  {
+    id: "stage0-decision-count",
+    // Added 2026-10-22, when the treasury became Stage 0's fifth decision. The
+    // worksheet (docs/new-collection-decisions.md) counted seven while the guide
+    // counted the old number, and neither said how the sets related. Every wrong
+    // number is matched, above five as well as below it; the worksheet's own
+    // total is phrased as "seven decisions", never "N permanent ...".
+    pattern: /\b(one|two|three|four|six|seven|eight|nine|ten|(?!5\b)\d+)\s+permanent\s+(things|decisions|choices)\b|\bStage\s+0'?s?\s+(one|two|three|four|six|seven|eight|nine|ten|(?!5\b)\d+)\b|\bSettle\s+all\s+(two|three|four|six|seven)\b/i,
+    why: "Stage 0 lists five permanent decisions as of 2026-10-22: collectionName, royalty, price, deployer key custody, treasury. The worksheet adds two (collection image, art) and marks which of its seven are Stage 0's.",
+    truth: "docs/new-collection-deployment-guide.md - count the ### headings under # Stage 0",
+  },
 ];
 
 // Files the documentation now states are gone.

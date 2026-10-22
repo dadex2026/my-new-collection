@@ -3097,7 +3097,7 @@ The related documents, in the order you usually need them:
 | File | Covers |
 |---|---|
 | `docs/new-collection-deployment-guide.md` | Standing a collection up, and the text-card, rankings and methodology loops |
-| `docs/new-collection-decisions.md` | The per-collection decisions worksheet: seven permanent choices (Stage 0's four, plus the collection image, the art and the treasury), per-collection setup, and the template gaps every copy inherits. An index - each line names the document that owns the fact. **Prompt A1 cites it** |
+| `docs/new-collection-decisions.md` | The per-collection decisions worksheet: seven choices - Stage 0's five, plus the collection image and the art, each marked which it is, per-collection setup, and the template gaps every copy inherits. An index - each line names the document that owns the fact. **Prompt A1 cites it** |
 | `backend/standings/README.md` | Board format, the two importers, **running a contest**, ties, score direction |
 | `docs/post-generator-spec.md` | The `compose-post.js` contract: sources, placeholders, refusals, character budget |
 | `docs/netlify-connection.md` | Deploy access |
