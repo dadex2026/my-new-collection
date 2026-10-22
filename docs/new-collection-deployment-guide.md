@@ -217,6 +217,11 @@ or the template's treasury, or if a CSV still holds an address. One entry in `gi
 is allowed, ` M deployment.json`, because this stage edits that file. Nothing else
 confirms Stage 1 happened: the warning box above asks, and this checks.
 
+**If you copied without `.git`,** commit once after `git init` before running it:
+`git add -A; git commit -m "Start from template"`. On a repo with no commits, every
+file looks untracked, so `--verify` stops with exit `2` (*"fresh git init with no commits
+- commit first"*) instead of failing a correct copy on spurious findings.
+
 ---
 
 # Stage 2 — Split into its own repo
@@ -699,6 +704,16 @@ ships.
 
 Netlify's top-level entity is now a **Project**, not a "Site" — look for **Add new
 project**.
+
+> **⚠ Credits are per account, not per project, and running out is silent.** When the
+> account's credit runs out, Netlify skips the deploy - and the repo, the push and the
+> build log all look normal from this side. The live site keeps serving the previous
+> version. On this project's account that happened to **27 deploys in a row, 2026-08-28
+> to 09-06** (open-items 62). Before launch day: check usage in the Netlify dashboard;
+> set a credit alert (there was none); and stop builds on any project on the same account
+> that does not need them. **After the launch push, confirm that the deploy happened**:
+> the project's Deploys list shows that commit as *Published*, and the live
+> `registry.json` matches what you pushed. A green push is not a deploy.
 
 1. Log in with the account that should permanently own this collection's infrastructure.
    "Continue with GitHub" using the account that owns the repo is simplest.
