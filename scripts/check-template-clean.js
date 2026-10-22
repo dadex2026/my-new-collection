@@ -63,6 +63,18 @@ const CAMPAIGN_COLUMNS = ["campaignCandyMachineAddress", "eligibilityCollection"
 const IGNORED_STATE = ["backend/.env.admin", "backend/.env", "frontend/.env", "backend/deploy-state.json", "backend/registry.json", "backend/logs", ".netlify"];
 const GENERATED_DIRS = ["backend/metadata", "backend/images"];
 
+// Pure. Can this folder be judged at all? `git` is the result of the two
+// probes: { status: true|false, head: true|false }. Returns null when it can,
+// or the reason it cannot - which is exit 2, "nothing checked, not a pass".
+// An unborn HEAD is Stage 1's own "without .git" route right after git init:
+// status works there and reports every file as untracked, so judging it would
+// fail a correct copy on spurious findings (found 2026-10-22, open-items 61).
+function cannotJudge(git) {
+  if (!git.status) return "not a git checkout - nothing checked, not a pass.";
+  if (!git.head) return "fresh git init with no commits - commit first, then re-run. Nothing checked, not a pass.";
+  return null;
+}
+
 // Pure. Returns { findings, expected } for a snapshot of the folder.
 function findState(snap, mode) {
   const findings = [];
@@ -86,10 +98,16 @@ function findState(snap, mode) {
     }
   }
 
+  // A file the guard cannot parse is a finding, not a crash (2026-10-22: a
+  // broken deployment.json existed for a few minutes the day this shipped).
+  for (const [file, err] of Object.entries(snap.parseErrors || {})) {
+    add(`${file}`, `not valid JSON: ${err}`, "repair it - nothing else in this check can be judged for it");
+  }
+
   const c = snap.config || {};
-  if (c.treasury !== PLACEHOLDER_TREASURY) add("backend/config.json treasury", `is "${c.treasury}", not ${PLACEHOLDER_TREASURY}`, "restore the placeholder");
-  if (c.network !== "devnet") add("backend/config.json network", `is "${c.network}", not devnet`, "restore devnet");
-  if (c.collectionSlug !== PLACEHOLDER_SLUG) add("backend/config.json collectionSlug", `is "${c.collectionSlug}", not ${PLACEHOLDER_SLUG}`, "restore the placeholder");
+  if (!(snap.parseErrors || {})["backend/config.json"] && c.treasury !== PLACEHOLDER_TREASURY) add("backend/config.json treasury", `is "${c.treasury}", not ${PLACEHOLDER_TREASURY}`, "restore the placeholder");
+  if (!(snap.parseErrors || {})["backend/config.json"] && c.network !== "devnet") add("backend/config.json network", `is "${c.network}", not devnet`, "restore devnet");
+  if (!(snap.parseErrors || {})["backend/config.json"] && c.collectionSlug !== PLACEHOLDER_SLUG) add("backend/config.json collectionSlug", `is "${c.collectionSlug}", not ${PLACEHOLDER_SLUG}`, "restore the placeholder");
 
   const d = snap.deployment;
   if (d) {
@@ -120,11 +138,17 @@ function findState(snap, mode) {
 
 function snapshot() {
   const { parseCsvRecords } = require(path.join(ROOT, "backend", "scripts", "lib", "csv.js"));
-  let porcelain;
+  const git = { status: false, head: false };
+  let porcelain = [];
   try {
     porcelain = execFileSync("git", ["status", "--porcelain"], { cwd: ROOT, encoding: "utf8" }).split("\n").filter(Boolean);
-  } catch {
-    console.log("check-template-clean: not a git checkout - nothing checked, not a pass.");
+    git.status = true;
+    execFileSync("git", ["rev-parse", "--verify", "HEAD"], { cwd: ROOT, stdio: "ignore" });
+    git.head = true;
+  } catch { /* judged by cannotJudge below */ }
+  const why = cannotJudge(git);
+  if (why) {
+    console.log("check-template-clean: " + why);
     process.exit(2);
   }
   const exists = Object.fromEntries(IGNORED_STATE.map((f) => [f, fs.existsSync(path.join(ROOT, f))]));
@@ -133,10 +157,15 @@ function snapshot() {
     const p = path.join(ROOT, dname);
     if (fs.existsSync(p) && fs.statSync(p).isDirectory()) dirs[dname] = fs.readdirSync(p).length;
   }
-  const readJson = (f) => (fs.existsSync(path.join(ROOT, f)) ? JSON.parse(fs.readFileSync(path.join(ROOT, f), "utf8")) : null);
+  const parseErrors = {};
+  const readJson = (f) => {
+    if (!fs.existsSync(path.join(ROOT, f))) return null;
+    try { return JSON.parse(fs.readFileSync(path.join(ROOT, f), "utf8")); }
+    catch (err) { parseErrors[f] = err.message; return null; }
+  };
   const rows = (f) => (fs.existsSync(path.join(ROOT, f)) ? parseCsvRecords(fs.readFileSync(path.join(ROOT, f), "utf8")).records : []);
   return {
-    porcelain, exists, dirs,
+    porcelain, exists, dirs, parseErrors,
     config: readJson("backend/config.json"),
     deployment: readJson("deployment.json"),
     masterRows: rows("backend/master.csv"),
@@ -169,4 +198,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { findState };
+module.exports = { findState, cannotJudge };

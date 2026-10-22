@@ -70,6 +70,21 @@ const whats = (r) => r.findings.map((f) => f.what);
   assert.deepStrictEqual(filled, ["master.csv SAMPLE-001 candyMachineAddress"]);
   ok("a filled address column in a copied CSV is caught", "the fork's real TEST-004 machine");
 
+  // Preconditions: when the folder cannot be judged at all (exit 2).
+  const { cannotJudge } = require(path.join(__dirname, "check-template-clean.js"));
+  assert.ok(/not a git checkout/.test(cannotJudge({ status: false, head: false })));
+  assert.ok(/fresh git init with no commits - commit first/.test(cannotJudge({ status: true, head: false })));
+  assert.strictEqual(cannotJudge({ status: true, head: true }), null);
+  ok("an unborn HEAD is 'commit first', not hundreds of findings", "Stage 1's without-.git route, right after git init");
+
+  // A file the guard cannot parse is a finding - the deployment.json of 2026-10-22.
+  const broken = findState({ ...GOOD_COPY, deployment: null, parseErrors: { "deployment.json": "Expected ',' or '}' after property value in JSON at position 110" } }, "verify");
+  assert.deepStrictEqual(whats(broken), ["deployment.json"]);
+  assert.ok(/not valid JSON: Expected ','/.test(broken.findings[0].why));
+  const badConfig = whats(findState({ ...GOOD_COPY, config: null, parseErrors: { "backend/config.json": "Unexpected token" } }, "verify"));
+  assert.deepStrictEqual(badConfig, ["backend/config.json"]);
+  ok("an unparseable deployment.json or config.json is reported, not a crash", "and not also as three placeholder findings");
+
   console.log("\n  All local assertions held. Nothing was read from disk.\n");
 })().catch((err) => {
   console.error("\n  FAILED: " + err.message + "\n");
