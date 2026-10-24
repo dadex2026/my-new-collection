@@ -2,7 +2,7 @@
  * frontend/src/campaign.ts
  *
  * Claims a reward campaign (deploy-campaign.js's independent, separately-
- * supplied Candy Machine) — DELIBERATELY KEPT SEPARATE FROM mint.ts.
+ * supplied Candy Machine) â€” DELIBERATELY KEPT SEPARATE FROM mint.ts.
  *
  * mint.ts has real, proven mainnet transactions behind it. Rather than
  * add campaign-claim branches into that file and risk the code path
@@ -12,11 +12,11 @@
  * mint.ts at all.
  *
  * state.campaigns (state.ts) and the full loadCampaigns()/setCampaigns()
- * chain are confirmed wired and working — verified end to end via a
+ * chain are confirmed wired and working â€” verified end to end via a
  * full 18-step mainnet test (cross-collection eligibility, paid claims,
  * treasury persistence, supply isolation, allocation limits all passed).
  *
- * Dependencies (npm install, in frontend/) — same as mint.ts:
+ * Dependencies (npm install, in frontend/) â€” same as mint.ts:
  *   @metaplex-foundation/umi
  *   @metaplex-foundation/umi-bundle-defaults
  *   @metaplex-foundation/mpl-core
@@ -45,12 +45,12 @@ import { describeClaimError, describeLandedClaimFailure, landedError } from "./m
 
 const RPC_URL = import.meta.env.VITE_SOLANA_RPC_URL as string;
 
-// ---- Wallet adapter (identical to mint.ts's — window.solana directly) ---
+// ---- Wallet adapter (identical to mint.ts's â€” window.solana directly) ---
 
 function getPhantomWalletAdapter(): WalletAdapter {
   const provider = (window as any).solana;
   if (!provider || !provider.publicKey) {
-    throw new Error("Wallet not connected — connect your wallet before claiming.");
+    throw new Error("Wallet not connected â€” connect your wallet before claiming.");
   }
   return {
     publicKey: new PublicKey(provider.publicKey.toString()),
@@ -140,7 +140,7 @@ export async function refreshCampaignClaimStatus(): Promise<void> {
   const campaigns = state.campaigns || [];
   if (!walletAddress || campaigns.length === 0) return;
 
-  const umi = createUmi(RPC_URL).use(mplCore()).use(mplCandyMachine());
+  const umi = createUmi(RPC_URL, { commitment: "confirmed" }).use(mplCore()).use(mplCandyMachine());
 
   for (const campaign of campaigns) {
     if (!campaign.campaignCandyMachineAddress || !campaign.eligibilityCollection) continue;
@@ -297,11 +297,15 @@ export async function claimCampaign(campaignId: string): Promise<void> {
       known.asset || (await findQualifyingAsset(walletAddress, campaign.eligibilityCollection));
     if (!qualifyingAsset) {
       setMinting(false);
-      setStatus("Not eligible — you don't currently hold the required NFT for this campaign.");
+      setStatus("Not eligible â€” you don't currently hold the required NFT for this campaign.");
       return;
     }
 
-    const umi = createUmi(RPC_URL).use(mplCore()).use(mplCandyMachine());
+    // "confirmed", not the node default ("finalized", about 13 seconds behind):
+    // the supply pre-check and preflight simulation must see the state the
+    // readback sees, or a sell-out in the last few seconds passes both, then
+    // lands and fails (open-items 67).
+    const umi = createUmi(RPC_URL, { commitment: "confirmed" }).use(mplCore()).use(mplCandyMachine());
     umi.use(walletAdapterIdentity(walletAdapter));
 
     const asset = generateSigner(umi);
@@ -310,7 +314,7 @@ export async function claimCampaign(campaignId: string): Promise<void> {
       assetGate: some({ asset: umiPublicKey(qualifyingAsset) }),
     };
     // deploy-campaign.js always attaches assetMintLimit now (default
-    // limit 1, one claim per eligible wallet/asset) — this closed a
+    // limit 1, one claim per eligible wallet/asset) â€” this closed a
     // real gap found during testing where nothing prevented one
     // eligible wallet from claiming the entire allocation by itself.
     // Every campaign deployed after that fix has claimLimitId set;
@@ -337,20 +341,20 @@ export async function claimCampaign(campaignId: string): Promise<void> {
       mintArgs.assetMintLimit = some({ id: Number(assetLimitId), asset: umiPublicKey(qualifyingAsset) });
     }
     // price === 0 campaigns have no solPayment guard deployed at all
-    // (see deploy-campaign.js) — must not send solPayment mint args for
+    // (see deploy-campaign.js) â€” must not send solPayment mint args for
     // those, or the instruction bytes would desync from what the
     // on-chain guard set actually expects to deserialize.
     if (campaign.price > 0) {
       if (!campaign.treasury) {
         setMinting(false);
-        setStatus("This campaign has a price but no payment destination configured — registry data is incomplete.");
+        setStatus("This campaign has a price but no payment destination configured â€” registry data is incomplete.");
         return;
       }
       mintArgs.solPayment = some({ destination: umiPublicKey(campaign.treasury) });
     }
 
     setStatus(
-      campaign.rewardText ? `Claiming — ${campaign.rewardText}...` : "Claiming..."
+      campaign.rewardText ? `Claiming â€” ${campaign.rewardText}...` : "Claiming..."
     );
 
     const builder = mintV1(umi, {

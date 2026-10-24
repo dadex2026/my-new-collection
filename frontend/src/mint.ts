@@ -146,7 +146,11 @@ export async function mint(dropId: string): Promise<void> {
   // Declared outside the try so the catch can say whether a voucher survived.
   let holdsVoucher = false;
   try {
-    const umi = createUmi(RPC_URL).use(mplCore()).use(mplCandyMachine());
+    // "confirmed", not the node default ("finalized", about 13 seconds behind):
+    // the supply pre-check and preflight simulation must see the state the
+    // readback sees, or a sell-out in the last few seconds passes both, then
+    // lands and fails (open-items 67).
+    const umi = createUmi(RPC_URL, { commitment: "confirmed" }).use(mplCore()).use(mplCandyMachine());
     umi.use(walletAdapterIdentity(walletAdapter));
 
     const asset = generateSigner(umi);

@@ -245,7 +245,7 @@ export async function refreshMintedCounts(registry: NormalizedRegistry): Promise
     if (!rpc) continue;
 
     if (!umiByNetwork[drop.network]) {
-      umiByNetwork[drop.network] = createUmi(rpc).use(mplCandyMachine());
+      umiByNetwork[drop.network] = createUmi(rpc, { commitment: "confirmed" }).use(mplCandyMachine());
     }
     const umi = umiByNetwork[drop.network];
 
