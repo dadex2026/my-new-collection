@@ -3,7 +3,8 @@
  * scripts/upload-images.js
  *
  * Step 1b of the production pipeline: uploads the real local images in
- * backend/images/ (prepared by prepare-images.js) to Arweave via Irys,
+ * backend/images/ (written by generate-images.js, or your own art brought in
+ * by prepare-images.js) to Arweave via Irys,
  * and writes the resulting permanent URLs into master.csv's itemImage
  * column, replacing the placehold.co placeholders.
  *
@@ -65,6 +66,9 @@ const MIME_TYPES = {
   ".jpeg": "image/jpeg",
   ".gif": "image/gif",
   ".webp": "image/webp",
+  // Last, so a raster file for the same drop wins: generate-images.js writes
+  // the .svg, and your own art in any format above replaces it.
+  ".svg": "image/svg+xml",
 };
 const SUPPORTED_EXTENSIONS = Object.keys(MIME_TYPES);
 
@@ -142,13 +146,9 @@ function loadConfig() {
 // placeholder pattern as "already real" rather than matching against a
 // specific list of gateway hostnames. This is more robust to gateway/URL
 // changes over the life of the template.
-function isPlaceholder(url) {
-  if (!url || url.trim() === "") return true;
-  if (url.includes("placehold.co")) return true;
-  if (url.includes("example.com")) return true;
-  if (url.includes("AbCdEf") || url.includes("ImageHash")) return true;
-  return false;
-}
+// One definition for every script: lib/placeholder.js. Nine copies had drifted
+// apart before 2026-10-21 (open-items 52); do not define another here.
+const { isPlaceholder } = require("./lib/placeholder");
 
 function findLocalImage(dropItemId) {
   for (const ext of SUPPORTED_EXTENSIONS) {
@@ -274,7 +274,7 @@ async function main() {
   });
 
   if (missingLocal.length > 0) {
-    const message = `${missingLocal.length} drop(s) have no local image in backend/images/: ${missingLocal.join(", ")}. Run prepare-images.js first.`;
+    const message = `${missingLocal.length} drop(s) have no local image in backend/images/: ${missingLocal.join(", ")}. Run generate-images.js first (or prepare-images.js for your own art).`;
     if (strict) {
       fail("images_incomplete", message, 1);
     }
@@ -298,10 +298,11 @@ async function main() {
         message: `[dry-run] Would upload ${path.basename(item.filePath)} -> ${fakeUrl}`,
       });
     }
-    writeCsv(MASTER_CSV_PATH, header, rows);
+    // Nothing is written. Until 2026-10-21 this wrote the fake URLs into
+    // master.csv, and the real run would then skip every row (open-items 52).
     log({
       status: "success",
-      message: `[dry-run] Simulated ${toUpload.length} upload(s). master.csv updated with fake URLs — do not deploy real metadata from this.`,
+      message: `[dry-run] Simulated ${toUpload.length} upload(s). master.csv was not changed.`,
     });
     process.exit(0);
   }
@@ -381,7 +382,11 @@ async function main() {
   process.exit(failedCount === 0 ? 0 : 2);
 }
 
-main().catch((err) => {
-  log({ status: "failure", reason: "unhandled_error", message: err.message });
-  process.exit(2);
-});
+// Only when run, never when required: a selftest or a tool importing this
+// file must not execute it (2026-10-21; checked by entrypoint-guard.selftest.js).
+if (require.main === module) {
+  main().catch((err) => {
+    log({ status: "failure", reason: "unhandled_error", message: err.message });
+    process.exit(2);
+  });
+}

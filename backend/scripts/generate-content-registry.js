@@ -157,6 +157,77 @@ function splitTags(value) {
   return value ? value.split("|").map((t) => t.trim()).filter(Boolean) : [];
 }
 
+// A card image is editorial, not an asset. An NFT image must be permanent
+// because on-chain metadata points at it forever, which is why master.csv's
+// images go through generate-images.js (or prepare-images.js) and
+// upload-images.js to Arweave. A news
+// card's image has no such obligation — if a 2026 announcement's image dies in
+// 2030, the card gets edited. So this takes a URL and buys no permanence.
+//
+// Only http(s) and site-relative paths. Rejecting everything else keeps
+// javascript:, data: and other scheme tricks out of a src attribute that is
+// built by string interpolation on the frontend.
+function normalizeImage(row, textCardId) {
+  const image = (row.image || "").trim();
+  const alt = (row.imageAlt || "").trim();
+
+  if (!image) {
+    if (alt) {
+      fail(
+        "alt_without_image",
+        `Card ${textCardId}: has imageAlt but no image. Either add the image or drop the alt text.`,
+        1
+      );
+    }
+    return {};
+  }
+
+  const allowed = /^(https?:\/\/|\/)/i.test(image);
+  if (!allowed) {
+    fail(
+      "bad_image_url",
+      `Card ${textCardId}: image "${image}" must start with http://, https:// or / (site-relative).`,
+      1
+    );
+  }
+
+  // Required, not encouraged. An image with no alt text is invisible to anyone
+  // using a screen reader, and retrofitting alt text across a grown archive is
+  // far harder than writing one line now.
+  if (!alt) {
+    fail(
+      "missing_alt",
+      `Card ${textCardId}: image needs imageAlt. Describe what the image shows — it is what a screen reader announces.`,
+      1
+    );
+  }
+
+  return { image, alt };
+}
+
+// The link back to wherever this card was announced — the X post composed by
+// compose-post.js, usually. Pasted in after posting, which closes the loop:
+// the card knows where its discussion is, and a reader can join it rather than
+// hunting a timeline. Optional; a card with no announcement just omits it.
+//
+// https only. An announcement lives on someone else's host, so a relative path
+// is a mistake and http:// is a downgrade — and this ends up in an href built
+// by string interpolation, same as the image URL.
+function normalizePostUrl(row, textCardId) {
+  const postUrl = (row.postUrl || "").trim();
+  if (!postUrl) return {};
+
+  if (!/^https:\/\//i.test(postUrl)) {
+    fail(
+      "bad_post_url",
+      `Card ${textCardId}: postUrl "${postUrl}" must start with https://. It links to a post on another site.`,
+      1
+    );
+  }
+
+  return { postUrl };
+}
+
 function validateAndNormalizeRow(row, seenIds) {
   const required = ["textCardId", "category", "headline", "content", "publishedDate", "status"];
   for (const field of required) {
@@ -207,8 +278,10 @@ function validateAndNormalizeRow(row, seenIds) {
     featured: toBool(row.featured),
     priority: toInt(row.priority, 0),
     author: row.author || null,
-    media: {},
-    relationships: {},
+    media: normalizeImage(row, textCardId),
+    // `relationships` is this card's provenance and outward links — the same
+    // bag a standings card uses for boardId, seasonId and entry counts.
+    relationships: normalizePostUrl(row, textCardId),
   };
 }
 
@@ -293,9 +366,13 @@ function main() {
   process.exit(0);
 }
 
-try {
-  main();
-} catch (err) {
-  log({ status: "failure", reason: "unhandled_error", message: err.message });
-  process.exit(1);
+// Only when run, never when required: a selftest or a tool importing this
+// file must not execute it (2026-10-21; checked by entrypoint-guard.selftest.js).
+if (require.main === module) {
+  try {
+    main();
+  } catch (err) {
+    log({ status: "failure", reason: "unhandled_error", message: err.message });
+    process.exit(1);
+  }
 }

@@ -190,4 +190,8 @@ async function main() {
   process.stdout.write(`\n✓ Published output matches this repo.\n\n`);
 }
 
-main().catch(err => fail(err.message));
+// Only when run, never when required: a selftest or a tool importing this
+// file must not execute it (2026-10-21; checked by entrypoint-guard.selftest.js).
+if (require.main === module) {
+  main().catch(err => fail(err.message));
+}

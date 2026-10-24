@@ -105,13 +105,9 @@ function parseMaxSupply(value) {
   return Number.isFinite(num) ? num : null;
 }
 
-function isPlaceholder(url) {
-  if (!url || url.trim() === "") return true;
-  if (url.includes("placehold.co")) return true;
-  if (url.includes("example.com")) return true;
-  if (url.includes("AbCdEf") || url.includes("ImageHash")) return true;
-  return false;
-}
+// One definition for every script: lib/placeholder.js. Nine copies had drifted
+// apart before 2026-10-21 (open-items 52); do not define another here.
+const { isPlaceholder } = require("./lib/placeholder");
 
 // ---- Live minted-count snapshot (optional, --fetch-minted) ---------------
 
@@ -277,7 +273,11 @@ async function main() {
   process.exit(0);
 }
 
-main().catch((err) => {
-  log({ status: "failure", reason: "unhandled_error", message: err.message });
-  process.exit(1);
-});
+// Only when run, never when required: a selftest or a tool importing this
+// file must not execute it (2026-10-21; checked by entrypoint-guard.selftest.js).
+if (require.main === module) {
+  main().catch((err) => {
+    log({ status: "failure", reason: "unhandled_error", message: err.message });
+    process.exit(1);
+  });
+}

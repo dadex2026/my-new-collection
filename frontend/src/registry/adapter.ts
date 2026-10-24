@@ -37,12 +37,13 @@
 
 import { normalizeRegistry } from "./normalize";
 import type { NormalizedRegistry } from "./normalize";
-import { setRegistry, setCampaigns, setTextCards, setStatus } from "../state";
-import type { Campaign, TextCard } from "../types";
+import { setRegistry, setCampaigns, setTextCards, setMethodology, setStatus } from "../state";
+import type { Campaign, TextCard, Methodology } from "../types";
 
 const REGISTRY_URL = import.meta.env.VITE_REGISTRY_URL as string;
 const CAMPAIGNS_URL = (import.meta.env.VITE_CAMPAIGNS_URL as string) || "/campaigns.json";
 const CONTENT_REGISTRY_URL = (import.meta.env.VITE_CONTENT_REGISTRY_URL as string) || "/content-registry.json";
+const METHODOLOGY_URL = (import.meta.env.VITE_METHODOLOGY_URL as string) || "/methodology.json";
 
 /**
  * Reshapes the flat {collections, drops} maps normalizeRegistry()
@@ -175,6 +176,38 @@ export async function loadTextCards(): Promise<TextCard[]> {
 }
 
 /**
+ * loadMethodology() fetches methodology.json (produced by
+ * backend/scripts/generate-methodology.js) and pushes it into
+ * state.methodology.
+ *
+ * Same missing-is-normal handling as the two loaders above: a collection
+ * that publishes no rankings has no methodology to explain, and that is a
+ * normal state rather than a failure. The section simply does not render.
+ */
+export async function loadMethodology(): Promise<Methodology | null> {
+  try {
+    const res = await fetch(METHODOLOGY_URL, { cache: "no-store" });
+
+    if (!res.ok) {
+      if (res.status !== 404) {
+        setStatus(`Could not load methodology (HTTP ${res.status}).`);
+      }
+      setMethodology(null);
+      return null;
+    }
+
+    const doc: Methodology = await res.json();
+    setMethodology(doc);
+    return doc;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Methodology fetch failed: ${message}`);
+    setMethodology(null);
+    return null;
+  }
+}
+
+/**
  * OPTIONAL enrichment: registry.json's `minted` count is a snapshot
  * from whenever generate-registry.js last ran — it can go stale
  * between deploys. This fetches the live itemsRedeemed count directly
@@ -212,7 +245,7 @@ export async function refreshMintedCounts(registry: NormalizedRegistry): Promise
     if (!rpc) continue;
 
     if (!umiByNetwork[drop.network]) {
-      umiByNetwork[drop.network] = createUmi(rpc).use(mplCandyMachine());
+      umiByNetwork[drop.network] = createUmi(rpc, { commitment: "confirmed" }).use(mplCandyMachine());
     }
     const umi = umiByNetwork[drop.network];
 

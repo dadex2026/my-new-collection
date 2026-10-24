@@ -1,0 +1,16 @@
+# New files start LF, matching .gitattributes and a fresh clone.
+# scripts/check-line-endings.js fails on any CR in a tracked .js/.ts/.md/.json
+# file; VS Code on Windows would otherwise create new files as CRLF. (VS Code
+# reads this file through the EditorConfig extension.)
+#
+# Deliberately NO charset: deploy-campaign.js and generate-campaigns-registry.js
+# are Windows-1252, and a charset rule would have an editor re-encode them on
+# save. Keep each file's encoding as it is.
+root = true
+
+[*]
+end_of_line = lf
+
+# CSVs are rewritten by Excel and PowerShell with CRLF, and are not checked.
+[*.csv]
+end_of_line = unset

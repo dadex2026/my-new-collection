@@ -76,6 +76,7 @@
 const fs = require("fs");
 const path = require("path");
 const { parseCsvRecords, serializeRow } = require("./lib/csv");
+const { assertLanded, readBack } = require("./lib/landed");
 // The holder/public group shape is defined once, in update-candy-guard.js,
 // and imported here. Two copies of it - one for new machines, one for the
 // migration of deployed ones - is exactly the arrangement that lets a
@@ -233,13 +234,9 @@ function validateTreasury(config) {
   }
 }
 
-function isPlaceholder(url) {
-  if (!url || url.trim() === "") return true;
-  if (url.includes("placehold.co")) return true;
-  if (url.includes("example.com")) return true;
-  if (url.includes("AbCdEf") || url.includes("ImageHash")) return true;
-  return false;
-}
+// One definition for every script: lib/placeholder.js. Nine copies had drifted
+// apart before 2026-10-21 (open-items 52); do not define another here.
+const { isPlaceholder } = require("./lib/placeholder");
 
 function parseMaxSupply(value) {
   if (!value || value.trim().toLowerCase() === "unlimited") return UNLIMITED_ITEMS_AVAILABLE;
@@ -366,12 +363,22 @@ async function deployDropCandyMachine({ umi, umiCore, mplCandyMachine }, row, co
       : { guards, groups: [] }),
   });
 
-  const { signature } = await builder.sendAndConfirm(umi);
+  const sent = assertLanded(await builder.sendAndConfirm(umi));
+  const signature = encodeBase58(Buffer.from(sent.signature));
+  const candyMachineAddress = candyMachineSigner.publicKey.toString();
 
-  return {
-    candyMachineAddress: candyMachineSigner.publicKey.toString(),
-    signature: encodeBase58(Buffer.from(signature)),
-  };
+  // Read it back before the CSV says it exists (open-items 66).
+  const back = await readBack(() => mplCandyMachine.safeFetchCandyMachine(umi, candyMachineSigner.publicKey, { commitment: "confirmed" }));
+  if (!back) {
+    const e = new Error(
+      `sent ${signature}, but candy machine ${candyMachineAddress} could not be read back; master.csv NOT changed. Read the chain before retrying; it may have landed.`
+    );
+    e.unverified = true;
+    e.signature = signature;
+    throw e;
+  }
+
+  return { candyMachineAddress, signature };
 }
 
 // ---- Main ---------------------------------------------------------------
@@ -620,13 +627,13 @@ async function main() {
         collection: `${collectionSlug}:${row.dropItemId}`,
         date: new Date().toISOString(),
         network: config.network,
-        signature: "N/A",
-        status: "failed",
+        signature: err.signature || "N/A",
+        status: err.unverified ? "unverified" : "failed",
       });
       log({
         status: "warning",
         dropItemId: row.dropItemId,
-        reason: "blockchain_error",
+        reason: err.unverified ? "landed_unverified" : "blockchain_error",
         message: `Deploy failed for ${row.dropItemId}: ${err.message}`,
       });
     }
@@ -647,7 +654,11 @@ async function main() {
   process.exit(failedCount === 0 ? 0 : 3);
 }
 
-main().catch((err) => {
-  log({ status: "failure", reason: "unhandled_error", message: err.message });
-  process.exit(3);
-});
+// Only when run, never when required: a selftest or a tool importing this
+// file must not execute it (2026-10-21; checked by entrypoint-guard.selftest.js).
+if (require.main === module) {
+  main().catch((err) => {
+    log({ status: "failure", reason: "unhandled_error", message: err.message });
+    process.exit(3);
+  });
+}

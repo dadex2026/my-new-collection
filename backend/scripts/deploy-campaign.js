@@ -73,6 +73,7 @@
 const fs = require("fs");
 const path = require("path");
 const { parseCsvRecords, serializeRow } = require("./lib/csv");
+const { assertLanded, readBack } = require("./lib/landed");
 
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 require("dotenv").config({ path: path.join(__dirname, "..", ".env.admin") });
@@ -150,12 +151,9 @@ function encodeBase58(buffer) {
   return result;
 }
 
-function isPlaceholder(url) {
-  if (!url || url.trim() === "") return true;
-  if (url.includes("placehold.co")) return true;
-  if (url.includes("example.com")) return true;
-  return false;
-}
+// One definition for every script: lib/placeholder.js. Nine copies had drifted
+// apart before 2026-10-21 (open-items 52); do not define another here.
+const { isPlaceholder } = require("./lib/placeholder");
 
 // ---- CSV helpers ------------------------------------------------------
 
@@ -576,9 +574,22 @@ async function main() {
       groups: [],
     });
 
-    const { signature: txSig } = await builder.sendAndConfirm(umi);
-    signature = encodeBase58(Buffer.from(txSig));
+    const sent = assertLanded(await builder.sendAndConfirm(umi));
+    signature = encodeBase58(Buffer.from(sent.signature));
     campaignCandyMachineAddress = candyMachineSigner.publicKey.toString();
+
+    // Read it back before the CSV says it exists (open-items 66).
+    const back = await readBack(() => mplCandyMachine.safeFetchCandyMachine(umi, candyMachineSigner.publicKey, { commitment: "confirmed" }));
+    if (!back) {
+      appendDeploymentHistory({
+        collection: `campaign:${campaignId}`,
+        date: new Date().toISOString(),
+        network: config.network,
+        signature,
+        status: "unverified",
+      });
+      fail("landed_unverified", `Sent ${signature}, but campaign candy machine ${campaignCandyMachineAddress} could not be read back. campaigns.csv NOT changed. Read the chain before retrying; it may have landed.`, 3);
+    }
   } catch (err) {
     appendDeploymentHistory({
       collection: `campaign:${campaignId}`,

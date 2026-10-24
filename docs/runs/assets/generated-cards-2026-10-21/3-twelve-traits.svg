@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600" data-generator="generate-images.js">
+<defs><clipPath id="c"><rect width="600" height="600" rx="24"/></clipPath></defs>
+<g clip-path="url(#c)">
+<rect width="600" height="600" fill="#14161a"/>
+<rect width="12" height="600" fill="#d4b449"/>
+</g>
+<g font-family="Inter" fill="#f2f2f0">
+<text x="56" y="82" font-size="20" opacity=".7">Summer League</text>
+<text x="56" y="132" font-size="44" font-weight="600">Matchday Card</text>
+<rect x="56" y="160" width="504" height="2" fill="#d4b449"/>
+<text x="56" y="214" font-size="16" opacity=".7">Category 1</text>
+<text x="56" y="244" font-size="26" font-weight="600">Gold</text>
+<text x="56" y="278" font-size="16" opacity=".7">Category 2</text>
+<text x="56" y="308" font-size="26" font-weight="600">Silver</text>
+<text x="56" y="342" font-size="16" opacity=".7">Category 3</text>
+<text x="56" y="372" font-size="26" font-weight="600">Bronze</text>
+<text x="56" y="406" font-size="16" opacity=".7">Category 4</text>
+<text x="56" y="436" font-size="26" font-weight="600">Platinum Edition…</text>
+<text x="56" y="470" font-size="16" opacity=".7">Category 5</text>
+<text x="56" y="500" font-size="26" font-weight="600">Gold</text>
+<text x="316" y="214" font-size="16" opacity=".7">Category 6</text>
+<text x="316" y="244" font-size="26" font-weight="600">Silver</text>
+<text x="316" y="278" font-size="16" opacity=".7">Category 7</text>
+<text x="316" y="308" font-size="26" font-weight="600">Bronze</text>
+<text x="316" y="342" font-size="16" opacity=".7">Category 8</text>
+<text x="316" y="372" font-size="26" font-weight="600">Platinum Edition…</text>
+<text x="316" y="406" font-size="16" opacity=".7">Category 9</text>
+<text x="316" y="436" font-size="26" font-weight="600">Gold</text>
+<text x="316" y="470" font-size="16" opacity=".7">Category 10</text>
+<text x="316" y="500" font-size="26" font-weight="600">Silver</text>
+<rect x="56" y="528" width="504" height="2" fill="#d4b449"/>
+<text x="56" y="566" font-size="18" opacity=".7">SUM-007  +2 more</text>
+<text x="560" y="566" font-size="18" opacity=".7" text-anchor="end">SUM</text>
+</g></svg>

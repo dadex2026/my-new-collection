@@ -46,7 +46,10 @@ Desktop.ini
 # --------------------------------------------------
 # Editors / IDEs
 # --------------------------------------------------
-.vscode/
+# Personal editor settings stay local; the shared tasks (preflight, check-docs,
+# reconcile) are committed so every fork gets them.
+.vscode/*
+!.vscode/tasks.json
 .idea/
 
 # --------------------------------------------------

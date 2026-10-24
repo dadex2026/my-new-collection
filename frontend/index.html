@@ -8,6 +8,25 @@
   <style>
     * { box-sizing: border-box; }
 
+    html {
+      scroll-behavior: smooth;
+      /* Offsets EVERY in-page scroll landing point by the sticky nav bar's
+         height — not just the four .section-nav-link anchors, but also the
+         pre-existing sidebar's scrollIntoView() calls (Rewards/News/
+         Methodology), which would have the same problem now that a sticky
+         bar exists. Without this, whatever sits at the very top of a
+         section — Content's ALL/NEWS/UPDATE/... tab row, Collections'
+         filter header, a section title — lands underneath the sticky bar
+         instead of just below it. One global offset covers every section
+         uniformly; a per-element scroll-margin-top would need updating
+         every time a section's own top content changes. ~54px measured nav
+         height (10px padding top/bottom + ~34px content row) plus a small
+         gap so content doesn't sit flush against the bar.
+         Keep in sync with .section-nav's actual rendered height if its
+         padding/font-size ever changes. */
+      scroll-padding-top: 76px;
+    }
+
     body {
       margin: 0;
       padding: 40px;
@@ -203,6 +222,12 @@
       margin-bottom: 4px;
     }
 
+    .drop-holder-price {
+      color: #b39ddb;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
     .drop-minted {
       font-size: 12px;
       color: #666;
@@ -283,6 +308,34 @@
 
     .campaign-desc,
     .campaign-eligibility,
+    /* Emitted by ui.engine.ts since the campaign cards were written, and
+       unstyled until 2026-09-03 - both rendered as unstyled body text on
+       every live campaign card. */
+    .campaign-desc {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 6px;
+    }
+
+    .campaign-eligibility {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 6px;
+    }
+
+    /* The wallet actually holds a voucher that spends on this drop. Brighter
+       than the generic offer line, because it is an instruction rather than
+       an advertisement. */
+    .drop-voucher-held {
+      color: #7fd1a8;
+    }
+
+    .drop-claim-note {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 8px;
+    }
+
     .campaign-reward {
       font-size: 13px;
       color: #888;
@@ -299,6 +352,21 @@
       font-size: 12px;
       color: #666;
       margin-bottom: 10px;
+    }
+
+    /* The counters say this wallet, or its edition, has already claimed. */
+    .campaign-claimed {
+      font-size: 13px;
+      color: #7fd1a8;
+      padding: 10px 0;
+      text-align: center;
+    }
+
+    .campaign-note {
+      font-size: 12px;
+      color: #666;
+      margin-top: 6px;
+      text-align: center;
     }
 
     .campaign-sold-out {
@@ -482,6 +550,34 @@
       padding: 12px;
     }
 
+    /* Persistent cards (standings, leaderboards, stats) hold a table rather
+       than prose. In a third-width column that table only scrolls sideways,
+       so they take the full row. Works under the auto-fill fallback below
+       too — `-1` is the last column line whichever rule is in force. */
+    .textcard-wide {
+      grid-column: 1 / -1;
+    }
+
+    /* Optional card image. A fixed 16:9 box with object-fit: cover keeps a
+       row of cards level whatever the source dimensions — without it, one
+       portrait image makes its card taller than its neighbours and the grid
+       row goes ragged. Matches .drop img / .campaign img styling otherwise.
+       On a .textcard-wide card the box is shorter, since a full-row image at
+       16:9 would push the table it belongs to off the screen. */
+    .textcard-image {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      background: #2a2a2a;
+      display: block;
+    }
+
+    .textcard-wide .textcard-image {
+      aspect-ratio: 32 / 9;
+    }
+
     .textcard-category {
       font-size: 11px;
       text-transform: uppercase;
@@ -508,11 +604,55 @@
     }
 
     .textcard-entries {
-      list-style: decimal;
-      padding-left: 18px;
+      list-style: none;
+      padding-left: 0;
       margin: 0 0 10px;
       font-size: 13px;
       color: #ccc;
+    }
+
+    /* Structured entries whose rows agree on their keys render as a table:
+       one header instead of the key repeated per line, and columns that line
+       up so a score or rank can be scanned down. Scrolls inside its own
+       container so a wide board never pushes the card sideways. */
+    .textcard-table-wrap {
+      overflow-x: auto;
+      margin: 0 0 10px;
+    }
+
+    .textcard-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .textcard-table th {
+      text-align: left;
+      font-weight: 500;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #666;
+      padding: 0 10px 5px 0;
+      border-bottom: 1px solid #2a2a2a;
+      white-space: nowrap;
+    }
+
+    .textcard-table td {
+      padding: 5px 10px 5px 0;
+      color: #ccc;
+      border-bottom: 1px solid #1c1c1c;
+      white-space: nowrap;
+    }
+
+    .textcard-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .textcard-table th:last-child,
+    .textcard-table td:last-child {
+      padding-right: 0;
     }
 
     .textcard-entry {
@@ -545,11 +685,221 @@
       color: #ccc;
     }
 
+    /* Methodology. Prose measure is held near 70 characters — this is the one
+       section on the page meant to be read rather than scanned. */
+    #methodology {
+      margin-top: 40px;
+      padding-top: 24px;
+      border-top: 1px solid #2a2a2a;
+    }
+
+    .method-title {
+      font-size: 18px;
+      color: #ddd;
+      margin-bottom: 8px;
+    }
+
+    .method-intro {
+      font-size: 13px;
+      color: #999;
+      max-width: 70ch;
+      margin: 0 0 24px;
+      line-height: 1.6;
+    }
+
+    .method-section { margin-bottom: 22px; }
+
+    .method-heading {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #666;
+      margin-bottom: 8px;
+    }
+
+    .method-body {
+      font-size: 13px;
+      color: #aaa;
+      max-width: 70ch;
+      margin: 0 0 10px;
+      line-height: 1.65;
+    }
+
+    .method-link {
+      color: #7fd1c8;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .method-link:hover { color: #a8e5de; }
+    .method-link:focus-visible { outline: 2px solid #7fd1c8; outline-offset: 2px; }
+
+    .method-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      font-size: 13px;
+      color: #aaa;
+      max-width: 70ch;
+    }
+
+    .method-list li {
+      padding: 8px 0;
+      border-bottom: 1px solid #1c1c1c;
+      line-height: 1.55;
+    }
+
+    .method-list li:last-child { border-bottom: none; }
+
+    .method-note {
+      font-size: 12px;
+      color: #777;
+      max-width: 70ch;
+      margin: 6px 0 0;
+      line-height: 1.55;
+    }
+
+    .method-version {
+      font-family: 'Space Mono', ui-monospace, monospace;
+      font-size: 11px;
+      color: #888;
+    }
+
+    .method-kind {
+      font-family: 'Space Mono', ui-monospace, monospace;
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border: 1px solid #333;
+      border-radius: 3px;
+      color: #888;
+      margin-left: 6px;
+    }
+
+    /* Only a rule change moves numbers, so only it is marked. */
+    .method-kind-rule-change { color: #c9a227; border-color: #5a4a1a; }
+
+    .method-date { font-size: 11px; color: #666; margin-left: 6px; }
+
+    .method-generated {
+      font-size: 11px;
+      color: #555;
+      margin-top: 22px;
+      padding-top: 12px;
+      border-top: 1px solid #1c1c1c;
+    }
+
+    /* Says what the card left out. A ranked board shown ten rows deep looks
+       identical to a board that only has ten rows without it. */
+    .textcard-truncation {
+      font-size: 11px;
+      color: #666;
+      margin: 0 0 10px;
+    }
+
     .textcard-meta {
       display: flex;
       gap: 10px;
       font-size: 11px;
       color: #555;
+    }
+
+    /* Link out to where the card was announced. Pushed to the right of the
+       meta row so the date stays the leftmost thing on every card whether or
+       not an announcement exists. Purple to match the other actions, but at
+       meta size — it is a footnote, not a call to action. */
+    .textcard-post-link {
+      margin-left: auto;
+      color: #8b6fd4;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .textcard-post-link:hover {
+      color: #b9a3f0;
+      text-decoration: underline;
+    }
+
+    /* Top section nav + search. Sticky so it stays reachable on a long page
+       — the whole reason for it existing is getting back to a section (or
+       re-searching) without scrolling up. Links are plain #anchor jumps into
+       existing sections; html{scroll-behavior:smooth} above is what makes
+       them animate instead of jumping instantly. */
+    .section-nav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin: 0 0 16px;
+      padding: 10px 14px;
+      background: #101010;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+    }
+
+    .section-nav-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    /* Solid purple/white, matching .drop-mint-btn and .pagination-num.active
+       rather than the muted pill these started as — these are primary
+       navigation actions, so they read as buttons, not as secondary chrome. */
+    .section-nav-link {
+      padding: 6px 14px;
+      border-radius: 20px;
+      background: #512da8;
+      color: #fff;
+      font-size: 13px;
+      border: 1px solid #512da8;
+      transition: all 0.15s;
+    }
+
+    .section-nav-link:hover {
+      background: #6a3fcb;
+      border-color: #6a3fcb;
+      color: #fff;
+      text-decoration: none;
+    }
+
+    /* Current section. Same lighter purple as the mint button's hover, plus a
+       pale ring — the background alone can't distinguish it now that the
+       resting state is already purple. */
+    .section-nav-link.active {
+      background: #6a3fcb;
+      border-color: #b9a3f0;
+      color: #fff;
+    }
+
+    .section-search {
+      background: #232323;
+      color: #fff;
+      border: 1px solid #512da8;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 13px;
+      min-width: 200px;
+    }
+
+    .section-search:focus {
+      outline: 2px solid #6a3fcb;
+      outline-offset: 1px;
+    }
+
+    @media (max-width: 720px) {
+      .section-nav {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .section-search {
+        min-width: 0;
+      }
     }
   </style>
 </head>
@@ -559,6 +909,23 @@
 <div id="app">
 
   <h1>%COLLECTION_NAME%</h1>
+
+  <nav id="section-nav" class="section-nav">
+    <div class="section-nav-links">
+      <a href="#registry" class="section-nav-link">Collections</a>
+      <a href="#campaigns" class="section-nav-link">Campaigns</a>
+      <a href="#textcards" class="section-nav-link">Content</a>
+      <a href="#methodology" class="section-nav-link">Rankings</a>
+      <a href="#app" class="section-nav-link">&uarr; Top</a>
+    </div>
+    <input
+      type="search"
+      id="section-search"
+      class="section-search"
+      placeholder="Search this page…"
+      autocomplete="off"
+    />
+  </nav>
 
   <div id="wallet" class="panel">
     Wallet: Not connected
@@ -580,6 +947,8 @@
   <div id="campaigns"></div>
 
   <div id="textcards"></div>
+
+  <div id="methodology"></div>
 
 </div>
 

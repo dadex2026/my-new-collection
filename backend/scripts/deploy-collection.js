@@ -36,6 +36,7 @@
 const fs = require("fs");
 const path = require("path");
 const { parseCsvRecords, serializeRow } = require("./lib/csv");
+const { assertLanded, readBack } = require("./lib/landed");
 
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 require("dotenv").config({ path: path.join(__dirname, "..", ".env.admin") });
@@ -189,12 +190,9 @@ function validateTreasury(config) {
   }
 }
 
-function isPlaceholder(url) {
-  if (!url || url.trim() === "") return true;
-  if (url.includes("placehold.co")) return true;
-  if (url.includes("example.com")) return true;
-  return false;
-}
+// One definition for every script: lib/placeholder.js. Nine copies had drifted
+// apart before 2026-10-21 (open-items 52); do not define another here.
+const { isPlaceholder } = require("./lib/placeholder");
 
 // ---- Umi setup (dynamic import — these packages are ESM-only) -----------
 
@@ -312,7 +310,7 @@ async function main() {
   try {
     const umi = await getUmi(config.rpc);
     const { generateSigner, publicKey: umiPublicKey } = await import("@metaplex-foundation/umi");
-    const { createCollection } = await import("@metaplex-foundation/mpl-core");
+    const { createCollection, safeFetchCollectionV1 } = await import("@metaplex-foundation/mpl-core");
 
     const collectionSigner = generateSigner(umi);
 
@@ -344,16 +342,38 @@ async function main() {
       log({ status: "info", message: "sellerFeeBasisPoints is 0 — no Royalties plugin attached." });
     }
 
-    const { signature: txSig } = await createCollection(umi, {
+    const sent = await createCollection(umi, {
       collection: collectionSigner,
       name: firstRow.collectionName || collectionSlug,
       uri: firstRow.collectionImage || "",
       updateAuthority: umi.identity.publicKey,
       plugins,
     }).sendAndConfirm(umi);
+    assertLanded(sent);
 
-    signature = encodeBase58(Buffer.from(txSig));
+    signature = encodeBase58(Buffer.from(sent.signature));
     collectionAddress = collectionSigner.publicKey.toString();
+
+    // Read it back before the CSV says it exists (open-items 66).
+    const back = await readBack(() => safeFetchCollectionV1(umi, collectionSigner.publicKey, { commitment: "confirmed" }));
+    if (!back) {
+      log({
+        status: "failure",
+        reason: "landed_unverified",
+        collectionSlug,
+        network: config.network,
+        signature,
+        message: `Sent ${signature}, but collection ${collectionAddress} could not be read back. master.csv NOT changed. Read the chain before retrying; it may have landed.`,
+      });
+      appendDeploymentHistory({
+        collection: collectionSlug,
+        date: new Date().toISOString(),
+        network: config.network,
+        signature,
+        status: "unverified",
+      });
+      process.exit(3);
+    }
   } catch (err) {
     log({
       status: "failure",
@@ -402,7 +422,11 @@ async function main() {
   process.exit(0);
 }
 
-main().catch((err) => {
-  log({ status: "failure", reason: "unhandled_error", message: err.message });
-  process.exit(3);
-});
+// Only when run, never when required: a selftest or a tool importing this
+// file must not execute it (2026-10-21; checked by entrypoint-guard.selftest.js).
+if (require.main === module) {
+  main().catch((err) => {
+    log({ status: "failure", reason: "unhandled_error", message: err.message });
+    process.exit(3);
+  });
+}

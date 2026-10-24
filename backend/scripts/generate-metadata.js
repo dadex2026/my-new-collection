@@ -18,6 +18,11 @@
  * unfixable mistake. Run upload-images.js first. Use --allow-placeholder
  * only for local dry-run/testing purposes.
  *
+ * A DEPLOYED drop's file is frozen: a row with a candyMachineAddress is never
+ * rewritten (or created) unless --yes-rewrite-deployed, because its uri is
+ * fixed on chain and this file is the only local record of what holders own
+ * (open-items 59). --force does not override it.
+ *
  * Idempotent: a metadata file is only regenerated if its content would
  * actually change (compared by hash), unless --force is passed. This
  * keeps deterministic-file-naming meaningful — untouched drops don't
@@ -34,6 +39,7 @@
  *   node scripts/generate-metadata.js --strict            (fail if any image is still a placeholder)
  *   node scripts/generate-metadata.js --allow-placeholder  (generate anyway, for local testing only)
  *   node scripts/generate-metadata.js --slug founders
+ *   node scripts/generate-metadata.js --yes-rewrite-deployed  (also rewrite a DEPLOYED drop's file - changes nothing on chain)
  */
 
 "use strict";
@@ -105,13 +111,9 @@ function loadConfig() {
   return config;
 }
 
-function isPlaceholder(url) {
-  if (!url || url.trim() === "") return true;
-  if (url.includes("placehold.co")) return true;
-  if (url.includes("example.com")) return true;
-  if (url.includes("AbCdEf") || url.includes("ImageHash")) return true;
-  return false;
-}
+// One definition for every script: lib/placeholder.js. Nine copies had drifted
+// apart before 2026-10-21 (open-items 52); do not define another here.
+const { isPlaceholder } = require("./lib/placeholder");
 
 // ---- Attribute parsing ----------------------------------------------------
 // "Series:Genesis|Tier:Core|Element:Fire" -> [{trait_type, value}, ...]
@@ -134,8 +136,24 @@ function parseAttributes(raw) {
 
 function guessMimeFromUrl(url) {
   const ext = path.extname(new URL(url, "https://placeholder.invalid").pathname).toLowerCase();
-  const map = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp" };
+  const map = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml" };
   return map[ext] || "image/png";
+}
+
+// The type of the file upload-images.js actually sent, found the way it finds
+// it: the first of these that exists for the drop. An Irys URL carries no
+// extension, so guessing from the URL labelled every image image/png - a JPEG
+// and, since generate-images.js, every generated SVG card included.
+const LOCAL_IMAGE_TYPES = [
+  [".png", "image/png"], [".jpg", "image/jpeg"], [".jpeg", "image/jpeg"],
+  [".gif", "image/gif"], [".webp", "image/webp"], [".svg", "image/svg+xml"],
+];
+
+function localImageMime(dropItemId) {
+  for (const [ext, mime] of LOCAL_IMAGE_TYPES) {
+    if (fs.existsSync(path.join(BACKEND_DIR, "images", dropItemId + ext))) return mime;
+  }
+  return null;
 }
 
 // ---- Metadata builder -------------------------------------------------
@@ -156,7 +174,7 @@ function buildMetadata(row, config) {
       files: [
         {
           uri: row.itemImage,
-          type: guessMimeFromUrl(row.itemImage),
+          type: localImageMime(row.dropItemId) || guessMimeFromUrl(row.itemImage),
         },
       ],
       category: "image",
@@ -191,6 +209,7 @@ async function main() {
   const force = args.includes("--force");
   const strict = args.includes("--strict");
   const allowPlaceholder = args.includes("--allow-placeholder");
+  const rewriteDeployed = args.includes("--yes-rewrite-deployed");
   const slugFlagIndex = args.indexOf("--slug");
 
   const config = loadConfig();
@@ -215,7 +234,7 @@ async function main() {
 
   const manifest = fs.existsSync(MANIFEST_PATH) ? JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8")) : {};
 
-  const results = { generated: [], unchanged: [], skippedPlaceholder: [] };
+  const results = { generated: [], unchanged: [], skippedPlaceholder: [], frozen: [] };
 
   for (const row of matchingRows) {
     const dropItemId = row.dropItemId;
@@ -240,6 +259,24 @@ async function main() {
       continue;
     }
 
+    // A deployed drop's metadata is frozen. Its uri is fixed in the candy
+    // machine, so the file here is the only local copy of what holders own.
+    // Until 2026-10-21 this script regenerated it whenever master.csv moved,
+    // and the fork's TEST-002 and TEST-004 files stopped matching what was
+    // minted (open-items 59). Refused unless --yes-rewrite-deployed - a flag of
+    // its own, because --force is the routine "regenerate anyway" switch.
+    if ((row.candyMachineAddress || "").trim() && !rewriteDeployed) {
+      results.frozen.push(dropItemId);
+      log({
+        status: "warning",
+        dropItemId,
+        message: `Frozen - ${dropItemId} is deployed (candyMachineAddress set), so metadata/${dropItemId}.json was not ` +
+          `${fs.existsSync(filePath) ? "overwritten" : "created"}. master.csv now differs from what was minted; ` +
+          `that difference is permanent. --yes-rewrite-deployed overrides, and changes nothing on chain.`,
+      });
+      continue;
+    }
+
     fs.writeFileSync(filePath, JSON.stringify(metadata, null, 2), "utf8");
     manifest[dropItemId] = hash;
     results.generated.push(dropItemId);
@@ -254,6 +291,7 @@ async function main() {
     generated: results.generated.length,
     unchanged: results.unchanged.length,
     skippedPlaceholder: results.skippedPlaceholder.length,
+    frozenDeployed: results.frozen.length,
   };
 
   log({ status: "summary", ...summary });
@@ -278,7 +316,11 @@ async function main() {
   process.exit(0);
 }
 
-main().catch((err) => {
-  log({ status: "failure", reason: "unhandled_error", message: err.message });
-  process.exit(1);
-});
+// Only when run, never when required: a selftest or a tool importing this
+// file must not execute it (2026-10-21; checked by entrypoint-guard.selftest.js).
+if (require.main === module) {
+  main().catch((err) => {
+    log({ status: "failure", reason: "unhandled_error", message: err.message });
+    process.exit(1);
+  });
+}

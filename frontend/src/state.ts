@@ -1,4 +1,5 @@
 import { AppState, SIGNALS, SignalName } from "./types";
+
 export const state: AppState = {
   wallet: {
     connected: false,
@@ -11,11 +12,14 @@ export const state: AppState = {
   registry: [],
   campaigns: [],
   textCards: [],
+  methodology: null,
 };
+
 // ----------------------------
 // SIGNAL SYSTEM
 // ----------------------------
 type Listener = () => void;
+
 const listeners: Record<SignalName, Set<Listener>> = {
   wallet: new Set(),
   ui: new Set(),
@@ -24,14 +28,18 @@ const listeners: Record<SignalName, Set<Listener>> = {
   minting: new Set(),
   campaigns: new Set(),
   textCards: new Set(),
+  methodology: new Set(),
 };
+
 export function subscribe(signal: SignalName, fn: Listener) {
   listeners[signal].add(fn);
   return () => listeners[signal].delete(fn);
 }
+
 function notify(signal: SignalName) {
   listeners[signal].forEach((fn) => fn());
 }
+
 // ----------------------------
 // WALLET
 // ----------------------------
@@ -40,6 +48,7 @@ export function setWallet(address: string | null) {
   state.wallet.connected = !!address;
   notify(SIGNALS.WALLET);
 }
+
 // ----------------------------
 // UI STATUS
 // ----------------------------
@@ -47,6 +56,7 @@ export function setStatus(status: string) {
   state.ui.status = status;
   notify(SIGNALS.STATUS);
 }
+
 // ----------------------------
 // MINTING
 // ----------------------------
@@ -54,6 +64,7 @@ export function setMinting(v: boolean) {
   state.ui.minting = v;
   notify(SIGNALS.MINTING);
 }
+
 // ----------------------------
 // REGISTRY
 // ----------------------------
@@ -61,6 +72,7 @@ export function setRegistry(registry: AppState["registry"]) {
   state.registry = registry;
   notify(SIGNALS.REGISTRY);
 }
+
 // ----------------------------
 // CAMPAIGNS
 // ----------------------------
@@ -68,10 +80,19 @@ export function setCampaigns(campaigns: AppState["campaigns"]) {
   state.campaigns = campaigns;
   notify(SIGNALS.CAMPAIGNS);
 }
+
 // ----------------------------
 // TEXT CARDS
 // ----------------------------
 export function setTextCards(textCards: AppState["textCards"]) {
   state.textCards = textCards;
   notify(SIGNALS.TEXTCARDS);
+}
+
+// ----------------------------
+// METHODOLOGY
+// ----------------------------
+export function setMethodology(methodology: AppState["methodology"]) {
+  state.methodology = methodology;
+  notify(SIGNALS.METHODOLOGY);
 }

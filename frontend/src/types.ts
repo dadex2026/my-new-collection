@@ -6,8 +6,11 @@ export const SIGNALS = {
   MINTING: "minting",
   CAMPAIGNS: "campaigns",
   TEXTCARDS: "textCards",
+  METHODOLOGY: "methodology",
 } as const;
+
 export type SignalName = typeof SIGNALS[keyof typeof SIGNALS];
+
 // ----------------------------
 // REGISTRY TYPES
 // ----------------------------
@@ -15,6 +18,7 @@ export type RegistryAttribute = {
   trait_type: string;
   value: string;
 };
+
 export type RegistryDrop = {
   key: string;
   dropItemId: string;
@@ -30,7 +34,16 @@ export type RegistryDrop = {
   attributes: RegistryAttribute[];
   uri: string;
   collectionAddress: string;
+  // Empty for a drop with no candy machine of its own - a voucher, or an
+  // edition not deployed yet. The card decides what its button does on this.
+  candyMachineAddress?: string;
+  // Set only for drops whose candy machine carries a `holder` guard group.
+  // Presence is what says a voucher route exists; holderPrice of 0 or null
+  // means redeeming is free, matching a holder group with no solPayment.
+  holderRequiredCollection?: string;
+  holderPrice?: number | null;
 };
+
 export type RegistryCollection = {
   slug: string;
   name: string;
@@ -39,10 +52,12 @@ export type RegistryCollection = {
   externalUrl: string;
   address: string;
 };
+
 export type CollectionWithDrops = {
   collection: RegistryCollection;
   drops: RegistryDrop[];
 };
+
 // ----------------------------
 // CAMPAIGN TYPES
 // ----------------------------
@@ -58,6 +73,7 @@ export type Campaign = {
   claimText: string;
   soldOutText: string;
   eligibilityCollection: string;
+  targetDropItemId: string;
   targetCollection: string;
   targetImage: string;
   campaignCandyMachineAddress: string;
@@ -73,6 +89,7 @@ export type Campaign = {
   claimScope?: string;
   claimLimit?: number | null;
 };
+
 // ----------------------------
 // TEXT CARD TYPES
 // ----------------------------
@@ -122,9 +139,78 @@ export type TextCard = {
   featured: boolean;
   priority: number;
   author: string | null;
-  media: Record<string, unknown>;
+  // `{}` on a card with no image, and on every generated persistent card.
+  // Kept open beyond image/alt so a later media kind doesn't require a type
+  // change in lockstep with the generator.
+  media: { image?: string; alt?: string } & Record<string, unknown>;
   relationships: Record<string, unknown>;
 };
+
+// ----------------------------
+// METHODOLOGY
+// ----------------------------
+// Matches frontend/public/methodology.json, produced by
+// backend/scripts/generate-methodology.js. Authored prose lives in
+// backend/methodology/methodology.json; everything that could go stale —
+// which boards exist, which ruleset produced each, which exports they were
+// built from — is derived at generate time rather than written by hand.
+export type MethodologySection = {
+  id: string;
+  heading: string;
+  body: string[];
+};
+
+export type MethodologyBoard = {
+  boardId: string;
+  title: string;
+  track: string;
+  entityType: string;
+  seasonId: string;
+  throughRound: string | null;
+  rulesetVersion: string | null;
+  rankedCount: number;
+  omittedNoValue: number;
+  omittedReason: string | null;
+  movementShown: boolean;
+  movementSuppressedReason: string | null;
+};
+
+export type MethodologyChangelogEntry = {
+  id: string;
+  kind: string;
+  effectiveFrom: string | null;
+  note: string;
+};
+
+export type MethodologyUnranked = {
+  handle: string;
+  predictions: number;
+  countingPredictions: number;
+  reason: string;
+};
+
+export type Methodology = {
+  generatedAt: string;
+  title: string;
+  intro: string;
+  collection: {
+    title: string;
+    seasonId: string;
+    minPicks: number | null;
+    cardLimit: number | null;
+  };
+  sections: MethodologySection[];
+  boards: MethodologyBoard[];
+  unranked: MethodologyUnranked[];
+  changelog: MethodologyChangelogEntry[];
+  kinds: Record<string, string>;
+  sources: {
+    roundExports: string[];
+    evidenceExports: string[];
+    captureMethod: string;
+  };
+};
+
 // ----------------------------
 // UI STATE
 // ----------------------------
@@ -132,6 +218,7 @@ export type UIState = {
   status: string;
   minting: boolean;
 };
+
 // ----------------------------
 // WALLET
 // ----------------------------
@@ -139,6 +226,7 @@ export type WalletState = {
   connected: boolean;
   address: string | null;
 };
+
 // ----------------------------
 // APP STATE
 // ----------------------------
@@ -148,4 +236,5 @@ export type AppState = {
   registry: CollectionWithDrops[];
   campaigns: Campaign[];
   textCards: TextCard[];
+  methodology: Methodology | null;
 };

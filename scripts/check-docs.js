@@ -30,6 +30,16 @@
  *   Add one whenever you correct a factual claim in a doc. The cost is two
  *   lines; the alternative is the same correction being rediscovered.
  *
+ * CHANGING A COUNT - search first; this guard is the backstop, not the search
+ *   After changing any count the docs state (checks, rules, flags, files,
+ *   steps), grep the WHOLE tree for every spelling of the OLD value - the
+ *   word and the numeral ("seven", "7") - near the thing counted, and confirm
+ *   the hit list is empty before committing. Then update the rule here to
+ *   match every wrong number, not only the previous one (open-items 33).
+ *   On 2026-10-21 "--allow-warnings downgrades seven checks" survived three
+ *   count changes because each update fixed the instance its author had
+ *   found, and this guard's window was too short to reach the rest.
+ *
  * Exit codes:
  *   0 = no banned claim found
  *   1 = at least one doc asserts something the code contradicts
@@ -38,6 +48,18 @@
  * Usage:
  *   node scripts/check-docs.js
  *   node scripts/check-docs.js --list      # print the rules, check nothing
+ *   node scripts/check-docs.js --exempted  # every match the RETRACTION window
+ *                                          # suppressed, per rule; exits 0
+ *
+ * THE RETRACTION WINDOW IS A MEASURED HOLE (2026-10-22). A non-strict rule skips
+ * a match with a retraction word within two lines - and an open-items row is one
+ * line of up to ~3,000 characters, so "within two lines" can mean anywhere in
+ * the row. The first --exempted run found 16 exempted matches against 3
+ * reported: 13 genuine retractions, and 3 live false claims, one in the
+ * deployment guide. All 3 were fixed. Narrowing to the claim's own sentence was
+ * measured too: it would have caught 2 of the 3 and wrongly failed 4 genuine
+ * retractions, so it was not adopted. Re-run --exempted after adding a rule
+ * or a correction-heavy doc.
  */
 "use strict";
 
@@ -68,8 +90,9 @@ const EXTENSIONS = new Set([".md", ".js", ".ts"]);
 const ADVISORY_ONLY = [/^docs\/runs\//];
 
 // Each rule: a pattern that must not appear, why it is wrong, and where the
-// truth lives. `unless` exempts lines that are explicitly correcting the claim,
-// so a doc may quote a falsehood in order to retract it.
+// truth lives. A line within two of a RETRACTION word (below) is exempt, so a
+// doc may quote a falsehood in order to retract it - unless the rule is
+// `strict`, for a claim that was itself written as a correction.
 const RULES = [
   {
     id: "preflight-check-count",
@@ -83,29 +106,43 @@ const RULES = [
     // revision stopped at twenty-one, one short of the number it was written
     // to protect, so the next increment had nowhere to land. A count drifts in
     // both directions; the wrong numbers above the right one are wrong too.
-    pattern: /\b(ten|10|eleven|11|twelve|12|sixteen|16|seventeen|17|eighteen|18|nineteen|19|twenty|20|twenty-one|21|twenty-two|22|twenty-three|23|twenty-five|25|twenty-six|26|twenty-seven|27)\s+checks\b/i,
-    why: "preflight.js registers 24 checks in six groups. A clean run prints 21 of them, or 19 without campaigns.csv, where both campaign checks never run - three others are recorded only on failure.",
+    pattern: /\b(ten|10|eleven|11|twelve|12|sixteen|16|seventeen|17|eighteen|18|nineteen|19|twenty|20|twenty-one|21|twenty-three|23|twenty-four|24|twenty-five|25|twenty-six|26|twenty-seven|27)\s+checks\b/i,
+    why: "preflight.js registers 22 checks in six groups (24 until 2026-10-21, when no_placeholder_images and no_placeholder_uris moved to 7.4a's check-upload-columns.js). A clean run prints 19 of them, or 17 without campaigns.csv, where both campaign checks never run - three others are recorded only on failure.",
     truth: "backend/scripts/preflight.js — count the results.push({ name: ... }) calls",
   },
   {
-    id: "registry-url-no-fallback",
-    pattern: /VITE_REGISTRY_URL[^.\n]{0,80}\bno fallback\b/i,
-    why: "It has a fallback: config.ts reads VITE_REGISTRY_URL || \"/registry/registry.json\". The fallback points at a path the generator never writes, so it 404s.",
-    truth: "frontend/src/config.ts",
+    id: "registry-url-fallback",
+    // Replaced 2026-10-21 (open-items 49). Its predecessor, registry-url-no-
+    // fallback, banned the TRUE claim: it took its truth from config.ts:8,
+    // whose registryUrl was read only by registry/loader.ts, which nothing
+    // imported (both deleted 2026-10-21). The live fetch is adapter.ts, with no
+    // fallback - by decision, not oversight (open-items 49). This bans every
+    // shape the false fallback travelled in - the never-written path itself,
+    // "does have a fallback", "falls back", and "the fallback firing" - not
+    // just the sentence it replaces (the lesson of open-items 33).
+    pattern: /\/registry\/registry\.json|VITE_REGISTRY_URL(?:[^.\n]|\.(?=[A-Za-z])){0,80}\b(does have|has|have|with) a (built-in )?fallback\b|VITE_REGISTRY_URL`?(?:[^.\n]|\.(?=[A-Za-z])){0,30}\bfalls back\b|\b(built-in|VITE_REGISTRY_URL)`? fallback\b(?:[^.\n]|\.(?=[A-Za-z])){0,20}\bfir(es|ing)\b/i,
+    why: "VITE_REGISTRY_URL has no fallback. registry/adapter.ts:43 reads it bare and :82 fetches it; unset, the build compiles that to fetch(void 0), a request for /undefined. The /registry/registry.json fallback in config.ts:8 was dead code, and it and registry/loader.ts were deleted on 2026-10-21.",
+    truth: "frontend/src/registry/adapter.ts:43 and :82 (registry/loader.ts and CONFIG.registryUrl deleted 2026-10-21)",
   },
   {
     id: "undefined-symptom",
-    // Deliberately broad: any mention of the path at all. The claim travels in
-    // more shapes than the sentence it was first written in — a1 asserts it in
-    // prose, a1's findings table recommends adding it *to* a prompt, a7 puts it
-    // in a diagnostic table mapping it to a cause, and again in a verification
-    // checklist. A pattern matching only "literally named `/undefined`" found
-    // three of the ten and reported a number that made the drift look a third
-    // its real size, which is worse than not counting. The RETRACTION exemption
-    // is what keeps the guide's and open-items' own corrections quiet.
-    pattern: /\/undefined\b/i,
-    why: "A missing VITE_REGISTRY_URL 404s on /registry/registry.json. Nothing requests a literal /undefined.",
-    truth: "frontend/src/config.ts",
+    // Inverted 2026-10-21 (open-items 49). From 2026-08-28 this rule banned any
+    // mention of /undefined, on the strength of the same dead config.ts
+    // fallback, and so blocked the accurate symptom for eight weeks. It now
+    // bans the DENIAL of that symptom, in each shape the denial was written:
+    // "nothing requests a literal /undefined", "you will not find /undefined",
+    // "not a request for /undefined", "the /undefined symptom is wrong".
+    //
+    // strict exists because a denial can wear a correction's clothes. This one
+    // was itself phrased as a correction ("Both were wrong", "the symptom is
+    // wrong"), so the RETRACTION exemption waved through exactly the sentences
+    // the rule exists to catch; without strict, two of them slip (tested
+    // 2026-10-21). Mark any new rule strict when the claim it bans is one
+    // people write as a retraction.
+    strict: true,
+    pattern: /\b(nothing|never|no longer|does not|doesn't|will not|won't)\s+(\w+\s+){0,2}(requests?|fetch\w*|find|see|hit\w*)\s+(a\s+)?(literal\s+)?(URL\s+)?(literally\s+named\s+)?`?\/undefined|\/undefined`?(?:[^.\n]|\.(?=[A-Za-z])){0,40}\b(will not|won't|never|do not|don't)\s+(find|see|appear)|\bnot a request for (a )?(literal )?`?\/undefined|\/undefined`? symptom is wrong/i,
+    why: "A missing VITE_REGISTRY_URL DOES request a literal /undefined: registry/adapter.ts:43 has no fallback, and the build compiles the fetch to fetch(void 0).",
+    truth: "frontend/src/registry/adapter.ts:43 and :82 - build with no env file and read the bundle",
   },
   {
     id: "environment-never-warning",
@@ -119,7 +156,7 @@ const RULES = [
     // claim; the prompt library uses the spaced, upper-case form in its answer
     // sheets and the camel-case form in its prose. A rule that only knew one
     // spelling passed the other for months.
-    pattern: /collection[ _-]?name[^.\n]{0,80}(written on.?chain|on.?chain name|on.?chain by)[^.\n]{0,80}deployCoreAsset/i,
+    pattern: /collection[ _-]?name(?:[^.\n]|\.(?=[A-Za-z])){0,80}(written on.?chain|on.?chain name|on.?chain by)(?:[^.\n]|\.(?=[A-Za-z])){0,80}deployCoreAsset/i,
     why: "deployCoreAsset.ts is invoked by nothing. The on-chain name is master.csv's collectionName, first matching row.",
     truth: "backend/scripts/deploy-collection.js — name: firstRow.collectionName || collectionSlug",
   },
@@ -127,7 +164,7 @@ const RULES = [
     id: "template-name-fallback",
     // The fallback is written both as `templateName` and as the fully qualified
     // `templateVersion.templateName`. Both name the same dead code path.
-    pattern: /falls back to `?(templateVersion\.)?templateName`?[^.\n]{0,80}(mint|on.?chain|permanent)/i,
+    pattern: /falls back to `?(templateVersion\.)?templateName`?(?:[^.\n]|\.(?=[A-Za-z])){0,80}(mint|on.?chain|permanent)/i,
     why: "That fallback is in deployCoreAsset.ts, which nothing runs. deploy-collection.js falls back to collectionSlug.",
     truth: "backend/scripts/deploy-collection.js",
   },
@@ -136,24 +173,59 @@ const RULES = [
     // Added the same day the file was written, because writing it made eight
     // documents wrong at once and nothing would have said so. A guard earns its
     // place by catching the drift its own change creates.
-    pattern: /get-holders(\.js)?[^.\n]{0,60}(0 bytes|empty file|is empty|currently empty)/i,
+    pattern: /get-holders(\.js)?(?:[^.\n]|\.(?=[A-Za-z])){0,60}(0 bytes|empty file|is empty|currently empty)/i,
     why: "get-holders.js was written on 2026-09-02, 312 lines. It is no longer empty.",
     truth: "backend/scripts/get-holders.js",
   },
   {
+    id: "redemption-not-built",
+    // Added 2026-09-09 while replacing voucher-airdrop-runbook.md, whose
+    // "What is not built" section still said redemption did not exist a week
+    // after buildPlan landed. Three phrasings because the claim travels as a
+    // code quote, as prose, and as a statement about the frontend branch -
+    // a rule matching only the code quote passed the other two. The code
+    // quote is anchored on "hardcodes": a bare `groups: []` matched the real
+    // no-holder fallback in deploy-candy-machine.js and deploy-campaign.js,
+    // and update-candy-guard.js's true description of pre-groups drops.
+    pattern: /(hardcod\w*\s+`?groups:\s*\[\s*\]|redemption(?:[^.\n]|\.(?=[A-Za-z])){0,60}(is not|not yet|never) (built|wired|implemented)|holder branch(?:[^.\n]|\.(?=[A-Za-z])){0,40}(unreachable|never runs))/i,
+    why: "deploy-candy-machine.js calls buildPlan when --holder-collection is given, emitting public and holder groups; update-candy-guard.js migrates already-deployed drops with --burn-collection. Redemption is built.",
+    truth: "backend/scripts/deploy-candy-machine.js; backend/scripts/update-candy-guard.js - buildPlan",
+  },
+  {
     id: "allow-warnings-count",
     // Same widening, same reason: this watched for "six", so when the guide
-    // said "five" it passed. Everything but "nine" is wrong as of 2026-09-05:
-    // campaign_eligibility_capped and holder_collection_is_local both joined
-    // the set that day, which is why this number moved twice in one session.
+    // said "five" it passed. Everything but "seven" is wrong as of 2026-10-21,
+    // when no_placeholder_images and no_placeholder_uris left the set for the
+    // upload gate. (It was nine from 2026-09-05, when campaign_eligibility_capped
+    // and holder_collection_is_local joined - this number has moved four times.)
     //
     // The digit branch is a negative lookahead rather than a plain \d+, which
     // matched the CORRECT numeral and would have flagged "downgrades 8 checks"
     // as a contradiction. It never fired only because every doc spells the
     // count as a word. A rule that is right by luck is a rule that is wrong.
-    pattern: /--allow-warnings[^.\n]{0,60}\b(one|two|three|four|five|six|seven|eight|ten|eleven|twelve|(?!9\b)\d+)\b[^.\n]{0,30}checks/i,
-    why: "CONTENT_CHECK_NAMES holds nine entries as of 2026-09-05, and deployer_not_treasury is deliberately not one of them.",
+    //
+    // Widened again 2026-10-21: the window from the number to "checks" was 30
+    // characters, and the guide's flags table read "Downgrades the **seven**
+    // reserved-prefix and placeholder checks" - 35. A stale count sat in the
+    // table this rule exists to police, one row from a correct "nine".
+    // Widened to 100 the same day: "Downgrades the **nine** reserved-prefix,
+    // collection-placeholder, campaign and holder checks" is ~70 from the number
+    // to "checks". Size the window to the longest sentence, then test that
+    // sentence (count-rule-test, 2026-10-21).
+    pattern: /--allow-warnings(?:[^.\n]|\.(?=[A-Za-z])){0,60}\b(one|two|three|four|five|six|eight|nine|ten|eleven|twelve|(?!7\b)\d+)\b(?:[^.\n]|\.(?=[A-Za-z])){0,100}checks/i,
+    why: "CONTENT_CHECK_NAMES holds seven entries as of 2026-10-21 (nine until the two upload-column checks moved to 7.4a), and deployer_not_treasury is deliberately not one of them.",
     truth: "backend/scripts/preflight.js — CONTENT_CHECK_NAMES",
+  },
+  {
+    id: "stage0-decision-count",
+    // Added 2026-10-22, when the treasury became Stage 0's fifth decision. The
+    // worksheet (docs/new-collection-decisions.md) counted seven while the guide
+    // counted the old number, and neither said how the sets related. Every wrong
+    // number is matched, above five as well as below it; the worksheet's own
+    // total is phrased as "seven decisions", never "N permanent ...".
+    pattern: /\b(one|two|three|four|six|seven|eight|nine|ten|(?!5\b)\d+)\s+permanent\s+(things|decisions|choices)\b|\bStage\s+0'?s?\s+(one|two|three|four|six|seven|eight|nine|ten|(?!5\b)\d+)\b|\bSettle\s+all\s+(two|three|four|six|seven)\b/i,
+    why: "Stage 0 lists five permanent decisions as of 2026-10-22: collectionName, royalty, price, deployer key custody, treasury. The worksheet adds two (collection image, art) and marks which of its seven are Stage 0's.",
+    truth: "docs/new-collection-deployment-guide.md - count the ### headings under # Stage 0",
   },
 ];
 
@@ -174,6 +246,9 @@ const DELETED_FILES = [
   "scripts/audit-production.ps1",
   "frontend/src/styles.css",
   "project-files.txt",
+  // The dead VITE_REGISTRY_URL fallback's only reader. Deleted 2026-10-21 with
+  // CONFIG.registryUrl; it is what made two rules wrong for eight weeks.
+  "frontend/src/registry/loader.ts",
 ];
 
 // A line is exempt if it is visibly retracting the claim rather than making it.
@@ -279,6 +354,8 @@ function main() {
   const WINDOW = 3;
 
   const hits = [];
+  const exempted = [];
+  const exemptKeys = new Set();
   for (const file of files) {
     const rel = path.relative(ROOT, file).replace(/\\/g, "/");
     const advisory = ADVISORY_ONLY.some((re) => re.test(rel));
@@ -312,13 +389,57 @@ function main() {
           // correction note in my-new-collection that reads as a retraction to
           // any human. A doc may quote a falsehood in order to withdraw it, and
           // the withdrawal does not always share its line.
-          if (retractedNear(lines, i + k)) continue;
+          // A `strict` rule bans a claim that was itself written as a
+          // correction, so a retraction word nearby proves nothing.
+          if (!rule.strict && retractedNear(lines, i + k)) {
+            // Recorded, not reported: --exempted measures this hole (2026-10-22).
+            const at = i + k;
+            const key = `${rel}:${at}:${rule.id}`;
+            if (!exemptKeys.has(key)) {
+              exemptKeys.add(key);
+              const before = lines.slice(Math.max(0, at - 2), at).some((l) => RETRACTION.test(l));
+              const where = RETRACTION.test(lines[at]) ? "same line" : before ? "line above" : "line below only";
+              const word = (lines.slice(Math.max(0, at - 2), at + 3).join(" ").match(RETRACTION) || [""])[0];
+              // Distance from the claim to the nearest retraction word on its own
+              // line: a one-line table row can carry a "said" 1,000 characters away.
+              const pos = m.index - offsets[k];
+              const all = [...lines[at].matchAll(new RegExp(RETRACTION.source, "gi"))];
+              const dist = all.length ? Math.min(...all.map((r) => Math.abs(r.index - pos))) : null;
+              // Would a same-sentence window still exempt it? Sentence = the claim's
+              // line cut at ". " / "! " / "? " followed by a capital, a backtick,
+              // markup or a quote.
+              const sentences = lines[at].split(/(?<=[.!?])\s+(?=[*A-Z`(\[~"_])/);
+              let acc = 0, sentence = lines[at];
+              for (const s of sentences) { if (pos < acc + s.length + 1) { sentence = s; break; } acc += s.length + 1; }
+              const sameSentence = RETRACTION.test(sentence);
+              exempted.push({ rel, line: at + 1, rule, where, word, chars: lines[at].length, dist, claim: m[0], sameSentence, advisory });
+            }
+            continue;
+          }
 
           hits.push({ rel, line: i + k + 1, text, rule, advisory });
           firedThrough.set(rule.id, i + w - 1);
         }
       }
     }
+  }
+
+  // --exempted: every match the retraction window suppressed, so the size of
+  // that blind spot is a number, not a note. Informational; exits 0.
+  if (process.argv.includes("--exempted")) {
+    const o = (t) => process.stdout.write(t);
+    o(`\n— exempted by the retraction window: ${exempted.length} match(es); ${hits.length} reported —\n\n`);
+    for (const r of RULES) {
+      const e = exempted.filter((x) => x.rule.id === r.id);
+      const by = (w) => e.filter((x) => x.where === w).length;
+      o(`  ${r.id.padEnd(28)} exempted ${String(e.length).padStart(3)}  (same line ${by("same line")}, above ${by("line above")}, below only ${by("line below only")})${r.strict ? "  [strict]" : ""}\n`);
+    }
+    o("\n");
+    for (const x of exempted) {
+      o(`  ${x.rel}:${x.line}  [${x.rule.id}]  ${x.where}, "${x.word}"${x.dist === null ? "" : `, ${x.dist} chars from the claim`}, line ${x.chars} chars, ${x.sameSentence ? "same sentence" : "NOT same sentence"}${x.advisory ? ", advisory file" : ""}\n`);
+      o(`      claim: ${x.claim.slice(0, 110)}\n`);
+    }
+    process.exit(0);
   }
 
   const blocking = hits.filter((h) => !h.advisory);
