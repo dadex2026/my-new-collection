@@ -65,6 +65,7 @@
 const fs = require("fs");
 const path = require("path");
 const { parseCsvRecords, serializeRow } = require("./lib/csv");
+const { assertLanded, readBack } = require("./lib/landed");
 
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 require("dotenv").config({ path: path.join(__dirname, "..", ".env.admin") });
@@ -183,6 +184,12 @@ function appendAirdropHistory(record) {
   fs.appendFileSync(AIRDROP_HISTORY_PATH, line + "\n", "utf8");
 }
 
+function unverifiedAirdrops(dropItemId) {
+  if (!fs.existsSync(AIRDROP_HISTORY_PATH)) return [];
+  const { rows } = readCsv(AIRDROP_HISTORY_PATH);
+  return rows.filter((r) => r.dropItemId === dropItemId && r.status === "unverified");
+}
+
 function countSuccessfulAirdrops(dropItemId, wallet) {
   if (!fs.existsSync(AIRDROP_HISTORY_PATH)) return 0;
   const { rows } = readCsv(AIRDROP_HISTORY_PATH);
@@ -257,6 +264,22 @@ async function main() {
     );
   }
 
+  // ---- Refuse while any send for this drop is unresolved ----------------
+  // An "unverified" row is a send that may have landed: its asset could not be
+  // read back. Counting it as sent could leave a recipient without a card;
+  // counting it as failed could mint them a second one. Only a chain read can
+  // say which (open-items 66).
+  const unresolved = unverifiedAirdrops(dropItemId);
+  if (unresolved.length > 0) {
+    fail(
+      "unverified_sends",
+      `${unresolved.length} earlier send(s) for ${dropItemId} are unverified: ` +
+        unresolved.map((r) => `${r.wallet} (signature ${r.signature})`).join(", ") +
+        ". Check each on chain (the signature, or node scripts/get-holders.js), then set its status in airdrop-history.csv to success or failed and re-run.",
+      1
+    );
+  }
+
   // ---- Build the work list, skipping already-successful sends ------------
   const toSend = [];
   let alreadySent = 0;
@@ -322,12 +345,13 @@ async function main() {
 
   let sentCount = 0;
   let failedCount = 0;
+  let unverifiedCount = 0;
 
   for (const wallet of toSend) {
     try {
       const assetSigner = umiCore.generateSigner(umi);
 
-      const { signature: txSig } = await mplCore
+      const sent = await mplCore
         .create(umi, {
           asset: assetSigner,
           collection,
@@ -336,9 +360,35 @@ async function main() {
           owner: umiCore.publicKey(wallet),
         })
         .sendAndConfirm(umi);
+      assertLanded(sent);
 
-      const signature = encodeBase58(Buffer.from(txSig));
+      const signature = encodeBase58(Buffer.from(sent.signature));
       const assetAddress = assetSigner.publicKey.toString();
+
+      // Read the asset back, owned by the recipient, before recording success:
+      // a success row makes every later run skip this recipient (open-items 66).
+      const back = await readBack(() => mplCore.safeFetchAssetV1(umi, assetSigner.publicKey, { commitment: "confirmed" }));
+      if (!back || back.owner.toString() !== wallet) {
+        unverifiedCount++;
+        appendAirdropHistory({
+          date: new Date().toISOString(),
+          dropItemId,
+          wallet,
+          assetAddress,
+          signature,
+          status: "unverified",
+        });
+        log({
+          status: "warning",
+          dropItemId,
+          wallet,
+          assetAddress,
+          signature,
+          reason: "landed_unverified",
+          message: `Sent ${signature}, but asset ${assetAddress} could not be read back owned by ${wallet}. Recorded as unverified.`,
+        });
+        continue;
+      }
 
       appendAirdropHistory({
         date: new Date().toISOString(),
@@ -379,17 +429,20 @@ async function main() {
   }
 
   log({
-    status: failedCount === 0 ? "success" : "partial_failure",
+    status: failedCount === 0 && unverifiedCount === 0 ? "success" : "partial_failure",
     dropItemId,
     sent: sentCount,
     failed: failedCount,
+    unverified: unverifiedCount,
     message:
-      failedCount === 0
-        ? `All ${sentCount} airdrop(s) sent successfully.`
+      failedCount === 0 && unverifiedCount === 0
+        ? `All ${sentCount} airdrop(s) sent and read back.`
+        : unverifiedCount > 0
+        ? `${sentCount} read back, ${failedCount} failed, ${unverifiedCount} unverified. Resolve the unverified rows by a chain read before re-running; the next run refuses until then.`
         : `${sentCount} succeeded, ${failedCount} failed. Re-run the same command to retry only what's still outstanding.`,
   });
 
-  process.exit(failedCount === 0 ? 0 : 3);
+  process.exit(failedCount === 0 && unverifiedCount === 0 ? 0 : 3);
 }
 
 // Only when run, never when required: a selftest or a tool importing this

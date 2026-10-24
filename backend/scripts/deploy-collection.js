@@ -36,6 +36,7 @@
 const fs = require("fs");
 const path = require("path");
 const { parseCsvRecords, serializeRow } = require("./lib/csv");
+const { assertLanded, readBack } = require("./lib/landed");
 
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 require("dotenv").config({ path: path.join(__dirname, "..", ".env.admin") });
@@ -309,7 +310,7 @@ async function main() {
   try {
     const umi = await getUmi(config.rpc);
     const { generateSigner, publicKey: umiPublicKey } = await import("@metaplex-foundation/umi");
-    const { createCollection } = await import("@metaplex-foundation/mpl-core");
+    const { createCollection, safeFetchCollectionV1 } = await import("@metaplex-foundation/mpl-core");
 
     const collectionSigner = generateSigner(umi);
 
@@ -341,16 +342,38 @@ async function main() {
       log({ status: "info", message: "sellerFeeBasisPoints is 0 — no Royalties plugin attached." });
     }
 
-    const { signature: txSig } = await createCollection(umi, {
+    const sent = await createCollection(umi, {
       collection: collectionSigner,
       name: firstRow.collectionName || collectionSlug,
       uri: firstRow.collectionImage || "",
       updateAuthority: umi.identity.publicKey,
       plugins,
     }).sendAndConfirm(umi);
+    assertLanded(sent);
 
-    signature = encodeBase58(Buffer.from(txSig));
+    signature = encodeBase58(Buffer.from(sent.signature));
     collectionAddress = collectionSigner.publicKey.toString();
+
+    // Read it back before the CSV says it exists (open-items 66).
+    const back = await readBack(() => safeFetchCollectionV1(umi, collectionSigner.publicKey, { commitment: "confirmed" }));
+    if (!back) {
+      log({
+        status: "failure",
+        reason: "landed_unverified",
+        collectionSlug,
+        network: config.network,
+        signature,
+        message: `Sent ${signature}, but collection ${collectionAddress} could not be read back. master.csv NOT changed. Read the chain before retrying; it may have landed.`,
+      });
+      appendDeploymentHistory({
+        collection: collectionSlug,
+        date: new Date().toISOString(),
+        network: config.network,
+        signature,
+        status: "unverified",
+      });
+      process.exit(3);
+    }
   } catch (err) {
     log({
       status: "failure",

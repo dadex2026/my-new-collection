@@ -43,7 +43,7 @@
  */
 
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
-import { mplCore } from "@metaplex-foundation/mpl-core";
+import { mplCore, safeFetchAssetV1 } from "@metaplex-foundation/mpl-core";
 import { mplCandyMachine, mintV1, safeFetchCandyMachine } from "@metaplex-foundation/mpl-core-candy-machine";
 import { generateSigner, publicKey as umiPublicKey, some } from "@metaplex-foundation/umi";
 import { walletAdapterIdentity, WalletAdapter } from "@metaplex-foundation/umi-signer-wallet-adapters";
@@ -51,6 +51,7 @@ import { PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
 
 import { state, setStatus, setMinting } from "./state";
+import { describeMintError, describeLandedMintFailure, landedError } from "./mintErrors";
 
 const RPC_URL = import.meta.env.VITE_SOLANA_RPC_URL as string;
 
@@ -82,43 +83,8 @@ function clearPendingMint() {
 
 // ---- Friendly error mapping (replaces the old generic "Mint failed") ----
 
-function describeMintError(err: unknown): string {
-  const message = err instanceof Error ? err.message : String(err);
-  const lower = message.toLowerCase();
-
-  if (lower.includes("user rejected") || lower.includes("rejected the request")) {
-    return "Wallet rejected — you cancelled the transaction in your wallet.";
-  }
-  if (lower.includes("insufficient") || lower.includes("insufficient funds")) {
-    return "Insufficient SOL — your wallet doesn't have enough SOL to cover the price and network fee.";
-  }
-  // "has expired: block height exceeded" is the common shape of this on a busy
-  // mainnet, and it matched none of the substrings above until 2026-09-03 - so
-  // the one case where the advice not to retry blindly matters most fell
-  // through to the generic branch and printed the raw error instead. An
-  // expired blockhash means the client stopped waiting, NOT that the
-  // transaction failed; it may already have landed.
-  if (
-    lower.includes("blockhash not found") ||
-    lower.includes("block height exceeded") ||
-    lower.includes("has expired") ||
-    lower.includes("timed out") ||
-    lower.includes("timeout")
-  ) {
-    return "Network timeout — the transaction didn't confirm in time. It may still have gone through: check the signature in an explorer before retrying, or you may pay twice.";
-  }
-  if (lower.includes("failed to fetch") || lower.includes("network error") || lower.includes("503")) {
-    return "RPC unavailable — couldn't reach the Solana network. Try again in a moment.";
-  }
-  if (lower.includes("noeligiblegroup") || lower.includes("guard") || lower.includes("mintlimit")) {
-    return "Not eligible to mint right now — you may have reached the per-wallet mint limit, or minting hasn't started yet.";
-  }
-  if (lower.includes("insufficientitemsremaining") || lower.includes("sold out")) {
-    return "Collection sold out — no more editions remain for this drop.";
-  }
-
-  return `Mint failed — ${message}`;
-}
+// describeMintError lives in mintErrors.ts (2026-10-24), so it can be tested
+// against the errors a real validator raises.
 
 // ---- Build a Umi-compatible wallet adapter from window.solana (Phantom) -
 
@@ -177,6 +143,8 @@ export async function mint(dropId: string): Promise<void> {
   setStatus("Preparing transaction...");
   setPendingMint(dropId, walletAddress);
 
+  // Declared outside the try so the catch can say whether a voucher survived.
+  let holdsVoucher = false;
   try {
     const umi = createUmi(RPC_URL).use(mplCore()).use(mplCandyMachine());
     umi.use(walletAdapterIdentity(walletAdapter));
@@ -204,9 +172,9 @@ export async function mint(dropId: string): Promise<void> {
     // safe; the instruction fails to deserialize against that group.
     let group: string | undefined;
     const mintArgs: any = {};
-    // Hoisted out of the branch below so the supply check can tell a voucher
-    // holder from a buyer. They need opposite things said to them.
-    let holdsVoucher = false;
+    // holdsVoucher (declared above the try) lets the supply check, and the
+    // catch, tell a voucher holder from a buyer. They need opposite things
+    // said to them.
 
     if (drop.holderRequiredCollection) {
       setStatus("Checking holder eligibility...");
@@ -246,8 +214,9 @@ export async function mint(dropId: string): Promise<void> {
     // the two things a voucher holder needs to know: the voucher was not
     // spent, and there may be another edition with room.
     //
-    // Nothing was ever at risk - the burn and the mint are one instruction in
-    // one transaction, so a failure reverts both and the voucher survives. But
+    // The voucher was never at risk - the burn and the mint are one instruction
+    // in one transaction, so a failure reverts both and the voucher survives.
+    // (A failure that lands still spends the network fee: open-items 65.) But
     // "sold out" read against a reward you cannot spend does not say that, and
     // the person holding it has no way to tell.
     //
@@ -310,21 +279,44 @@ export async function mint(dropId: string): Promise<void> {
     });
 
     setStatus("Minting...");
-    const { signature } = await builder.sendAndConfirm(umi, {
+    const sent = await builder.sendAndConfirm(umi, {
       confirm: { commitment: "confirmed" },
     });
+    const signatureBase58 = bs58.encode(sent.signature);
+
+    // sendAndConfirm returns normally when the transaction landed and failed
+    // (open-items 66), so read the confirmation's error before saying anything.
+    if (landedError(sent)) {
+      clearPendingMint();
+      setMinting(false);
+      setStatus(describeLandedMintFailure(signatureBase58, holdsVoucher));
+      return;
+    }
 
     setStatus("Confirming...");
-
-    const signatureBase58 = bs58.encode(signature);
+    // Read the asset back. A confirmed transaction with no error made it, but a
+    // node can lag the write, so a miss here is "not visible yet", not a failure.
+    let visible = false;
+    for (let attempt = 1; attempt <= 4 && !visible; attempt++) {
+      if (attempt > 1) await new Promise((r) => setTimeout(r, 1500));
+      try {
+        visible = !!(await safeFetchAssetV1(umi, asset.publicKey, { commitment: "confirmed" }));
+      } catch {
+        // not visible yet
+      }
+    }
 
     clearPendingMint();
     setMinting(false);
-    setStatus(`Complete — mint confirmed. Signature: ${signatureBase58} | Asset: ${asset.publicKey.toString()}`);
+    setStatus(
+      visible
+        ? `Complete — mint confirmed. Signature: ${signatureBase58} | Asset: ${asset.publicKey.toString()}`
+        : `Mint confirmed (signature ${signatureBase58}), but the asset ${asset.publicKey.toString()} is not visible yet. Check your wallet in a minute.`
+    );
   } catch (err) {
     clearPendingMint();
     setMinting(false);
-    setStatus(describeMintError(err));
+    setStatus(describeMintError(err, holdsVoucher));
   }
 }
 

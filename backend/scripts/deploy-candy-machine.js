@@ -76,6 +76,7 @@
 const fs = require("fs");
 const path = require("path");
 const { parseCsvRecords, serializeRow } = require("./lib/csv");
+const { assertLanded, readBack } = require("./lib/landed");
 // The holder/public group shape is defined once, in update-candy-guard.js,
 // and imported here. Two copies of it - one for new machines, one for the
 // migration of deployed ones - is exactly the arrangement that lets a
@@ -362,12 +363,22 @@ async function deployDropCandyMachine({ umi, umiCore, mplCandyMachine }, row, co
       : { guards, groups: [] }),
   });
 
-  const { signature } = await builder.sendAndConfirm(umi);
+  const sent = assertLanded(await builder.sendAndConfirm(umi));
+  const signature = encodeBase58(Buffer.from(sent.signature));
+  const candyMachineAddress = candyMachineSigner.publicKey.toString();
 
-  return {
-    candyMachineAddress: candyMachineSigner.publicKey.toString(),
-    signature: encodeBase58(Buffer.from(signature)),
-  };
+  // Read it back before the CSV says it exists (open-items 66).
+  const back = await readBack(() => mplCandyMachine.safeFetchCandyMachine(umi, candyMachineSigner.publicKey, { commitment: "confirmed" }));
+  if (!back) {
+    const e = new Error(
+      `sent ${signature}, but candy machine ${candyMachineAddress} could not be read back; master.csv NOT changed. Read the chain before retrying; it may have landed.`
+    );
+    e.unverified = true;
+    e.signature = signature;
+    throw e;
+  }
+
+  return { candyMachineAddress, signature };
 }
 
 // ---- Main ---------------------------------------------------------------
@@ -616,13 +627,13 @@ async function main() {
         collection: `${collectionSlug}:${row.dropItemId}`,
         date: new Date().toISOString(),
         network: config.network,
-        signature: "N/A",
-        status: "failed",
+        signature: err.signature || "N/A",
+        status: err.unverified ? "unverified" : "failed",
       });
       log({
         status: "warning",
         dropItemId: row.dropItemId,
-        reason: "blockchain_error",
+        reason: err.unverified ? "landed_unverified" : "blockchain_error",
         message: `Deploy failed for ${row.dropItemId}: ${err.message}`,
       });
     }

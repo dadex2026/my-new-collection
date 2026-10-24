@@ -27,7 +27,7 @@
  */
 
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
-import { mplCore } from "@metaplex-foundation/mpl-core";
+import { mplCore, safeFetchAssetV1 } from "@metaplex-foundation/mpl-core";
 import {
   mplCandyMachine,
   mintV1,
@@ -41,6 +41,7 @@ import { PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
 
 import { state, setStatus, setMinting } from "./state";
+import { describeClaimError, describeLandedClaimFailure, landedError } from "./mintErrors";
 
 const RPC_URL = import.meta.env.VITE_SOLANA_RPC_URL as string;
 
@@ -58,32 +59,9 @@ function getPhantomWalletAdapter(): WalletAdapter {
   };
 }
 
-// ---- Friendly error mapping (same categories as mint.ts) -----------------
-
-function describeClaimError(err: unknown): string {
-  const message = err instanceof Error ? err.message : String(err);
-  const lower = message.toLowerCase();
-
-  if (lower.includes("user rejected") || lower.includes("rejected the request")) {
-    return "Wallet rejected — you cancelled the transaction in your wallet.";
-  }
-  if (lower.includes("insufficient")) {
-    return "Insufficient SOL — your wallet doesn't have enough SOL to cover the price and network fee.";
-  }
-  if (lower.includes("assetgate") || lower.includes("missing required")) {
-    return "Not eligible — you don't currently hold the required NFT for this campaign.";
-  }
-  if (lower.includes("insufficientitemsremaining") || lower.includes("sold out")) {
-    return "This campaign is sold out — all allocations have been claimed.";
-  }
-  if (lower.includes("blockhash not found") || lower.includes("timeout")) {
-    return "Network timeout — the transaction didn't confirm in time. Check your wallet/explorer before retrying.";
-  }
-  if (lower.includes("failed to fetch") || lower.includes("network error")) {
-    return "RPC unavailable — couldn't reach the Solana network. Try again in a moment.";
-  }
-  return `Claim failed — ${message}`;
-}
+// describeClaimError lives in mintErrors.ts (2026-10-24): testable on its own,
+// and UTF-8, where this file's dashes reached the page as a replacement
+// character.
 
 // ---- Has this wallet, or this edition, already claimed? ------------------
 //
@@ -383,11 +361,33 @@ export async function claimCampaign(campaignId: string): Promise<void> {
     });
 
     setStatus("Waiting for wallet approval...");
-    const { signature } = await builder.sendAndConfirm(umi, { confirm: { commitment: "confirmed" } });
+    const sent = await builder.sendAndConfirm(umi, { confirm: { commitment: "confirmed" } });
+    const signatureBase58 = bs58.encode(sent.signature);
 
-    const signatureBase58 = bs58.encode(signature);
+    // sendAndConfirm returns normally when the transaction landed and failed
+    // (open-items 66), so read the confirmation's error before saying anything.
+    if (landedError(sent)) {
+      setMinting(false);
+      setStatus(describeLandedClaimFailure(signatureBase58));
+      return;
+    }
+
+    // Read the asset back; a miss is "not visible yet", not a failure.
+    let visible = false;
+    for (let attempt = 1; attempt <= 4 && !visible; attempt++) {
+      if (attempt > 1) await new Promise((r) => setTimeout(r, 1500));
+      try {
+        visible = !!(await safeFetchAssetV1(umi, asset.publicKey, { commitment: "confirmed" }));
+      } catch {
+        // not visible yet
+      }
+    }
     setMinting(false);
-    setStatus(`Complete — claim confirmed. Signature: ${signatureBase58} | Asset: ${asset.publicKey.toString()}`);
+    setStatus(
+      visible
+        ? `Complete - claim confirmed. Signature: ${signatureBase58} | Asset: ${asset.publicKey.toString()}`
+        : `Claim confirmed (signature ${signatureBase58}), but the asset ${asset.publicKey.toString()} is not visible yet. Check your wallet in a minute.`
+    );
   } catch (err) {
     setMinting(false);
     setStatus(describeClaimError(err));
