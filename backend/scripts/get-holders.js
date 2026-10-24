@@ -104,10 +104,9 @@ function readMaster() {
   return records;
 }
 
-function isPlaceholder(url) {
-  if (!url) return true;
-  return PLACEHOLDER_HOSTS.some((h) => url.includes(h));
-}
+// One definition for every script: lib/placeholder.js. Nine copies had drifted
+// apart before 2026-10-21 (open-items 52); do not define another here.
+const { isPlaceholder } = require("./lib/placeholder");
 
 function flagValue(args, name) {
   const i = args.indexOf(name);
@@ -372,6 +371,10 @@ async function main() {
   });
 }
 
-main().catch((err) => {
-  fail("unexpected_error", err && err.stack ? err.stack : String(err), 3);
-});
+// Only when run, never when required: a selftest or a tool importing this
+// file must not execute it (2026-10-21; checked by entrypoint-guard.selftest.js).
+if (require.main === module) {
+  main().catch((err) => {
+    fail("unexpected_error", err && err.stack ? err.stack : String(err), 3);
+  });
+}

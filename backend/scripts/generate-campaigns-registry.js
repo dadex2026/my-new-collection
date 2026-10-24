@@ -123,6 +123,8 @@ async function main() {
 
   const campaigns = rows
     .filter((r) => isValidSolanaAddress(r.campaignCandyMachineAddress)) // only publish campaigns with a genuinely valid deployed address — not just a truthy/misaligned field
+    // A closed campaign is history, not an offer (close-campaign.js, open-items 57).
+    .filter((r) => (r.campaignStatus || "").trim().toLowerCase() !== "closed")
     .map((r) => {
       // Look up the target drop's own image from master.csv, keyed by
       // dropItemId — carries the reward's real image through to the
@@ -189,7 +191,11 @@ async function main() {
   process.exit(0);
 }
 
-main().catch((err) => {
-  log({ status: "failure", reason: "unhandled_error", message: err.message });
-  process.exit(1);
-});
+// Only when run, never when required: a selftest or a tool importing this
+// file must not execute it (2026-10-21; checked by entrypoint-guard.selftest.js).
+if (require.main === module) {
+  main().catch((err) => {
+    log({ status: "failure", reason: "unhandled_error", message: err.message });
+    process.exit(1);
+  });
+}

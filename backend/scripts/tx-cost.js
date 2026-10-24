@@ -209,6 +209,10 @@ payer net cost  ${r.netLamports.toLocaleString()} lamports  =  ${r.netSol.toFixe
   });
 }
 
-main().catch((err) => {
-  fail("unexpected_error", err && err.stack ? err.stack : String(err), 3);
-});
+// Only when run, never when required: a selftest or a tool importing this
+// file must not execute it (2026-10-21; checked by entrypoint-guard.selftest.js).
+if (require.main === module) {
+  main().catch((err) => {
+    fail("unexpected_error", err && err.stack ? err.stack : String(err), 3);
+  });
+}

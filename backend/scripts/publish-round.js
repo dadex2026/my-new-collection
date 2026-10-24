@@ -124,4 +124,8 @@ function main() {
   process.stderr.write("  Next: review the diff, commit, push — then compose-post.js contest-result.\n\n");
 }
 
-main();
+// Only when run, never when required: a selftest or a tool importing this
+// file must not execute it (2026-10-21; checked by entrypoint-guard.selftest.js).
+if (require.main === module) {
+  main();
+}

@@ -127,12 +127,9 @@ function loadConfig() {
   return config;
 }
 
-function isPlaceholderUri(uri) {
-  if (!uri || uri.trim() === "") return true;
-  if (uri.includes("placehold.co")) return true;
-  if (uri.includes("example.com")) return true;
-  return false;
-}
+// One definition for every script: lib/placeholder.js. Nine copies had drifted
+// apart before 2026-10-21 (open-items 52); do not define another here.
+const { isPlaceholder: isPlaceholderUri } = require("./lib/placeholder");
 
 function findMetadataFile(dropItemId) {
   const filePath = path.join(METADATA_DIR, `${dropItemId}.json`);
@@ -272,10 +269,11 @@ async function main() {
         message: `[dry-run] Would upload ${path.basename(item.filePath)} -> ${fakeUrl}`,
       });
     }
-    writeCsv(MASTER_CSV_PATH, header, rows);
+    // Nothing is written. Until 2026-10-21 this wrote the fake URIs into
+    // master.csv, and the real run would then skip every row (open-items 52).
     log({
       status: "success",
-      message: `[dry-run] Simulated ${toUpload.length} upload(s). master.csv updated with fake URIs — do not deploy real mints from this.`,
+      message: `[dry-run] Simulated ${toUpload.length} upload(s). master.csv was not changed.`,
     });
     process.exit(0);
   }
@@ -355,7 +353,11 @@ async function main() {
   process.exit(failedCount === 0 ? 0 : 2);
 }
 
-main().catch((err) => {
-  log({ status: "failure", reason: "unhandled_error", message: err.message });
-  process.exit(2);
-});
+// Only when run, never when required: a selftest or a tool importing this
+// file must not execute it (2026-10-21; checked by entrypoint-guard.selftest.js).
+if (require.main === module) {
+  main().catch((err) => {
+    log({ status: "failure", reason: "unhandled_error", message: err.message });
+    process.exit(2);
+  });
+}

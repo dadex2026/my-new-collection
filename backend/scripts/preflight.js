@@ -10,22 +10,18 @@
  * shipping alongside real collection data, a --force-able "already
  * deployed" guard, placeholder URLs reaching a deploy script).
  *
- * Checks performed (scoped to the active collection — config.json's
- * collectionSlug, or --slug):
- *   1. collectionSlug isn't a reserved/test prefix (e.g. "test-")
- *   2. No dropItemId uses a reserved/test prefix (e.g. "TEST-")
- *   3. No itemImage is still a placeholder URL
- *   4. No uri is still a placeholder/empty
- *   5. config.json's treasury is a plausible Solana address
- *   6. config.json's rpc is a well-formed URL
- *   7. backend/.env.admin exists locally
- *   8. .gitignore actually excludes .env.admin (so it can't leak)
- *   9. DEPLOYER_PRIVATE_KEY is present in the environment
- *  10. Every row for this collection isn't already deployed on the
- *      target network, unless --force is passed
+ * Checks performed: see Appendix A of docs/new-collection-deployment-guide.md,
+ * and the GROUPS table and results.push calls below - the code is the count.
+ * This header listed ten numbered checks until 2026-10-21, when preflight ran
+ * twenty-four; a second hand-kept list is how counts drift, so it is gone.
+ *
+ * NOT checked here: itemImage and uri. Stage 7 fills them after this gate
+ * runs, so they are checked at 7.4a by check-upload-columns.js (offline) and
+ * verify-uploads.js (networked) - open-items 60. Every verdict says so.
  *
  * Exit codes:
- *   0 = all checks passed, safe to deploy
+ *   0 = every preflight check passed - not "safe to deploy": the upload gate
+ *       (7.4a) still has to pass before 7.5
  *   1 = one or more checks failed — do not deploy
  *
  * Usage:
@@ -95,13 +91,9 @@ function readCsv(filePath) {
   return { header, rows: records };
 }
 
-function isPlaceholder(url) {
-  if (!url || url.trim() === "") return true;
-  if (url.includes("placehold.co")) return true;
-  if (url.includes("example.com")) return true;
-  if (url.includes("AbCdEf") || url.includes("ImageHash")) return true;
-  return false;
-}
+// One definition for every script: lib/placeholder.js. Nine copies had drifted
+// apart before 2026-10-21 (open-items 52); do not define another here.
+const { isPlaceholder } = require("./lib/placeholder");
 
 function hasReservedPrefix(value, prefixes) {
   return prefixes.some((prefix) => value.toLowerCase().startsWith(prefix.toLowerCase()));
@@ -291,27 +283,12 @@ function checkNoReservedCampaignIds(campaignRows, reservedPrefixes) {
   return { pass: true, detail: "No campaigns use a reserved test ID prefix" };
 }
 
-function checkNoPlaceholderImages(rows) {
-  const offenders = rows.filter((r) => isPlaceholder(r.itemImage)).map((r) => r.dropItemId);
-  if (offenders.length > 0) {
-    return {
-      pass: false,
-      detail: `${offenders.length} drop(s) still have a placeholder itemImage: ${offenders.join(", ")} — run upload-images.js`,
-    };
-  }
-  return { pass: true, detail: "All drops have a real itemImage" };
-}
-
-function checkNoPlaceholderUris(rows) {
-  const offenders = rows.filter((r) => isPlaceholder(r.uri)).map((r) => r.dropItemId);
-  if (offenders.length > 0) {
-    return {
-      pass: false,
-      detail: `${offenders.length} drop(s) still have a placeholder/missing uri: ${offenders.join(", ")} — run upload-metadata.js`,
-    };
-  }
-  return { pass: true, detail: "All drops have a real metadata uri" };
-}
+// no_placeholder_images and no_placeholder_uris lived here until 2026-10-21.
+// They check itemImage and uri, which Stage 7 fills (7.2, 7.4) - AFTER this
+// gate runs - so a correct new collection could never pass Stage 6 cleanly.
+// They moved to the upload gate, 7.4a: check-upload-columns.js (offline) and
+// verify-uploads.js (networked). Preflight says so in its verdict, so a green
+// run is not read as covering the images (open-items 60).
 
 // ---- Values that become permanent on chain -----------------------------
 // Everything below guards a value that deploy-collection.js or
@@ -483,6 +460,12 @@ function nameSome(list, cap) {
   return `${list.slice(0, cap).join(", ")}, and ${list.length - cap} more`;
 }
 
+// What a pass here did NOT check. "Capped" is read from master.csv, never from
+// the chain - preflight is offline by design - and on 2026-10-21 the fork's CSV
+// had disagreed with the chain for six weeks without anything noticing
+// (open-items 51). A green tick means only what was tested, so it says so.
+const CSV_ONLY = " (master.csv values; not verified against the chain - run reconcile.js)";
+
 function checkCampaignEligibilityCapped(campaignRows, allRows, reservedPrefixes) {
   const considered = [];
   const skipped = [];
@@ -552,13 +535,13 @@ function checkCampaignEligibilityCapped(campaignRows, allRows, reservedPrefixes)
         `COULD NOT VERIFY - ${unresolved.length} of ${considered.length} campaign(s) name an eligibility drop ` +
         `that is not in master.csv: ${nameSome(unresolved, 5)}. Farmability cannot be judged for these, and ` +
         `deploy-campaign.js will refuse them outright (it looks the drop up the same way), so they are broken ` +
-        `rows rather than merely unverified ones. ${capped.length} of ${considered.length} confirmed capped${note}`,
+        `rows rather than merely unverified ones. ${capped.length} of ${considered.length} confirmed capped${note}${CSV_ONLY}`,
     };
   }
 
   return {
     pass: true,
-    detail: `All ${capped.length} campaign(s) gate on a capped eligibility drop: ${capped.join(", ")}${note}`,
+    detail: `All ${capped.length} campaign(s) gate on a capped eligibility drop: ${capped.join(", ")}${note}${CSV_ONLY}`,
   };
 }
 
@@ -641,8 +624,6 @@ function checkNotAlreadyDeployed(rows, network, force) {
 const CONTENT_CHECK_NAMES = new Set([
   "no_reserved_slug",
   "no_reserved_drop_ids",
-  "no_placeholder_images",
-  "no_placeholder_uris",
   "no_reserved_campaign_ids",
   "campaign_eligibility_capped",
   "holder_collection_is_local",
@@ -668,7 +649,7 @@ const FAILURE_ONLY_CHECKS = new Set([
 const CATEGORIES = [
   { name: "Project Structure", checks: ["config_exists", "config_valid_json", "collection_slug_present", "collection_has_rows"] },
   { name: "Environment", checks: ["env_admin_exists", "env_admin_gitignored", "deployer_key_present", "treasury_valid", "rpc_valid", "deployer_not_treasury"] },
-  { name: "Content Validation", checks: ["no_reserved_slug", "no_reserved_drop_ids", "no_placeholder_images", "no_placeholder_uris"] },
+  { name: "Content Validation", checks: ["no_reserved_slug", "no_reserved_drop_ids"] },
   { name: "Permanent Values", checks: ["no_placeholder_collection_name", "no_placeholder_collection_image", "prices_parse", "item_names_fit_on_chain", "max_supply_parses", "not_a_mintable_voucher", "holder_collection_is_local"] },
   { name: "Campaign Validation", checks: ["no_reserved_campaign_ids", "campaign_eligibility_capped"] },
   { name: "Deployment State", checks: ["not_already_deployed"] },
@@ -752,8 +733,6 @@ function main() {
         });
       } else {
         results.push({ name: "no_reserved_drop_ids", ...checkNoReservedDropIds(matchingRows, reservedIdPrefixes) });
-        results.push({ name: "no_placeholder_images", ...checkNoPlaceholderImages(matchingRows) });
-        results.push({ name: "no_placeholder_uris", ...checkNoPlaceholderUris(matchingRows) });
         results.push({ name: "no_placeholder_collection_name", ...checkNoPlaceholderCollectionName(matchingRows) });
         results.push({ name: "no_placeholder_collection_image", ...checkNoPlaceholderCollectionImage(matchingRows) });
         results.push({ name: "prices_parse", ...checkPricesParse(matchingRows) });
@@ -850,6 +829,9 @@ function main() {
   }
 
   console.log("\nDeployment Readiness:");
+  // What a verdict here does NOT cover, said every time (open-items 60).
+  console.log("  (Not checked here: itemImage and uri. Stage 7 fills them; check-upload-columns.js");
+  console.log("   and verify-uploads.js check them at 7.4a, before anything is deployed.)");
   if (hardFailures.length > 0) {
     console.log(`  NOT READY — ${hardFailures.length} failure(s) must be resolved.\n`);
     log({
@@ -892,8 +874,12 @@ function main() {
   }
 
   console.log("  READY — all checks passed.\n");
-  log({ status: "success", message: "All preflight checks passed. Safe to deploy." });
+  log({ status: "success", message: "All preflight checks passed. Upload columns are checked at 7.4a, not here." });
   process.exit(0);
 }
 
-main();
+// Only when run, never when required: a selftest or a tool importing this
+// file must not execute it (2026-10-21; checked by entrypoint-guard.selftest.js).
+if (require.main === module) {
+  main();
+}

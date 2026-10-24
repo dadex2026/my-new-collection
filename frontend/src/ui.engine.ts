@@ -1,11 +1,113 @@
 import { state, subscribe } from "./state";
 import { clearNodes } from "./domDiff";
 import { batch } from "./batch";
-import { RegistryDrop, Campaign, TextCard } from "./types";
+import { RegistryDrop, Campaign, TextCard, Methodology } from "./types";
+import { CONFIG } from "./config";
+import { getCampaignClaimState, refreshCampaignClaimStatus } from "./campaign";
 
 let activeCollectionSlug = "all";
 let activeFilters: Record<string, string> = {};
 const FILTER_TRAITS = ["Category", "Market", "Tier", "Element", "Series"];
+
+// ----------------------------
+// TOP SEARCH BAR
+// ----------------------------
+// One shared query from the #section-search input in index.html, applied
+// independently to Drops, Campaigns and Text Cards — each section re-filters
+// through its own existing pipeline (see matchesSearch below) rather than a
+// separate merged results view. Not scoped to "whichever section is
+// currently scrolled into view" — the input lives in a sticky bar above all
+// three sections, so it naturally re-filters all of them at once.
+let searchQuery = "";
+
+// ----------------------------
+// VOUCHERS THE CONNECTED WALLET ACTUALLY HOLDS
+// ----------------------------
+// Which voucher collections this wallet holds a live asset from. Empty until a
+// wallet connects and the lookup returns, and never a reason to block a render.
+//
+// The useful signal is not "you have a voucher" in the abstract - it is WHICH
+// editions it spends on. Every drop already carries holderRequiredCollection,
+// so once this set is known the answer is a string comparison per card, and a
+// card can say "redeem with your voucher" instead of advertising a price its
+// reader is not going to pay.
+//
+// One DAS call per wallet, not per card: the request is by owner, and every
+// voucher collection referenced anywhere in the registry is answered out of the
+// same response.
+let heldVoucherCollections = new Set<string>();
+
+async function refreshVoucherHoldings(): Promise<void> {
+  const previous = heldVoucherCollections;
+  heldVoucherCollections = new Set<string>();
+
+  const wanted = new Set(
+    getAllDrops()
+      .map((d) => d.holderRequiredCollection)
+      .filter((c): c is string => Boolean(c))
+  );
+
+  if (!state.wallet.connected || !state.wallet.address || wanted.size === 0) {
+    if (previous.size > 0) renderDropPanel();
+    return;
+  }
+
+  const MAX_PAGES = 3;
+  const PAGE_LIMIT = 1000;
+
+  try {
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const response = await fetch(CONFIG.rpcUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: "voucher-holdings",
+          method: "getAssetsByOwner",
+          params: { ownerAddress: state.wallet.address, page, limit: PAGE_LIMIT },
+        }),
+      });
+      if (!response.ok) break;
+
+      const body = await response.json();
+      const items = body.result?.items || [];
+
+      for (const item of items) {
+        // A burned asset keeps its ownership record and is flagged only by
+        // this. Counting one would tell a holder an edition is free to them
+        // when their voucher is already spent - see open-items 38 and 39.
+        if (item.burnt) continue;
+        for (const g of item.grouping || []) {
+          if (g.group_key === "collection" && wanted.has(g.group_value)) {
+            heldVoucherCollections.add(g.group_value);
+          }
+        }
+      }
+
+      if (items.length < PAGE_LIMIT) break;
+    }
+  } catch {
+    // A failed lookup means "we do not know", not "you hold nothing". The cards
+    // fall back to advertising the offer, which is what they show everyone
+    // anyway, so a network blip understates and never overstates.
+    heldVoucherCollections = new Set<string>();
+  }
+
+  const changed =
+    previous.size !== heldVoucherCollections.size ||
+    [...heldVoucherCollections].some((c) => !previous.has(c));
+  if (changed) renderDropPanel();
+}
+
+// Shared substring matcher: does `query` appear in any of the given fields,
+// case-insensitively? Reused by all three sections so they can't drift into
+// subtly different matching rules — an empty query always matches, since
+// search here is opt-in, not a required filter.
+function matchesSearch(query: string, ...fields: Array<string | null | undefined>): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return fields.some((f) => (f ?? "").toLowerCase().includes(q));
+}
 
 // ----------------------------
 // PAGINATION (shared across Drops, Campaigns, Text Cards)
@@ -138,11 +240,13 @@ function renderStatus() {
 function renderMintButtons() {
   const btns = document.querySelectorAll<HTMLButtonElement>(".drop-mint-btn");
   btns.forEach((btn) => {
-    // A sold-out drop stays sold out. This used to reset every mint button's
-    // disabled state and label from wallet and minting state alone, which
-    // silently undid the sold-out button the card had just written: the card
-    // read "SOLD OUT" above a live button labelled Mint. Two writers, one
-    // property - the card is not the only thing that touches this element.
+    // A sold-out drop stays sold out. Until 2026-09-05 this reset every mint
+    // button's disabled state and label from wallet and minting state alone,
+    // which silently undid the sold-out button renderDropCard had just
+    // written: the card read "900 / 900 minted - SOLD OUT" above a live button
+    // labelled Mint. The card change shipped an hour before this was noticed,
+    // and it was noticed only by reading the OTHER code path that touches the
+    // same element. Two writers, one property.
     const soldOut = btn.dataset.soldOut === "1";
     btn.disabled = soldOut || !state.wallet.connected || state.ui.minting;
     btn.textContent = soldOut ? "Sold out" : state.ui.minting ? "Minting..." : "Mint";
@@ -202,19 +306,78 @@ function getActiveDrops(): RegistryDrop[] {
   return col?.drops ?? [];
 }
 
+// The voucher line is shown to EVERYONE, not only to wallets holding one: the
+// offer is the argument for claiming a voucher in the first place, so hiding it
+// from people who have not got one hides it from its audience. Until
+// 2026-09-03 the card showed only `price`, so an edition that was free to a
+// voucher holder advertised the full price and said otherwise in the status
+// line, after they had decided not to click.
 function buildDropCard(d: RegistryDrop): string {
-  // Sold out when the live count has reached the cap. Conservative on purpose:
-  // minted is null on a registry built without --fetch-minted and until
-  // refreshMintedCounts returns, so UNKNOWN IS NEVER SOLD OUT - a card that
-  // wrongly refuses to mint is worse than one the program rejects. An
-  // unlimited drop parses to 4,294,967,295 and is never reached.
+  const walletConnected = state.wallet.connected;
+
+  // A drop with no candy machine cannot be minted, and its card used to offer a
+  // Mint button that answered "this drop hasn't been deployed on-chain yet" -
+  // true, and useless. A voucher is the case that makes it obvious: it is
+  // deliberately never publicly mintable, because the only way to get one is to
+  // claim it through a gated campaign. So when a campaign rewards this exact
+  // drop, the card offers THAT claim, reusing the campaign's own handler and
+  // its own guards - live button, gating untouched.
+  //
+  // What this deliberately does NOT do is give the voucher its own candy
+  // machine. That would make a Mint button work and destroy the point: anyone
+  // could mint a voucher directly and redeem it for any edition. Worse, with
+  // both a campaign and a public machine there are two supply pools, and
+  // assetMintLimit does not span them, so one holder could take from each.
+  const claimCampaign = d.candyMachineAddress
+    ? undefined
+    : state.campaigns.find((c) => c.targetDropItemId === d.dropItemId);
+
+  // Holds a voucher that spends HERE - not merely a voucher.
+  const holdsVoucherForThis = Boolean(
+    d.holderRequiredCollection && heldVoucherCollections.has(d.holderRequiredCollection)
+  );
+
+  // On the voucher's own card. A claimed voucher is never minted again, so this
+  // card has nothing to offer its holder but the count of editions to go spend
+  // it on.
+  const redeemableHere =
+    d.collectionAddress && heldVoucherCollections.has(d.collectionAddress)
+      ? getAllDrops().filter((x) => x.holderRequiredCollection === d.collectionAddress).length
+      : 0;
+
+  // A card with no room left still rendered "900 / 900 minted" above a live
+  // Mint button until 2026-09-05. Fixing the count (main.ts now calls
+  // refreshMintedCounts) is only half of it: nothing acted on the number.
+  //
+  // Conservative on purpose. minted is null on a registry built without
+  // --fetch-minted, and stays null until the refresh returns, so UNKNOWN IS
+  // NEVER SOLD OUT - a card that wrongly refuses to mint is worse than one
+  // that lets the chain say no. An unlimited drop parses to 4,294,967,295 and
+  // is never reached.
   const soldOut =
     typeof d.minted === "number" &&
     typeof d.maxSupply === "number" &&
     d.maxSupply > 0 &&
     d.minted >= d.maxSupply;
 
-  const walletConnected = state.wallet.connected;
+  const actionButton = d.candyMachineAddress
+    ? `<button
+        class="drop-mint-btn"
+        data-action="mint"
+        data-drop-id="${d.key}"
+        data-sold-out="${soldOut ? "1" : "0"}"
+        ${!walletConnected || soldOut ? "disabled" : ""}>
+        ${soldOut ? "Sold out" : "Mint"}
+      </button>`
+    : claimCampaign
+    ? `<button
+        class="drop-mint-btn"
+        data-action="claim-campaign"
+        data-campaign-id="${claimCampaign.campaignId}"
+        ${!walletConnected ? "disabled" : ""}>
+        ${claimCampaign.claimText}
+      </button>`
+    : `<button class="drop-mint-btn" disabled>Not yet available</button>`;
   return `
     <div class="drop" id="drop-${d.key}">
       ${d.itemImage ? `<img src="${d.itemImage}" alt="${d.itemName}" />` : ""}
@@ -229,18 +392,24 @@ function buildDropCard(d: RegistryDrop): string {
         </div>
       ` : ""}
       <div class="drop-price">${d.price} SOL</div>
+      ${d.holderRequiredCollection ? `
+        <div class="drop-holder-price${holdsVoucherForThis ? " drop-voucher-held" : ""}">
+          ${holdsVoucherForThis
+            ? (!d.holderPrice ? "Redeem free with your voucher" : `Redeem for ${d.holderPrice} SOL with your voucher`)
+            : (!d.holderPrice ? "Free with a voucher" : `${d.holderPrice} SOL with a voucher`)}
+        </div>
+      ` : ""}
       <div class="drop-minted${soldOut ? " drop-sold-out" : ""}">
         ${d.minted ?? 0} / ${d.maxSupply ?? "Unlimited"} minted${soldOut ? " - SOLD OUT" : ""}
       </div>
+      ${soldOut && d.holderRequiredCollection
+        ? `<div class="drop-claim-note">Full. A voucher cannot be redeemed here - spend it on another edition.</div>`
+        : ""}
       ${d.status ? `<div class="drop-status">${d.status}</div>` : ""}
-      <button
-        class="drop-mint-btn"
-        data-action="mint"
-        data-drop-id="${d.key}"
-        data-sold-out="${soldOut ? "1" : "0"}"
-        ${!walletConnected || soldOut ? "disabled" : ""}>
-        ${soldOut ? "Sold out" : "Mint"}
-      </button>
+      ${redeemableHere > 0
+        ? `<div class="drop-claim-note drop-voucher-held">You hold one - redeemable on ${redeemableHere} edition${redeemableHere === 1 ? "" : "s"} below</div>`
+        : claimCampaign ? `<div class="drop-claim-note">${claimCampaign.eligibilityText}</div>` : ""}
+      ${actionButton}
     </div>
   `;
 }
@@ -250,7 +419,9 @@ function renderDropPanel() {
   if (!dropPanel) return;
 
   const allDrops = getActiveDrops();
-  const filteredDrops = allDrops.filter(dropMatchesFilters);
+  const filteredDrops = allDrops
+    .filter(dropMatchesFilters)
+    .filter((d) => matchesSearch(searchQuery, d.itemName, d.itemDescription));
 
   let dropGrid = document.getElementById("drop-grid");
   if (!dropGrid) {
@@ -268,7 +439,9 @@ function renderDropPanel() {
   }
 
   if (filteredDrops.length === 0) {
-    dropGrid.innerHTML = '<p class="empty">No drops match the selected filters.</p>';
+    dropGrid.innerHTML = searchQuery.trim()
+      ? `<p class="empty">No drops match "${esc(searchQuery)}".</p>`
+      : '<p class="empty">No drops match the selected filters.</p>';
     dropPagination.innerHTML = "";
     return;
   }
@@ -328,6 +501,14 @@ function renderSidebar(sidebarEl: HTMLElement) {
       </div>
     ` : ""}
 
+    ${state.methodology ? `
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-title">Rankings</div>
+      <div class="sidebar-item sidebar-item-methodology" data-action="scroll-to-methodology">
+        Methodology
+      </div>
+    ` : ""}
+
     ${activeGroups.length > 0 ? `
       <div class="sidebar-divider"></div>
       <div class="sidebar-title">Filters</div>
@@ -382,6 +563,13 @@ function renderSidebar(sidebarEl: HTMLElement) {
   if (textCardsItem) {
     textCardsItem.addEventListener("click", () => {
       document.getElementById("textcards")?.scrollIntoView({ behavior: "smooth" });
+    });
+  }
+
+  const methodologyItem = sidebarEl.querySelector(".sidebar-item-methodology");
+  if (methodologyItem) {
+    methodologyItem.addEventListener("click", () => {
+      document.getElementById("methodology")?.scrollIntoView({ behavior: "smooth" });
     });
   }
 
@@ -503,6 +691,16 @@ function buildCampaignCard(c: Campaign): string {
   const walletConnected = state.wallet.connected;
   const soldOut = c.claimed != null && c.claimed >= c.allocation;
 
+  // Read the on-chain claim counters rather than offering a button that will
+  // revert. Until 2026-09-03 a holder who had already claimed - or whose
+  // edition had claimed under a previous owner - saw an enabled Claim button
+  // and a wallet simulation failure they could not interpret.
+  //
+  // "unknown" deliberately behaves like "available": a failed counter lookup
+  // must never tell a genuine holder they are ineligible. The chain stays the
+  // authority; this only ever removes a click that was going to fail.
+  const claim = getCampaignClaimState(c.campaignId);
+
   return `
     <div class="campaign" id="campaign-${c.campaignId}">
       ${c.targetImage ? `<img src="${c.targetImage}" alt="${c.title}" />` : ""}
@@ -517,6 +715,11 @@ function buildCampaignCard(c: Campaign): string {
       </div>
       ${soldOut
         ? `<div class="campaign-sold-out">${c.soldOutText}</div>`
+        : walletConnected && claim.state === "spent"
+        ? `<div class="campaign-claimed">Already claimed with this edition</div>`
+        : walletConnected && claim.state === "ineligible"
+        ? `<button class="campaign-claim-btn" disabled>${c.claimText}</button>
+           <div class="campaign-note">You don't hold a qualifying edition</div>`
         : `<button
             class="campaign-claim-btn"
             data-action="claim-campaign"
@@ -527,6 +730,10 @@ function buildCampaignCard(c: Campaign): string {
       }
     </div>
   `;
+}
+
+function campaignMatchesSearch(c: Campaign): boolean {
+  return matchesSearch(searchQuery, c.title, c.headline, c.description);
 }
 
 function renderCampaigns() {
@@ -540,7 +747,17 @@ function renderCampaigns() {
     return;
   }
 
-  const { pageItems, totalPages, page } = paginate(campaigns, campaignsPage);
+  const filteredCampaigns = campaigns.filter(campaignMatchesSearch);
+
+  if (filteredCampaigns.length === 0) {
+    root.innerHTML = `
+      <div class="campaigns-title">Holder Campaigns</div>
+      <p class="empty">No campaigns match "${esc(searchQuery)}".</p>
+    `;
+    return;
+  }
+
+  const { pageItems, totalPages, page } = paginate(filteredCampaigns, campaignsPage);
   campaignsPage = page;
 
   root.innerHTML = `
@@ -580,6 +797,59 @@ function formatCardDate(iso: string): string {
 // Persistent cards carry structured content (an entries array, or a flat
 // key/value object) instead of prose. Rendered generically — by key, not
 // by category — so a new persistent category never needs a new render path.
+//
+// An entries array renders as a table whenever the rows agree on their keys,
+// which is the normal case for a ranked board: one header row instead of the
+// key repeated on every line, and columns that line up so a reader can scan
+// down a score. Rows that disagree on keys fall back to the labelled-field
+// list, since there is no honest header for a ragged set. Both paths stay
+// keyed on the data, not on the card's category.
+/* Entry values are participant-chosen text — an X handle is whatever its owner
+   typed. This renders into innerHTML on a page that also holds a wallet
+   connection and a mint button, so it is escaped rather than trusted. Column
+   keys are escaped for the same reason: they come from a board file, which
+   comes from an export, which comes from a Ledger the collection does not own. */
+function renderEntryValue(v: string | number): string {
+  return esc(v);
+}
+
+function renderEntriesTable(entries: Array<Record<string, string | number>>): string {
+  const columns = Object.keys(entries[0]);
+  const uniform = entries.every(
+    (e) => Object.keys(e).length === columns.length && columns.every((col) => col in e)
+  );
+
+  if (!uniform) {
+    // Ragged rows: no shared header exists, so label each field inline. The
+    // list is unordered here — numbering rows by position would invent a rank
+    // the data never supplied.
+    return `
+      <ul class="textcard-entries">
+        ${entries.map((entry) => `
+          <li class="textcard-entry">
+            ${Object.entries(entry).map(([k, v]) => `<span class="textcard-entry-field">${esc(k)}: ${renderEntryValue(v)}</span>`).join(" ")}
+          </li>
+        `).join("")}
+      </ul>
+    `;
+  }
+
+  return `
+    <div class="textcard-table-wrap">
+      <table class="textcard-table">
+        <thead>
+          <tr>${columns.map((col) => `<th>${esc(col)}</th>`).join("")}</tr>
+        </thead>
+        <tbody>
+          ${entries.map((entry) => `
+            <tr>${columns.map((col) => `<td>${renderEntryValue(entry[col])}</td>`).join("")}</tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
 function renderTextCardContent(c: TextCard): string {
   if (typeof c.content === "string") {
     return `<div class="textcard-body">${c.content}</div>`;
@@ -587,40 +857,79 @@ function renderTextCardContent(c: TextCard): string {
 
   const structured = c.content as { entries?: Array<Record<string, string | number>> };
   if (Array.isArray(structured.entries)) {
-    return `
-      <ol class="textcard-entries">
-        ${structured.entries.map((entry) => `
-          <li class="textcard-entry">
-            ${Object.entries(entry).map(([k, v]) => `<span class="textcard-entry-field">${k}: ${v}</span>`).join(" ")}
-          </li>
-        `).join("")}
-      </ol>
-    `;
+    if (structured.entries.length === 0) return "";
+    return renderEntriesTable(structured.entries);
   }
 
   return `
     <div class="textcard-stats">
       ${Object.entries(c.content as Record<string, string | number>).map(([k, v]) => `
-        <div class="textcard-stat"><span class="textcard-stat-label">${k}</span><span class="textcard-stat-value">${v}</span></div>
+        <div class="textcard-stat"><span class="textcard-stat-label">${esc(k)}</span><span class="textcard-stat-value">${esc(v)}</span></div>
       `).join("")}
     </div>
   `;
 }
 
+// A card that shows only part of a list has to say so. Silently truncating a
+// ranked board leaves a reader unable to tell the top ten from the whole field,
+// and on a board whose whole point is verifiability that costs more than the
+// space it saves. Counts come from the card's own relationships, so no card
+// shape changes and any producer that reports them gets the note for free.
+function renderTruncationNote(c: TextCard): string {
+  const rel = c.relationships as { entryCount?: unknown; shownCount?: unknown };
+  const total = typeof rel.entryCount === "number" ? rel.entryCount : null;
+  const shown = typeof rel.shownCount === "number" ? rel.shownCount : null;
+  if (total === null || shown === null || shown >= total) return "";
+  return `<div class="textcard-truncation">Showing top ${shown} of ${total}</div>`;
+}
+
+// Optional card image, above the headline so the card reads picture-then-text
+// like the drop and campaign cards already do. Both attributes are escaped:
+// the generator restricts the URL to http(s) and site-relative paths, but this
+// is an attribute built by string interpolation, so it gets escaped here too
+// rather than relying on the producer alone. A card with no image renders
+// exactly as before — `media` is `{}` on every generated persistent card.
+function renderTextCardImage(c: TextCard): string {
+  const image = typeof c.media?.image === "string" ? c.media.image : "";
+  if (!image) return "";
+  const alt = typeof c.media?.alt === "string" ? c.media.alt : "";
+  return `<img class="textcard-image" src="${esc(image)}" alt="${esc(alt)}" loading="lazy" />`;
+}
+
+// A persistent card carries a table — rank / name / score / movement, ten-plus
+// rows after tie extension — where a simple card carries a few lines of prose.
+// At a third of the grid width that table can only scroll sideways, so
+// persistent cards span the whole row instead. See .textcard-wide.
 function buildTextCard(c: TextCard): string {
   const showUpdated = c.updatedDate && c.updatedDate !== c.publishedDate;
+  const wide = c.persistent ? " textcard-wide" : "";
   return `
-    <div class="textcard" id="textcard-${c.textCardId}">
+    <div class="textcard${wide}" id="textcard-${c.textCardId}">
+      ${renderTextCardImage(c)}
       <div class="textcard-category">${c.category}${c.persistent ? " · Persistent" : ""}</div>
       <div class="textcard-headline">${c.headline}</div>
       ${c.subheadline ? `<div class="textcard-subheadline">${c.subheadline}</div>` : ""}
       ${renderTextCardContent(c)}
+      ${renderTruncationNote(c)}
       <div class="textcard-meta">
         <span class="textcard-date">${formatCardDate(c.publishedDate)}</span>
         ${showUpdated ? `<span class="textcard-updated">Updated ${formatCardDate(c.updatedDate)}</span>` : ""}
+        ${renderTextCardPostLink(c)}
       </div>
     </div>
   `;
+}
+
+// Link back to where this card was announced, if it was. Sits in the meta row
+// beside the date rather than in the body — it is provenance, not content.
+// Escaped here as well as validated in the generator, since this is an href
+// built by interpolation. Opens in a new tab with noopener: the destination is
+// another site, and nothing there should reach back into this page.
+function renderTextCardPostLink(c: TextCard): string {
+  const rel = c.relationships as { postUrl?: unknown };
+  const url = typeof rel?.postUrl === "string" ? rel.postUrl : "";
+  if (!url) return "";
+  return `<a class="textcard-post-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Discussion &rarr;</a>`;
 }
 
 // Visibility rule: status ACTIVE, publishedDate has passed, and (no
@@ -641,10 +950,19 @@ function textCardMatchesTab(c: TextCard): boolean {
   return c.category === activeTextCardTab;
 }
 
+// Only matches prose fields, not a persistent card's structured `entries`
+// (Handle/Points/Rank rows) — that's a different shape of data than the top
+// search bar targets. A later version could add that; not needed for v1.
+function textCardMatchesSearch(c: TextCard): boolean {
+  const body = typeof c.content === "string" ? c.content : undefined;
+  return matchesSearch(searchQuery, c.headline, c.subheadline ?? undefined, body);
+}
+
 function getVisibleTextCards(): TextCard[] {
   return state.textCards
     .filter(isTextCardVisible)
     .filter(textCardMatchesTab)
+    .filter(textCardMatchesSearch)
     .sort((a, b) => {
       if (a.featured !== b.featured) return a.featured ? -1 : 1;
       if (a.priority !== b.priority) return b.priority - a.priority;
@@ -677,7 +995,7 @@ function renderTextCards() {
       `).join("")}
     </div>
     ${visibleCards.length === 0
-      ? '<p class="empty">No posts in this category yet.</p>'
+      ? `<p class="empty">${searchQuery.trim() ? `No posts match "${esc(searchQuery)}".` : "No posts in this category yet."}</p>`
       : `<div class="textcards-grid">${pageItems.map(buildTextCard).join("")}</div>
          ${buildPaginationControls(page, totalPages)}`
     }
@@ -704,13 +1022,186 @@ function renderTextCards() {
   }
 }
 
+// ----------------------------
+// METHODOLOGY
+// ----------------------------
+// Renders into #methodology in index.html, below #textcards.
+// Source: frontend/public/methodology.json, produced by
+// backend/scripts/generate-methodology.js — authored prose merged with facts
+// derived from the boards themselves, so the page cannot describe rules that
+// are no longer the ones in force.
+//
+// Everything here is presentation only. No number is computed, formatted into
+// existence, or interpreted; if a fact is not in the document, it is not shown.
+function esc(s: unknown): string {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function renderMethodologySections(m: Methodology): string {
+  return m.sections.map((s) => `
+    <div class="method-section" id="method-${esc(s.id)}">
+      <div class="method-heading">${esc(s.heading)}</div>
+      ${s.body.map((p) => `<p class="method-body">${esc(p)}</p>`).join("")}
+    </div>
+  `).join("");
+}
+
+// The boards table states which ruleset produced each board and whether
+// movement is shown — and where it is not, why. A board silently missing its
+// arrows would otherwise look broken rather than deliberate.
+function renderMethodologyBoards(m: Methodology): string {
+  if (!m.boards.length) return "";
+  return `
+    <div class="method-section">
+      <div class="method-heading">Boards published</div>
+      <div class="textcard-table-wrap">
+        <table class="textcard-table">
+          <thead>
+            <tr><th>board</th><th>ranked</th><th>season</th><th>ruleset</th><th>movement</th></tr>
+          </thead>
+          <tbody>
+            ${m.boards.map((b) => `
+              <tr>
+                <td>${esc(b.title)}</td>
+                <td>${b.rankedCount}</td>
+                <td>${esc(b.seasonId)}</td>
+                <td>${esc(b.rulesetVersion || "—")}</td>
+                <td>${b.movementShown ? "shown" : "not shown"}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+      ${m.boards.filter((b) => b.omittedReason || b.movementSuppressedReason).map((b) => `
+        <p class="method-note">
+          <strong>${esc(b.title)}:</strong>
+          ${esc(b.omittedReason || "")} ${esc(b.movementSuppressedReason || "")}
+        </p>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderMethodologyUnranked(m: Methodology): string {
+  if (!m.unranked.length) return "";
+  return `
+    <div class="method-section">
+      <div class="method-heading">Participants not ranked</div>
+      <p class="method-body">
+        These participants posted predictions that are part of the record but do not reach a board.
+      </p>
+      <ul class="method-list">
+        ${m.unranked.map((u) => `
+          <li><strong>${esc(u.handle)}</strong> — ${esc(u.reason)}
+          (${u.predictions} prediction${u.predictions === 1 ? "" : "s"}, ${u.countingPredictions} counting)</li>
+        `).join("")}
+      </ul>
+    </div>
+  `;
+}
+
+function renderMethodologyChangelog(m: Methodology): string {
+  if (!m.changelog.length) return "";
+  return `
+    <div class="method-section">
+      <div class="method-heading">Rule changes</div>
+      <ul class="method-list">
+        ${m.changelog.map((c) => `
+          <li>
+            <span class="method-version">${esc(c.id)}</span>
+            <span class="method-kind method-kind-${esc(c.kind)}">${esc(c.kind)}</span>
+            ${c.effectiveFrom ? `<span class="method-date">from ${esc(c.effectiveFrom)}</span>` : ""}
+            <div class="method-note">${esc(c.note)}</div>
+          </li>
+        `).join("")}
+      </ul>
+    </div>
+  `;
+}
+
+function renderMethodologySources(m: Methodology): string {
+  const all = m.sources.roundExports.concat(m.sources.evidenceExports);
+  if (!all.length) return "";
+  return `
+    <div class="method-section">
+      <div class="method-heading">Where this data came from</div>
+      <p class="method-body">${esc(m.sources.captureMethod)}</p>
+      <ul class="method-list">
+        ${all.map((f) => `<li><span class="method-version">${esc(f)}</span></li>`).join("")}
+      </ul>
+      ${/* The page tells a reader to check a total against its breakdown. That
+            is only true if the breakdown is reachable — every board, every
+            entry and every prediction is published here in full, and without
+            this link it was served but discoverable from nowhere. */ ""}
+      <p class="method-body">
+        Every board is published in full, including the entries no card shows, at
+        <a class="method-link" href="/standings.json">/standings.json</a>.
+      </p>
+    </div>
+  `;
+}
+
+function renderMethodology() {
+  const root = document.getElementById("methodology");
+  if (!root) return;
+
+  const m = state.methodology;
+  if (!m) {
+    root.innerHTML = "";
+    return;
+  }
+
+  root.innerHTML = `
+    <div class="method-title">${esc(m.title)}</div>
+    <p class="method-intro">${esc(m.intro)}</p>
+    ${renderMethodologySections(m)}
+    ${renderMethodologyBoards(m)}
+    ${renderMethodologyUnranked(m)}
+    ${renderMethodologyChangelog(m)}
+    ${renderMethodologySources(m)}
+    <div class="method-generated">Generated ${esc(formatCardDate(m.generatedAt))}</div>
+  `;
+}
+
+// Debounced so fast typing doesn't re-render all three sections on every
+// keystroke. Attached once — #section-search is static markup in index.html,
+// never replaced by a render, so it doesn't need rebinding like the
+// pagination controls do.
+let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+function wireSearchInput() {
+  const input = document.getElementById("section-search") as HTMLInputElement | null;
+  if (!input) return;
+  input.addEventListener("input", () => {
+    const value = input.value;
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => {
+      searchQuery = value;
+      dropsPage = 1;
+      campaignsPage = 1;
+      textCardsPage = 1;
+      renderDropPanel();
+      renderCampaigns();
+      renderTextCards();
+    }, 150);
+  });
+}
+
 export function initUIEngine() {
+  wireSearchInput();
   subscribe("status", renderStatus);
   subscribe("minting", renderMintButtons);
   subscribe("wallet", renderMintButtons);
   subscribe("wallet", renderWallet);
   subscribe("wallet", () => renderDropPanel());
+  subscribe("wallet", () => { void refreshVoucherHoldings(); });
+  subscribe("registry", () => { void refreshVoucherHoldings(); });
   subscribe("wallet", () => renderCampaigns());
+  subscribe("wallet", () => { void refreshCampaignClaimStatus().then(() => renderCampaigns()); });
+  subscribe("campaigns", () => { void refreshCampaignClaimStatus().then(() => renderCampaigns()); });
   subscribe("registry", () => {
     batch(() => {
       renderRegistry();
@@ -723,6 +1214,14 @@ export function initUIEngine() {
     // bootstrap order) — without re-rendering the sidebar here too,
     // the Rewards entry would never appear on first page load, since
     // the sidebar was already drawn before any campaign data existed.
+    const sidebarEl = document.getElementById("sidebar");
+    if (sidebarEl) renderSidebar(sidebarEl);
+  });
+  subscribe("methodology", () => {
+    renderMethodology();
+    // Same bootstrap-order issue as campaigns and text cards: the methodology
+    // loads after the initial sidebar render, so without this its entry would
+    // never appear on first load.
     const sidebarEl = document.getElementById("sidebar");
     if (sidebarEl) renderSidebar(sidebarEl);
   });
